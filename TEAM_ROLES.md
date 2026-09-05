@@ -13,7 +13,7 @@ Below are 5 work areas that need attention before our next meeting. **Please gra
 | Work Area | Core Focus | Team Member | What I'm Delivering for Tue/Wed |
 | :--- | :--- | :--- | :--- |
 | **1. Repo & Tech Setup** | Folders, Docker, Tech choice | | *e.g., Setting up base folders, docker-compose, and proposing Node/Python backend.* |
-| **2. Database & Data Flow** | Data models, API endpoints | | *e.g., Drafting fields for User, Event, Ticket, and listing API endpoints.* |
+| **2. Database & Data Flow** | Data models, API endpoints | Daut | Draft fields for User, Event, Ticket, and probably list API endpoints |
 | **3. Web App Wireframes** | UI/UX sketches, React setup | | *e.g., Sketching Figma wireframes for Event Browsing & Seat Selection.* |
 | **4. Admin, PDF & Analytics** | PDF tickets, promo engine | | *e.g., Outlining layout for A4 PDF tickets and promo campaign data requirements.* |
 | **5. Mobile App & Support** | React Native, QR scanner | | *e.g., Setting up Expo project folder and sketching valid/invalid check-in screens.* |
