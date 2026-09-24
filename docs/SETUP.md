@@ -1,8 +1,10 @@
 # BiletFlow, Local Setup Guide
 
-This document has two jobs. First, it walks you through getting a working copy of the BiletFlow database and backend running on your own laptop. Second, it tells you honestly what already works, what is only partly built, and what has not been started at all, so you know exactly what you can safely build against right now.
+This document has two jobs. First, it walks you through getting a working copy of the BiletFlow database and backend running on your own laptop, from a completely empty starting point. Second, it tells you honestly what already works, what is only partly built, and what has not been started at all, so you know exactly what you can safely build against right now.
 
-Expect the setup itself to take about 15 to 20 minutes the first time you do it.
+Expect the setup itself to take about 20 to 25 minutes the first time you do it.
+
+**Important note before you start:** this repository contains two backend folders, `backend` and `backend-python`. `backend` is an old Node.js version from earlier in the project and is no longer used. `backend-python` is the real, current backend. Every instruction in this document refers to `backend-python`. Please ignore `backend` entirely.
 
 ---
 
@@ -12,15 +14,26 @@ The project has two moving pieces that live on your own computer:
 
 1. **A database.** Think of this as a big, permanent filing cabinet. It holds every user, event, ticket, and order. It runs inside something called Docker, which is a tool that lets a program run in its own isolated little box on your computer, so it does not interfere with anything else you have installed.
 
-2. **A backend.** This is a small program, written in Python using a tool called FastAPI, that sits between the filing cabinet and everything else (a website, a phone app) and answers questions like "give me the list of events" or "create a new ticket." You never touch the database directly. You always go through the backend.
+2. **A backend.** This is a program, written in Python using a tool called FastAPI, that sits between the filing cabinet and everything else (a website, a phone app) and answers questions like "give me the list of events" or "create a new ticket." You never touch the database directly. You always go through the backend.
 
-Everyone on the team runs their own copy of both of these on their own laptop. Nobody's laptop needs to stay on for anyone else to work. Each person's data is separate from everyone else's, which is fine for building and testing screens.
+Everyone on the team sets up and runs their own copy of both of these, on their own laptop. Nobody's laptop needs to stay on for anyone else to work, and nobody depends on anyone else's machine. Each person's data is separate from everyone else's, which is completely fine for building and testing screens.
 
 ---
 
-## Part 2: Setting it up
+## Part 2: Setting it up from scratch
 
-### Step 1: Install Docker Desktop
+### Step 1: Get the project files
+
+If you have not already done this, you need a copy of the repository on your own computer.
+
+```bash
+git clone https://github.com/daut-nurlanov/biletflow.git
+cd biletflow
+```
+
+Every command from here on assumes you are inside this `biletflow` folder, unless a step tells you to move into a specific subfolder like `backend-python`.
+
+### Step 2: Install Docker Desktop
 
 1. Download it from https://www.docker.com/products/docker-desktop/
 2. Install it, then open the actual application. Look for a small whale icon in your system tray or menu bar. It needs to be running in the background the whole time you work on this project.
@@ -30,7 +43,7 @@ Everyone on the team runs their own copy of both of these on their own laptop. N
    ```
    If you see a version number, you are good.
 
-### Step 2: Start the database
+### Step 3: Start the database
 
 ```bash
 docker run --name biletflow-db -e POSTGRES_PASSWORD=devpassword -e POSTGRES_DB=biletflow -p 5432:5432 -d postgres
@@ -48,9 +61,9 @@ Important: only run that `docker run` command once, ever, on your machine. After
 ```bash
 docker start biletflow-db
 ```
-`docker run` creates a brand new, empty database. `docker start` wakes up the one you already built.
+`docker run` creates a brand new, empty database. `docker start` wakes up the one you already built. Running `docker run` a second time with the same name will give you an error rather than a second database, that is expected and not a problem, it just means you already did this step.
 
-### Step 3: Load the actual structure and sample data
+### Step 4: Load the actual structure and sample data
 
 Connect to the database:
 ```bash
@@ -58,29 +71,37 @@ docker exec -it biletflow-db psql -U postgres -d biletflow
 ```
 Your terminal prompt should change to `biletflow=#`. That means you are now typing directly into the database.
 
-Open the file `docs/schema.sql` from this repository. Select all of its text, copy it, and paste it into your terminal, then press enter. This builds all 16 tables the project needs. You should see a stream of lines saying `CREATE TABLE`, with no lines saying `ERROR`.
+Open the file `docs/schema.sql` from this repository (the one you cloned in Step 1). Select all of its text, copy it, and paste it into your terminal, then press enter. This builds all 16 tables the project needs. You should see a stream of lines saying `CREATE TABLE`, with no lines saying `ERROR`.
 
 Then do the same thing with `docs/walkthrough_demo.sql`. This fills the empty tables with realistic sample data, an organizer, an event, some ticket types, a purchased ticket, and so on, so you have real data to look at immediately instead of an empty database.
 
 When you are done, type `\q` and press enter to leave.
 
-### Step 4: Set up and run the backend
+### Step 5: Confirm Python is installed
 
-The backend code lives in the `backend-python` folder of this repository.
+```bash
+python --version
+```
+
+You need Python 3.10 or newer. If this command fails, or shows a much older version, download Python from https://www.python.org/downloads/ and install it before continuing. On Windows, make sure the installer's "Add python.exe to PATH" checkbox is checked.
+
+### Step 6: Set up and run the backend
+
+The backend code lives in the `backend-python` folder of this repository (remember, not `backend`, see the note at the top of this document).
 
 ```bash
 cd backend-python
 pip install fastapi uvicorn psycopg2-binary bcrypt fpdf2
 ```
 
-That installs the five tools the backend code depends on. Then start it:
+That installs the tools the backend code depends on. Then start it:
 ```bash
 python -m uvicorn main:app --reload --port 8000
 ```
 
-You are looking for a line that says `Application startup complete`. Leave this terminal window open and running, it needs to stay alive while you work.
+You are looking for a line that says `Application startup complete`. Leave this terminal window open and running, it needs to stay alive while you work. Open a separate, new terminal window for anything else you need to do (like the browser tests below).
 
-### Step 5: Confirm everything actually works
+### Step 7: Confirm everything actually works
 
 Open a web browser and go to:
 ```
@@ -93,6 +114,8 @@ Also worth bookmarking, this next link is a page that lists every single thing t
 http://localhost:8000/docs
 ```
 
+If both of those work, your setup is complete.
+
 ---
 
 ## Part 3: What to actually do with this, based on your role
@@ -103,10 +126,10 @@ Once the steps above are done, here is what changes for you specifically.
 You can now write real code that calls `http://localhost:8000/api/events` and similar addresses, and get real, live data back, instead of typing out fake sample data by hand. Start with the simplest screens (the event list, the event detail page) since those just read data. Save anything requiring a full login system for a little later, see Part 4 below about that.
 
 **If you are building the mobile app (Attendee side and the Event Admin scanner):**
-Same idea, just from a phone or an emulator instead of a browser. One important difference, a phone cannot reach `localhost` the way your own laptop can, since `localhost` always means "this exact device." You will need Daut's laptop's actual network address instead (found using `ipconfig` on Windows, look for "IPv4 Address"), and both devices need to be on the same WiFi network for this to work during testing.
+Same idea, just from a phone or an emulator instead of a browser. One important difference: a phone cannot reach `localhost` the way your own laptop's browser can, since `localhost` always means "this exact device," and a phone is a different device from your laptop, even though your laptop is the one running everything. You will need **your own** laptop's network address instead (on Windows, run `ipconfig` and look for "IPv4 Address"), and your phone or emulator needs to be on the same WiFi network as your own laptop for this to work. This is not about depending on anyone else's laptop, everyone sets this up independently, on their own machine, exactly like the web team does.
 
 **If you are building the mobile app (Organizer side):**
-Same setup as above. Worth pairing with whoever is doing the Attendee/Scanner mobile screens early on, so you are both using the same shared visual style instead of building two mismatched halves of one app.
+Same setup as above. Worth pairing with whoever is doing the Attendee and Scanner mobile screens early on, so you are both using the same shared visual style instead of building two mismatched halves of one app.
 
 **If you are doing QA, testing, or the Admin portal:**
 You can start immediately by deliberately trying to break things, buying the last ticket of a type twice in a row, trying to book an already taken seat, sending incomplete data to an endpoint, and writing down what happens. This becomes the beginning of a real test suite. You can also start building actual Admin portal screens once the corresponding backend endpoints exist, see the list below for what is and is not ready yet.
@@ -115,7 +138,7 @@ You can start immediately by deliberately trying to break things, buying the las
 
 ## Part 4: What is actually finished, and what is not
 
-This is the honest, current state of the backend, so nobody wastes time assuming something exists that does not.
+This section is checked against `docs/DATA_MODELS_AND_APIS.md`, which has the full technical breakdown if you want more detail than what is here.
 
 ### Fully built and tested (safe to build against right now)
 
@@ -137,11 +160,11 @@ If you are building a screen that only needs the features above, the backend is 
 
 ### Database tables exist, but nothing can use them yet
 
-These exist as empty or lightly tested structures in the database, but there is no working code yet that lets an app actually create, read, or update this information through the backend:
+These exist as structures in the database, but there is no working code yet that lets an app actually create, read, or update this information through the backend:
 
 - Refunds
 - Support chat, both the cases and the messages inside them
-- Promotional codes and campaigns, including applying a discount during checkout
+- Promotional codes and campaigns, including applying a discount during checkout (checkout does not currently check for or apply promo codes at all)
 - Inviting someone as event staff
 - The automatic activity log, right now nothing writes to this on its own
 
@@ -151,11 +174,15 @@ If your screen needs any of the above, it is not ready yet. Please check with Da
 
 The entire Admin portal side of things has no backend yet: searching across users and events, suspending a user or event, reviewing paid sales activation requests, monitoring disputes, handling escalated support cases, changing platform settings, and exporting reports.
 
-This is expected at this stage of the project, not a sign anything went wrong. Please do not start building deeply against this section yet, it may take real shape differently than currently planned.
+Also, the `events` table is currently missing a few fields the original SRS describes: `description`, `category`, `venue_address`, `end_time`, and `visibility` (public, unlisted, or private). If your screen needs to show an event description, for example, that field does not exist in the database yet.
+
+This is expected at this stage of the project, not a sign anything went wrong. Please do not start building deeply against either of these yet, they may take real shape differently than currently planned.
 
 ---
 
 ## Reference data, for testing without creating your own records
+
+These are real IDs already sitting in your database once you have loaded `walkthrough_demo.sql` in Step 4.
 
 | What | ID |
 |---|---|
@@ -176,12 +203,15 @@ PostgreSQL is not running. Run `docker ps` to check. If `biletflow-db` is not li
 **A Docker command fails with something about a pipe or engine**
 Docker Desktop itself is not open. Launch the actual application, wait for the whale icon to stop moving, then try again.
 
+**`python` is not recognized as a command**
+Python is not installed, or was installed without being added to your system's PATH. Reinstall from https://www.python.org/downloads/ and make sure the PATH checkbox is checked during installation.
+
 **Old test data is getting in your way**
 Your local database is yours alone, so it is completely safe to wipe it and start over:
 ```sql
 DROP TABLE IF EXISTS audit_log, promo_redemptions, promo_campaigns, support_messages, support_cases, staff_assignments, checkin_records, refunds, tickets, orders, seat_holds, seats, ticket_types, events, organizer_profiles, users CASCADE;
 ```
-Then repeat Step 3 above, loading `schema.sql` and `walkthrough_demo.sql` again.
+Then repeat Step 4 above, loading `schema.sql` and `walkthrough_demo.sql` again.
 
 **Everyday startup, once the setup above is already done once**
 In this order:
