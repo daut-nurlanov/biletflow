@@ -2,14 +2,17 @@ import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { DefaultTheme, NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 
+import { EventDashboardScreen } from "../screens/EventDashboardScreen";
 import { EventDetailsScreen } from "../screens/EventDetailsScreen";
 import { EventsScreen } from "../screens/EventsScreen";
 import { MyTicketsScreen } from "../screens/MyTicketsScreen";
+import { OrganizerEventsScreen } from "../screens/OrganizerEventsScreen";
 import { theme } from "../theme";
-import type { EventsStackParamList, RootTabParamList } from "./types";
+import type { EventsStackParamList, OrganizerStackParamList, RootTabParamList } from "./types";
 
 const Tabs = createBottomTabNavigator<RootTabParamList>();
 const EventsStack = createNativeStackNavigator<EventsStackParamList>();
+const OrganizerStack = createNativeStackNavigator<OrganizerStackParamList>();
 
 const navigationTheme = {
   ...DefaultTheme,
@@ -36,6 +39,24 @@ function EventsNavigator() {
   );
 }
 
+// Every user sees this tab for now. TODO: show it only to organizers once login exists.
+function OrganizerNavigator() {
+  return (
+    <OrganizerStack.Navigator screenOptions={{ headerTintColor: theme.colors.primary }}>
+      <OrganizerStack.Screen
+        name="OrganizerEvents"
+        component={OrganizerEventsScreen}
+        options={{ title: "My events" }}
+      />
+      <OrganizerStack.Screen
+        name="EventDashboard"
+        component={EventDashboardScreen}
+        options={{ title: "Event dashboard" }}
+      />
+    </OrganizerStack.Navigator>
+  );
+}
+
 export function RootNavigator() {
   return (
     <NavigationContainer theme={navigationTheme}>
@@ -56,6 +77,11 @@ export function RootNavigator() {
           options={{ title: "Events", headerShown: false }}
         />
         <Tabs.Screen name="MyTickets" component={MyTicketsScreen} options={{ title: "My Tickets" }} />
+        <Tabs.Screen
+          name="OrganizerTab"
+          component={OrganizerNavigator}
+          options={{ title: "Organizer", headerShown: false }}
+        />
       </Tabs.Navigator>
     </NavigationContainer>
   );
