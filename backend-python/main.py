@@ -165,6 +165,13 @@ def checkout(payload: CheckoutRequest):
             raise HTTPException(status_code=409, detail="Sold out")
         if payload.seat_id:
             cur.execute(
+                "SELECT id FROM seats WHERE id = %s AND event_id = %s FOR UPDATE",
+                (payload.seat_id, payload.event_id),
+            )
+            if not cur.fetchone():
+                conn.rollback()
+                raise HTTPException(status_code=404, detail="Seat not found for this event")
+            cur.execute(
                 """SELECT id FROM tickets WHERE seat_id = %s AND status IN ('valid','checked_in') FOR UPDATE""",
                 (payload.seat_id,))
             if cur.fetchone():
