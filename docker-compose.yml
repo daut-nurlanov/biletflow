@@ -1,0 +1,41 @@
+# One command to run BiletFlow's database and API:
+#   docker compose up -d --build
+# To wipe everything and reload the demo data (use before every rehearsal):
+#   docker compose down -v
+#   docker compose up -d --build
+# See docs/SETUP.md for the full explanation.
+
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_PASSWORD: devpassword
+      POSTGRES_DB: biletflow
+    ports:
+      - "5432:5432"
+    volumes:
+      - biletflow-data:/var/lib/postgresql/data
+      # Files in this special folder run once, in alphabetical order,
+      # the first time the database is created.
+      - ./docs/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./docs/walkthrough_demo.sql:/docker-entrypoint-initdb.d/02-walkthrough.sql:ro
+      - ./docs/demo_events.sql:/docker-entrypoint-initdb.d/03-demo-events.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d biletflow"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  backend:
+    build: ./backend-python
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_HOST: db
+      DB_PASSWORD: devpassword
+    ports:
+      - "8000:8000"
+
+volumes:
+  biletflow-data:

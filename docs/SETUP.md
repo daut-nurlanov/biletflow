@@ -4,7 +4,7 @@ This document has two jobs. First, it walks you through getting a working copy o
 
 Expect the setup itself to take about 20 to 25 minutes the first time you do it.
 
-**Important note before you start:** this repository contains two backend folders, `backend` and `backend-python`. `backend` is an old Node.js version from earlier in the project and is no longer used. `backend-python` is the real, current backend. Every instruction in this document refers to `backend-python`. Please ignore `backend` entirely.
+**Note:** the backend lives in the `backend-python` folder. (An old Node.js `backend` folder used to exist; it has been deleted.)
 
 ---
 
@@ -21,6 +21,30 @@ Everyone on the team sets up and runs their own copy of both of these, on their 
 ---
 
 ## Part 2: Setting it up from scratch
+
+There are two ways to do this. **Option A is much shorter and is what we recommend.** Option B is the same thing done by hand, step by step, in case Option A gives you trouble.
+
+### Option A: one command with Docker Compose (recommended)
+
+1. Do **Step 1** (get the project files) and **Step 2** (install Docker Desktop) from Option B below.
+2. If you set up the database by hand earlier, remove that old container first so it does not clash on port 5432:
+   ```bash
+   docker rm -f biletflow-db
+   ```
+3. From the `biletflow` folder, run:
+   ```bash
+   docker compose up -d --build
+   ```
+   The first time takes a few minutes while Docker downloads things. It starts the database, loads the tables and all the demo data automatically, and starts the backend too.
+4. Open http://localhost:8000/docs . If you see the list of endpoints, you are done. You do **not** need Python installed for this option. Skip to Part 3.
+
+Everyday use: open Docker Desktop, then `docker compose up -d`. To stop: `docker compose down`.
+
+**To wipe everything and start from fresh demo data** (do this before every rehearsal): run `reset-demo.bat` on Windows or `./reset-demo.sh` on Mac/Linux. It deletes the database and rebuilds it. Note: this deletes anything you created while testing.
+
+*Heads up: the Compose setup was added late and the backend container could not be tested by the person who wrote it. If `docker compose up` fails, tell Daut what it printed and use Option B in the meantime.*
+
+### Option B: step by step by hand
 
 ### Step 1: Get the project files
 
@@ -75,6 +99,10 @@ Open the file `docs/schema.sql` from this repository (the one you cloned in Step
 
 Then do the same thing with `docs/walkthrough_demo.sql`. This fills the empty tables with realistic sample data, an organizer, an event, some ticket types, a purchased ticket, and so on, so you have real data to look at immediately instead of an empty database.
 
+Finally, do the same with `docs/demo_events.sql`. This adds two events in the future that you can actually buy tickets for (a meetup with free and paid tickets, and a rock night with assigned seats), plus two promo codes. The first event is dated in the past, so without this file there is nothing to buy in a demo.
+
+**If you set up your database before Oct 28:** you do not need to wipe it. Just paste `docs/schema.sql` again. Its last section adds the new event columns to your existing table. Lines saying `NOTICE ... already exists, skipping` are normal and harmless. Then paste `docs/demo_events.sql`.
+
 When you are done, type `\q` and press enter to leave.
 
 ### Step 5: Confirm Python is installed
@@ -91,7 +119,7 @@ The backend code lives in the `backend-python` folder of this repository (rememb
 
 ```bash
 cd backend-python
-pip install fastapi uvicorn psycopg2-binary bcrypt fpdf2
+pip install -r requirements.txt
 ```
 
 That installs the tools the backend code depends on. Then start it:
@@ -138,45 +166,48 @@ You can start immediately by deliberately trying to break things, buying the las
 
 ## Part 4: What is actually finished, and what is not
 
-This section is checked against `docs/DATA_MODELS_AND_APIS.md`, which has the full technical breakdown if you want more detail than what is here.
+This section is checked against `docs/DATA_MODELS_AND_APIS.md`, which has the full technical breakdown if you want more detail than what is here. The backend currently has 20 endpoints and 24 automated tests.
 
 ### Fully built and tested (safe to build against right now)
 
 - Creating an account and logging in
-- Viewing the list of events, and one event's full detail
-- Creating a new event
-- Updating an event's details
+- Viewing the list of events (all of them, or only the public on-sale ones with `?public=true`), and one event's full detail
+- Creating a new event, with description, category, address, end time and visibility
+- Updating an event's details, including publishing it (status `upcoming`)
+- Creating ticket types for an event, and listing them
+- Creating a block of seats for an event
 - Turning on paid ticket sales for an event
 - Viewing the seat map for an event
-- Temporarily holding a seat before buying it
-- Completing a full ticket purchase, including correctly blocking a sold out ticket type or an already taken seat
+- Temporarily holding a seat for 5 minutes (expired holds free themselves)
+- Completing a purchase: one or several tickets, with or without a seat, with or without a promo code. It correctly refuses sold-out tickets, taken seats, seats held by someone else, events that are not on sale, paid tickets before paid sales are on, ticket types outside their sale window, and bad or used-up promo codes
 - Viewing a single ticket, or all of one person's tickets
-- Downloading a ticket as an actual PDF file
+- Downloading a ticket as a PDF (the check-in code is printed as text, not as a QR picture; the app should draw the QR itself)
 - Downloading an event as a calendar file
-- Scanning a ticket's QR code to check someone in at the door, including correctly detecting an already used or invalid ticket
-- Manually searching for an attendee by name, for when a QR code will not scan
+- Scanning a ticket's code to check someone in, including detecting already used or invalid tickets
+- Manually searching for an attendee by name, for when a code will not scan
 
-If you are building a screen that only needs the features above, the backend is ready for you today.
+If your screen only needs the features above, the backend is ready today.
 
 ### Database tables exist, but nothing can use them yet
 
-These exist as structures in the database, but there is no working code yet that lets an app actually create, read, or update this information through the backend:
-
 - Refunds
 - Support chat, both the cases and the messages inside them
-- Promotional codes and campaigns, including applying a discount during checkout (checkout does not currently check for or apply promo codes at all)
-- Inviting someone as event staff
+- Creating promo codes (applying one at checkout works, but organizers cannot create them through the API yet)
+- Inviting someone as event staff, and limiting scanning to assigned staff
 - The automatic activity log, right now nothing writes to this on its own
 
-If your screen needs any of the above, it is not ready yet. Please check with Daut before building deeply against it, since the exact shape of these endpoints may still change once they are actually written.
+If your screen needs any of the above, it is not ready yet. Please check with the backend owner before building deeply against it, since the exact shape may still change.
+
+### Known simplifications (be honest about these in the presentation)
+
+- Login returns the user's id; there are no tokens or sessions, and endpoints do not check who is calling. Anyone who knows an id can act as that user.
+- Payment is simulated. Orders are marked paid immediately with a fake reference.
+- "Activate paid sales" just flips a switch; there is no real verification.
+- Confirmation emails are not sent.
 
 ### Not started at all
 
-The entire Admin portal side of things has no backend yet: searching across users and events, suspending a user or event, reviewing paid sales activation requests, monitoring disputes, handling escalated support cases, changing platform settings, and exporting reports.
-
-Also, the `events` table is currently missing a few fields the original SRS describes: `description`, `category`, `venue_address`, `end_time`, and `visibility` (public, unlisted, or private). If your screen needs to show an event description, for example, that field does not exist in the database yet.
-
-This is expected at this stage of the project, not a sign anything went wrong. Please do not start building deeply against either of these yet, they may take real shape differently than currently planned.
+The entire Admin portal side of things has no backend yet: searching across users and events, suspending a user or event (the `suspended` status exists, but there is no admin endpoint that sets it), reviewing paid sales activation requests, monitoring disputes, handling escalated support cases, changing platform settings, and exporting reports.
 
 ---
 
@@ -192,6 +223,14 @@ These are real IDs already sitting in your database once you have loaded `walkth
 | Event, Almaty Jazz Night | `44444444-4444-4444-4444-444444444444` |
 | Ticket type, General Admission | `66666666-6666-6666-6666-666666666662` |
 | Ticket type, VIP Balcony | `66666666-6666-6666-6666-666666666661` |
+| Event, Almaty Tech Meetup (no seats, on sale) | `44444444-4444-4444-4444-444444444445` |
+| Ticket type, Community (free) | `66666666-6666-6666-6666-666666666671` |
+| Ticket type, Supporter (3000) | `66666666-6666-6666-6666-666666666672` |
+| Event, Astana Rock Night (assigned seats, on sale) | `44444444-4444-4444-4444-444444444446` |
+| Ticket type, Front Row (premium seats, 12000) | `66666666-6666-6666-6666-666666666681` |
+| Ticket type, Standard Seat (standard seats, 6000) | `66666666-6666-6666-6666-666666666682` |
+
+Promo codes: `MEETUP10` (10 percent off the meetup), `ROCK1000` (1000 off the rock night), `SUMMER20` (20 percent off Almaty Jazz Night).
 
 ---
 
@@ -211,9 +250,11 @@ Your local database is yours alone, so it is completely safe to wipe it and star
 ```sql
 DROP TABLE IF EXISTS audit_log, promo_redemptions, promo_campaigns, support_messages, support_cases, staff_assignments, checkin_records, refunds, tickets, orders, seat_holds, seats, ticket_types, events, organizer_profiles, users CASCADE;
 ```
-Then repeat Step 4 above, loading `schema.sql` and `walkthrough_demo.sql` again.
+Then repeat Step 4 above, loading `schema.sql`, `walkthrough_demo.sql` and `demo_events.sql` again. (With Option A, just run `reset-demo.bat` or `./reset-demo.sh` instead.)
 
-**Everyday startup, once the setup above is already done once**
+**Everyday startup with Option A:** open Docker Desktop, then `docker compose up -d` from the `biletflow` folder.
+
+**Everyday startup with Option B, once the setup above is already done once**
 In this order:
 1. Open Docker Desktop
 2. Run `docker start biletflow-db`

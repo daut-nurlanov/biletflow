@@ -1,4 +1,4 @@
-# BiletFlow — Data Models & API Reference
+# BiletFlow: Data Models & API Reference
 
 This document explains how BiletFlow stores information and how the different parts of our app talk to each other. It's written so that **anyone on the team can understand it, even with zero coding background.**
 
@@ -74,12 +74,17 @@ Every table below exists right now in `docs/schema.sql`, already built and teste
 | `venue_name` | Text | Where it's happening | Yes |
 | `start_time` | Date + time | When it starts | Yes |
 | `capacity` | Number | Max attendees | Yes, defaults to 100 |
-| `status` | Text (fixed list) | `draft`, `upcoming`, `active`, `completed`, or `cancelled` | Yes, defaults to draft |
+| `status` | Text (fixed list) | `draft`, `upcoming`, `active`, `completed`, `cancelled`, or `suspended` | Yes, defaults to draft |
 | `has_assigned_seating` | True/False | Seat map or general admission | Yes, defaults to false |
 | `is_paid_sales_active` | True/False | Can this event charge money yet | Yes, defaults to false |
+| `description` | Text | What the event is about | No |
+| `category` | Text | e.g. music, conference | No |
+| `venue_address` | Text | Street address | No |
+| `end_time` | Date + time | When it ends (calendar export falls back to 2 hours if empty) | No |
+| `visibility` | Text (fixed list) | `public`, `unlisted`, or `private` | Yes, defaults to public |
 | `created_at` | Date + time | When it was created | Yes, set automatically |
 
-> **Not yet in the schema, but planned:** `description`, `category`, `venue_address`, `end_time`, `visibility` (public/unlisted/private). These exist in the original SRS but haven't been added to the real table yet.
+> Only events with status `upcoming` or `active` can be bought into. `draft`, `completed`, `cancelled` and `suspended` events cannot sell tickets.
 
 ### `ticket_types`
 *One pricing tier for an event, like "General Admission" or "VIP."*
@@ -269,16 +274,25 @@ Exists as a real endpoint, but since there's no real session system yet, it does
 ### 🎟️ Events
 
 `[GET]` **`/api/events`** ✅ Built and tested
-Lists all events. Supports an optional `?organizer_id=` filter.
+Lists all events. Optional filters: `?organizer_id=` (one organizer's events, any status) and `?public=true` (only `upcoming`/`active` events with `public` visibility, which is what the attendee web and mobile apps should use).
 
 `[GET]` **`/api/events/:id`** ✅ Built and tested
 Fetches one event's full detail, including its ticket types.
 
 `[POST]` **`/api/events`** ✅ Built and tested
-Creates a new event.
+Creates a new event. Accepts `description`, `category`, `venue_address`, `end_time`, `visibility` and `has_assigned_seating` as well as the basics. New events start as `draft`; use `PUT` with `{"status": "upcoming"}` to publish.
 
 `[PUT]` **`/api/events/:id`** ✅ Built and tested
-Updates any subset of an event's fields.
+Updates any subset of: `title`, `venue_name`, `start_time`, `capacity`, `status`, `description`, `category`, `venue_address`, `end_time`, `visibility`. Returns 400 for an empty body or an invalid value.
+
+`[POST]` **`/api/events/:id/ticket-types`** ✅ Built and tested
+Creates a ticket type for an event. Body: `name`, `price`, `total_quantity`, and optionally `description`, `seat_category`, `sales_start_time`, `sales_end_time`. `quantity_available` starts equal to `total_quantity`.
+
+`[GET]` **`/api/events/:id/ticket-types`** ✅ Built and tested
+Lists an event's ticket types, most expensive first.
+
+`[POST]` **`/api/events/:id/seats`** ✅ Built and tested
+Creates a block of seats in one call. Body: `section`, `category`, `rows`, `seats_per_row`, optional `first_row_label` (default 1). Example: section A, premium, 2 rows of 10 seats creates 20 seats. Also turns on `has_assigned_seating` for the event. Returns 409 if any of those seats already exist.
 
 `[POST]` **`/api/events/:id/activate-paid`** ✅ Built and tested
 Flips `is_paid_sales_active` to true. Currently a simplified sandbox version, no real payment/identity verification yet, matching the SRS's "clearly labelled simulation" requirement for the academic MVP.
@@ -289,10 +303,21 @@ Flips `is_paid_sales_active` to true. Currently a simplified sandbox version, no
 Returns every seat for an event, including whether it's currently held or already sold.
 
 `[POST]` **`/api/seats/hold`** ✅ Built and tested
-Temporarily reserves a seat for a few minutes. Database-enforced, only one active hold per seat.
+Temporarily reserves a seat for 5 minutes. Database-enforced, only one active hold per seat. Holds that pass their 5 minutes are released automatically the next time anyone asks for seats, holds or checkout, so an abandoned seat never stays locked. Asking again for a seat you already hold just returns your existing hold. Returns 404 for an unknown seat, 409 if someone else holds or owns it.
 
 `[POST]` **`/api/orders/checkout`** ✅ Built and tested
-The big one. Checks inventory, creates the order, creates the ticket, updates inventory, all as one atomic transaction. Correctly rejects sold-out ticket types and already-taken seats.
+The big one. Everything below happens as one atomic transaction, so a failure part-way leaves no half-finished order.
+
+Body: `attendee_id`, `event_id`, `ticket_type_id`, `attendee_name`, and optionally `seat_id`, `quantity` (1 to 10, default 1) and `promo_code`. The response contains `order`, `tickets` (all of them) and `ticket` (the first one, kept for older clients).
+
+Rules it enforces (each returns the status shown):
+- ticket type must belong to the event (400), attendee must exist (404)
+- event must be `upcoming` or `active` (409)
+- paid tickets need the event's paid sales switched on (403); free tickets do not
+- the ticket type's sale window must be open (409)
+- enough tickets left (409, "Sold out" or "Only N left")
+- with a `seat_id`: seat must exist for this event (404), match the ticket type's `seat_category` if it has one (409), not already be sold (409), and not be held by someone else (409). If the buyer holds it, the hold becomes a ticket. Seats are one ticket per order (400 otherwise)
+- with a `promo_code`: must exist for this event (404), be inside its valid dates (409), and have redemptions left (409). Percentage and fixed discounts are supported; the total never goes below 0. Two people racing for the last redemption cannot both win.
 
 ### 📥 Tickets & Downloads
 
@@ -331,8 +356,8 @@ Tables (`support_cases`, `support_messages`) exist. No endpoints yet.
 ### 🏷️ Promo Codes
 
 `[POST]` **`/api/promo/campaigns`** 🔲 Not built yet
-Checkout does not currently check or apply promo codes, even though `orders.promo_code_applied` exists as a field.
-Tables (`promo_campaigns`, `promo_redemptions`) exist. No endpoints yet.
+Organizers cannot create promo codes through the API yet (the demo codes are loaded from `docs/demo_events.sql`).
+Applying a code at checkout **is** built and tested, see the checkout endpoint above.
 
 ### 👥 Staff
 

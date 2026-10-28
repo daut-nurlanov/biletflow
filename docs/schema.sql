@@ -1,9 +1,9 @@
 -- ============================================================
--- BiletFlow — Full Database Schema
+-- BiletFlow - Full Database Schema
 -- ============================================================
 -- This builds every core table BiletFlow needs. It's safe to run
 -- even if you already created `users`, `events`, and `ticket_types`
--- earlier — every statement uses IF NOT EXISTS so nothing breaks
+-- earlier - every statement uses IF NOT EXISTS so nothing breaks
 -- or duplicates.
 --
 -- A few things from the SRS's full 24-entity list are intentionally
@@ -15,7 +15,7 @@
 --     since the sandbox/simulated payment doesn't need its own table.
 --   • Attendee is folded into `tickets.attendee_name`, matching
 --     DATA_MODELS_AND_APIS.md exactly.
---   • Notification and PayoutAccount are left out — they're not
+--   • Notification and PayoutAccount are left out - they're not
 --     relational data so much as side-effects/config, and can be
 --     added later without touching anything below.
 -- ============================================================
@@ -47,9 +47,14 @@ CREATE TABLE IF NOT EXISTS events (
   venue_name TEXT NOT NULL,
   start_time TIMESTAMPTZ NOT NULL,
   capacity INTEGER NOT NULL DEFAULT 100,
-  status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','upcoming','active','completed','cancelled')),
+  status TEXT NOT NULL DEFAULT 'draft' CONSTRAINT events_status_check CHECK (status IN ('draft','upcoming','active','completed','cancelled','suspended')),
   has_assigned_seating BOOLEAN NOT NULL DEFAULT false,
   is_paid_sales_active BOOLEAN NOT NULL DEFAULT false,
+  description TEXT,
+  category TEXT,
+  venue_address TEXT,
+  end_time TIMESTAMPTZ,
+  visibility TEXT NOT NULL DEFAULT 'public' CONSTRAINT events_visibility_check CHECK (visibility IN ('public','unlisted','private')),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -195,3 +200,24 @@ CREATE TABLE IF NOT EXISTS audit_log (
   details TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- ============================================================
+-- UPGRADE BLOCK for databases created before Oct 28
+-- ============================================================
+-- If you already have an older `events` table, CREATE TABLE IF NOT EXISTS
+-- above skips it, so the new columns would never appear. These statements
+-- add them (and do nothing if they are already there), so you do NOT need
+-- to wipe your database. Safe to run any number of times.
+ALTER TABLE events ADD COLUMN IF NOT EXISTS description TEXT;
+ALTER TABLE events ADD COLUMN IF NOT EXISTS category TEXT;
+ALTER TABLE events ADD COLUMN IF NOT EXISTS venue_address TEXT;
+ALTER TABLE events ADD COLUMN IF NOT EXISTS end_time TIMESTAMPTZ;
+ALTER TABLE events ADD COLUMN IF NOT EXISTS visibility TEXT NOT NULL DEFAULT 'public';
+
+ALTER TABLE events DROP CONSTRAINT IF EXISTS events_status_check;
+ALTER TABLE events ADD CONSTRAINT events_status_check
+  CHECK (status IN ('draft','upcoming','active','completed','cancelled','suspended'));
+
+ALTER TABLE events DROP CONSTRAINT IF EXISTS events_visibility_check;
+ALTER TABLE events ADD CONSTRAINT events_visibility_check
+  CHECK (visibility IN ('public','unlisted','private'));

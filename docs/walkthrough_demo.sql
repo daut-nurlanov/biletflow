@@ -1,5 +1,5 @@
 -- ============================================================
--- BiletFlow — Full End-to-End Walkthrough
+-- BiletFlow - Full End-to-End Walkthrough
 -- ============================================================
 -- This tells one complete story, start to finish, touching every
 -- table in schema.sql. Run this AFTER schema.sql. Each step is
@@ -41,7 +41,7 @@ INSERT INTO ticket_types (id, event_id, name, price, total_quantity, quantity_av
 INSERT INTO promo_campaigns (id, event_id, code, discount_type, discount_value, max_redemptions)
 VALUES ('77777777-7777-7777-7777-777777777777', '44444444-4444-4444-4444-444444444444', 'SUMMER20', 'percentage', 20, 200);
 
--- STEP 8: Dana selects seat A1-2 — this creates a temporary hold (5 minute window)
+-- STEP 8: Dana selects seat A1-2 - this creates a temporary hold (5 minute window)
 INSERT INTO seat_holds (id, seat_id, held_by_user_id, expires_at, status)
 VALUES ('88888888-8888-8888-8888-888888888888', '55555555-5555-5555-5555-555555555552',
         '22222222-2222-2222-2222-222222222222', now() + interval '5 minutes', 'active');
@@ -76,7 +76,7 @@ INSERT INTO staff_assignments (user_id, event_id, invited_by, status)
 VALUES ('33333333-3333-3333-3333-333333333333', '44444444-4444-4444-4444-444444444444',
         '11111111-1111-1111-1111-111111111111', 'active');
 
--- STEP 11: Night of the event — Nurlan scans Dana's ticket at the door
+-- STEP 11: Night of the event - Nurlan scans Dana's ticket at the door
 INSERT INTO checkin_records (ticket_id, checked_in_by)
 VALUES ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', '33333333-3333-3333-3333-333333333333');
 
@@ -90,7 +90,7 @@ VALUES ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', '22222222-2222-2222-2222-2222222
 
 INSERT INTO support_messages (case_id, sender_id, message)
 VALUES ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', '22222222-2222-2222-2222-222222222222',
-        'Hi, I never got the PDF copy of my ticket by email — can you resend it?');
+        'Hi, I never got the PDF copy of my ticket by email - can you resend it?');
 
 -- STEP 13: Every important action along the way gets logged
 INSERT INTO audit_log (actor_id, event_id, action, details) VALUES
@@ -99,7 +99,7 @@ INSERT INTO audit_log (actor_id, event_id, action, details) VALUES
   ('33333333-3333-3333-3333-333333333333', '44444444-4444-4444-4444-444444444444', 'check_in', 'Ticket aaaaaaaa... checked in at the door');
 
 -- ============================================================
--- STEP 14: See the whole story in one query — everything
+-- STEP 14: See the whole story in one query - everything
 -- connected, exactly the way the app would show it to Dana.
 -- ============================================================
 SELECT
