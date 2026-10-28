@@ -53,6 +53,8 @@ def checkout_records():
         }
     finally:
         connection.rollback()
+        cursor.execute("DELETE FROM audit_log WHERE event_id = %s", (event_id,))
+        cursor.execute("DELETE FROM notifications WHERE user_id = ANY(%s::uuid[])", (attendee_ids,))
         cursor.execute("DELETE FROM tickets WHERE event_id = %s", (event_id,))
         cursor.execute("DELETE FROM orders WHERE event_id = %s", (event_id,))
         cursor.execute("DELETE FROM seat_holds WHERE seat_id = %s", (seat_id,))

@@ -6,20 +6,27 @@
 -- commented so you can read it like a narrative, not just SQL.
 -- ============================================================
 
+-- DEMO LOGINS: every account in this file and in demo_events.sql has the
+-- password  demo1234  (it is stored as a bcrypt hash, like a real password).
+--   aigerim@example.com  organizer
+--   dana@example.com     attendee
+--   nurlan@example.com   event admin (door staff)
+--   admin@example.com    platform admin (added in demo_events.sql)
+
 -- STEP 1: An organizer signs up and completes her profile
 INSERT INTO users (id, email, password_hash, full_name, role, is_email_verified)
-VALUES ('11111111-1111-1111-1111-111111111111', 'aigerim@example.com', 'fakehash', 'Aigerim Kassymova', 'organizer', true);
+VALUES ('11111111-1111-1111-1111-111111111111', 'aigerim@example.com', '$2b$12$vx2MzL92aOHBr2wyOFW.cOF8d.pXaCv3XUrDQ/htCLP.VXFFX1BTe', 'Aigerim Kassymova', 'organizer', true);
 
 INSERT INTO organizer_profiles (user_id, contact_phone, payout_account_details, paid_sales_verified)
 VALUES ('11111111-1111-1111-1111-111111111111', '+7 701 000 0000', 'Kaspi Bank •••• 4821', true);
 
 -- STEP 2: An attendee signs up
 INSERT INTO users (id, email, password_hash, full_name, role, is_email_verified)
-VALUES ('22222222-2222-2222-2222-222222222222', 'dana@example.com', 'fakehash', 'Dana Serik', 'attendee', true);
+VALUES ('22222222-2222-2222-2222-222222222222', 'dana@example.com', '$2b$12$vx2MzL92aOHBr2wyOFW.cOF8d.pXaCv3XUrDQ/htCLP.VXFFX1BTe', 'Dana Serik', 'attendee', true);
 
 -- STEP 3: An Event Admin (door staff) account exists too
 INSERT INTO users (id, email, password_hash, full_name, role, is_email_verified)
-VALUES ('33333333-3333-3333-3333-333333333333', 'nurlan@example.com', 'fakehash', 'Nurlan T.', 'event_admin', true);
+VALUES ('33333333-3333-3333-3333-333333333333', 'nurlan@example.com', '$2b$12$vx2MzL92aOHBr2wyOFW.cOF8d.pXaCv3XUrDQ/htCLP.VXFFX1BTe', 'Nurlan T.', 'event_admin', true);
 
 -- STEP 4: The organizer creates and publishes an event with assigned seating
 INSERT INTO events (id, organizer_id, title, venue_name, start_time, capacity, status, has_assigned_seating, is_paid_sales_active)

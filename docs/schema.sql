@@ -202,12 +202,13 @@ CREATE TABLE IF NOT EXISTS audit_log (
 );
 
 -- ============================================================
--- UPGRADE BLOCK for databases created before Oct 28
+-- ADDITIONS BLOCK (also upgrades databases created before Oct 28)
 -- ============================================================
--- If you already have an older `events` table, CREATE TABLE IF NOT EXISTS
--- above skips it, so the new columns would never appear. These statements
--- add them (and do nothing if they are already there), so you do NOT need
--- to wipe your database. Safe to run any number of times.
+-- Everything below is written so it works on a brand new database AND on
+-- an older one. CREATE TABLE IF NOT EXISTS skips tables that already exist,
+-- so columns added later live here as ALTER TABLE ... ADD COLUMN IF NOT
+-- EXISTS (does nothing if the column is already there). You never need to
+-- wipe your database. Safe to run any number of times.
 ALTER TABLE events ADD COLUMN IF NOT EXISTS description TEXT;
 ALTER TABLE events ADD COLUMN IF NOT EXISTS category TEXT;
 ALTER TABLE events ADD COLUMN IF NOT EXISTS venue_address TEXT;
@@ -221,3 +222,75 @@ ALTER TABLE events ADD CONSTRAINT events_status_check
 ALTER TABLE events DROP CONSTRAINT IF EXISTS events_visibility_check;
 ALTER TABLE events ADD CONSTRAINT events_visibility_check
   CHECK (visibility IN ('public','unlisted','private'));
+
+-- users can be suspended by a platform admin
+ALTER TABLE users ADD COLUMN IF NOT EXISTS is_suspended BOOLEAN NOT NULL DEFAULT false;
+
+-- a platform admin can switch off paid sales for one event
+ALTER TABLE events ADD COLUMN IF NOT EXISTS paid_sales_suspended BOOLEAN NOT NULL DEFAULT false;
+
+-- organizers can hide a ticket type without deleting it, and cap tickets per order
+ALTER TABLE ticket_types ADD COLUMN IF NOT EXISTS is_hidden BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE ticket_types ADD COLUMN IF NOT EXISTS max_per_order INTEGER NOT NULL DEFAULT 10;
+
+-- promo campaigns: a secret token for the campaign QR link, an on/off switch,
+-- an optional list of ticket types the code applies to
+ALTER TABLE promo_campaigns ADD COLUMN IF NOT EXISTS qr_token TEXT UNIQUE;
+ALTER TABLE promo_campaigns ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT true;
+ALTER TABLE promo_campaigns ADD COLUMN IF NOT EXISTS ticket_type_ids UUID[];
+ALTER TABLE promo_campaigns ADD COLUMN IF NOT EXISTS created_by UUID REFERENCES users(id);
+ALTER TABLE promo_campaigns ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now();
+
+-- audit log: which kind of thing the action touched, and its id
+ALTER TABLE audit_log ADD COLUMN IF NOT EXISTS entity_type TEXT;
+ALTER TABLE audit_log ADD COLUMN IF NOT EXISTS entity_id TEXT;
+
+-- support cases: attendee-to-organizer or organizer-to-platform, who handles it, escalation
+ALTER TABLE support_cases ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'attendee';
+ALTER TABLE support_cases ADD COLUMN IF NOT EXISTS assigned_to UUID REFERENCES users(id);
+ALTER TABLE support_cases ADD COLUMN IF NOT EXISTS escalated BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE support_cases ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now();
+ALTER TABLE support_cases DROP CONSTRAINT IF EXISTS support_cases_kind_check;
+ALTER TABLE support_cases ADD CONSTRAINT support_cases_kind_check CHECK (kind IN ('attendee','organizer'));
+
+-- in-app notifications (our stand-in for emails)
+CREATE TABLE IF NOT EXISTS notifications (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id),
+  kind TEXT NOT NULL,
+  subject TEXT NOT NULL,
+  body TEXT NOT NULL,
+  is_read BOOLEAN NOT NULL DEFAULT false,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- one row per paid-sales activation (the simulated fee payment + terms acceptance)
+CREATE TABLE IF NOT EXISTS paid_sales_activations (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  event_id UUID NOT NULL REFERENCES events(id),
+  activated_by UUID NOT NULL REFERENCES users(id),
+  fee_amount NUMERIC(10,2) NOT NULL,
+  fee_reference TEXT NOT NULL,
+  terms_accepted_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- admin-editable platform settings (activation fee, processing fee rate, ...)
+CREATE TABLE IF NOT EXISTS platform_settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+INSERT INTO platform_settings (key, value) VALUES
+  ('activation_fee', '5000'),
+  ('processing_fee_rate', '0.03')
+ON CONFLICT (key) DO NOTHING;
+
+-- "report this event" submissions that platform admins review
+CREATE TABLE IF NOT EXISTS event_reports (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  event_id UUID NOT NULL REFERENCES events(id),
+  reported_by UUID REFERENCES users(id),
+  reason TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open','dismissed','actioned')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);

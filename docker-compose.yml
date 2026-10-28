@@ -34,6 +34,8 @@ services:
     environment:
       DB_HOST: db
       DB_PASSWORD: devpassword
+      #campaign QR codes and calendar files link to the WEB app at this address
+      PUBLIC_BASE_URL: http://localhost:3000
     ports:
       - "8000:8000"
 

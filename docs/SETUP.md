@@ -42,7 +42,14 @@ Everyday use: open Docker Desktop, then `docker compose up -d`. To stop: `docker
 
 **To wipe everything and start from fresh demo data** (do this before every rehearsal): run `reset-demo.bat` on Windows or `./reset-demo.sh` on Mac/Linux. It deletes the database and rebuilds it. Note: this deletes anything you created while testing.
 
-*Heads up: the Compose setup was added late and the backend container could not be tested by the person who wrote it. If `docker compose up` fails, tell Daut what it printed and use Option B in the meantime.*
+**If you already ran `docker compose up` before Oct 28:** the database only loads the demo files the very first time, when it is empty. Your old copy does not have the demo logins or the new tables. Wipe and rebuild it once:
+```bash
+docker compose down -v
+docker compose up -d --build
+```
+(`-v` deletes the stored database. That is what you want here.) After this, `reset-demo.bat` / `reset-demo.sh` does the same thing in one click.
+
+*Heads up: the Dockerfile changed on Oct 28 (the backend is now several files, not one). `--build` is needed so Docker picks that up. If it fails, tell Daut what it printed and use Option B in the meantime.*
 
 ### Option B: step by step by hand
 
@@ -95,13 +102,13 @@ docker exec -it biletflow-db psql -U postgres -d biletflow
 ```
 Your terminal prompt should change to `biletflow=#`. That means you are now typing directly into the database.
 
-Open the file `docs/schema.sql` from this repository (the one you cloned in Step 1). Select all of its text, copy it, and paste it into your terminal, then press enter. This builds all 16 tables the project needs. You should see a stream of lines saying `CREATE TABLE`, with no lines saying `ERROR`.
+Open the file `docs/schema.sql` from this repository (the one you cloned in Step 1). Select all of its text, copy it, and paste it into your terminal, then press enter. This builds all 20 tables the project needs. You should see a stream of lines saying `CREATE TABLE`, with no lines saying `ERROR`.
 
 Then do the same thing with `docs/walkthrough_demo.sql`. This fills the empty tables with realistic sample data, an organizer, an event, some ticket types, a purchased ticket, and so on, so you have real data to look at immediately instead of an empty database.
 
 Finally, do the same with `docs/demo_events.sql`. This adds two events in the future that you can actually buy tickets for (a meetup with free and paid tickets, and a rock night with assigned seats), plus two promo codes. The first event is dated in the past, so without this file there is nothing to buy in a demo.
 
-**If you set up your database before Oct 28:** you do not need to wipe it. Just paste `docs/schema.sql` again. Its last section adds the new event columns to your existing table. Lines saying `NOTICE ... already exists, skipping` are normal and harmless. Then paste `docs/demo_events.sql`.
+**If you set up your database by hand before Oct 28:** the simplest fix is to wipe it (see Troubleshooting) and load the three files again. The old demo users have a fake password, so nobody can log in as them until you reload `walkthrough_demo.sql`. Pasting `schema.sql` again alone also works for the structure: its last section adds all new columns and tables to your existing ones, and lines saying `NOTICE ... already exists, skipping` are normal and harmless.
 
 When you are done, type `\q` and press enter to leave.
 
@@ -127,7 +134,7 @@ That installs the tools the backend code depends on. Then start it:
 python -m uvicorn main:app --reload --port 8000
 ```
 
-You are looking for a line that says `Application startup complete`. Leave this terminal window open and running, it needs to stay alive while you work. Open a separate, new terminal window for anything else you need to do (like the browser tests below).
+(The first run installs a few new packages: `fpdf2` for PDF tickets, `segno` for QR codes, `tzdata` for Almaty time.) You are looking for a line that says `Application startup complete`. Leave this terminal window open and running, it needs to stay alive while you work. Open a separate, new terminal window for anything else you need to do (like the browser tests below).
 
 ### Step 7: Confirm everything actually works
 
@@ -148,66 +155,54 @@ If both of those work, your setup is complete.
 
 ## Part 3: What to actually do with this, based on your role
 
-Once the steps above are done, here is what changes for you specifically.
+Once the steps above are done, here is what changes for you specifically. The SRS (`docs/BiletFlow_SRS_Initial_Draft.pdf`) decides what we build: a responsive **web app** for organizers and attendees, one **mobile app for door staff (the scanner)**, and an **admin web portal**. The native attendee and organizer mobile apps are listed as excluded in the SRS. `docs/TASKS.md` has the exact split.
 
-**If you are building the website (Attendee and Organizer pages):**
-You can now write real code that calls `http://localhost:8000/api/events` and similar addresses, and get real, live data back, instead of typing out fake sample data by hand. Start with the simplest screens (the event list, the event detail page) since those just read data. Save anything requiring a full login system for a little later, see Part 4 below about that.
+**If you are building the website (organizer and attendee pages):**
+Call `http://localhost:8000/api/events?public=true` and the other endpoints in `docs/DATA_MODELS_AND_APIS.md`. Register or log in, keep the `token` from the response, and send it as `Authorization: Bearer <token>` on every request that needs a signed-in user.
 
-**If you are building the mobile app (Attendee side and the Event Admin scanner):**
-Same idea, just from a phone or an emulator instead of a browser. One important difference: a phone cannot reach `localhost` the way your own laptop's browser can, since `localhost` always means "this exact device," and a phone is a different device from your laptop, even though your laptop is the one running everything. You will need **your own** laptop's network address instead (on Windows, run `ipconfig` and look for "IPv4 Address"), and your phone or emulator needs to be on the same WiFi network as your own laptop for this to work. This is not about depending on anyone else's laptop, everyone sets this up independently, on their own machine, exactly like the web team does.
+**If you are building the scanner app (mobile):**
+A phone cannot reach `localhost` the way your laptop's browser can, since `localhost` always means "this exact device". Use your laptop's network address instead (on Windows, run `ipconfig` and look for "IPv4 Address"), and keep the phone on the same WiFi. Log in as door staff (see the logins below), then use `GET /api/staff/events`, `POST /api/checkin/verify-qr`, `POST /api/checkin/manual-search`, and `GET /api/events/{id}/checkin-stats`.
 
-**If you are building the mobile app (Organizer side):**
-Same setup as above. Worth pairing with whoever is doing the Attendee and Scanner mobile screens early on, so you are both using the same shared visual style instead of building two mismatched halves of one app.
+**If you are building the admin portal:**
+Log in as the platform admin (below). Every endpoint under `/api/admin/` is ready.
 
-**If you are doing QA, testing, or the Admin portal:**
-You can start immediately by deliberately trying to break things, buying the last ticket of a type twice in a row, trying to book an already taken seat, sending incomplete data to an endpoint, and writing down what happens. This becomes the beginning of a real test suite. You can also start building actual Admin portal screens once the corresponding backend endpoints exist, see the list below for what is and is not ready yet.
+**If you are doing QA or testing:**
+Try to break things: buy the last ticket twice, take a seat someone else holds, scan a ticket twice, scan with the wrong staff account. The automated tests do many of these already (see "Run the tests" in the README), so read `backend-python/tests/` first to avoid repeating them.
 
 ---
 
 ## Part 4: What is actually finished, and what is not
 
-This section is checked against `docs/DATA_MODELS_AND_APIS.md`, which has the full technical breakdown if you want more detail than what is here. The backend currently has 20 endpoints and 24 automated tests.
+This section is checked against `docs/DATA_MODELS_AND_APIS.md`, which lists every endpoint (a script, `docs/check_docs.py`, confirms the list matches the code). The backend has **86 endpoints** and **104 automated tests**.
 
-### Fully built and tested (safe to build against right now)
+### Built and tested
 
-- Creating an account and logging in
-- Viewing the list of events (all of them, or only the public on-sale ones with `?public=true`), and one event's full detail
-- Creating a new event, with description, category, address, end time and visibility
-- Updating an event's details, including publishing it (status `upcoming`)
-- Creating ticket types for an event, and listing them
-- Creating a block of seats for an event
-- Turning on paid ticket sales for an event
-- Viewing the seat map for an event
-- Temporarily holding a seat for 5 minutes (expired holds free themselves)
-- Completing a purchase: one or several tickets, with or without a seat, with or without a promo code. It correctly refuses sold-out tickets, taken seats, seats held by someone else, events that are not on sale, paid tickets before paid sales are on, ticket types outside their sale window, and bad or used-up promo codes
-- Viewing a single ticket, or all of one person's tickets
-- Downloading a ticket as a PDF (the check-in code is printed as text, not as a QR picture; the app should draw the QR itself)
-- Downloading an event as a calendar file
-- Scanning a ticket's code to check someone in, including detecting already used or invalid tickets
-- Manually searching for an attendee by name, for when a code will not scan
-
-If your screen only needs the features above, the backend is ready today.
-
-### Database tables exist, but nothing can use them yet
-
-- Refunds
-- Support chat, both the cases and the messages inside them
-- Creating promo codes (applying one at checkout works, but organizers cannot create them through the API yet)
-- Inviting someone as event staff, and limiting scanning to assigned staff
-- The automatic activity log, right now nothing writes to this on its own
-
-If your screen needs any of the above, it is not ready yet. Please check with the backend owner before building deeply against it, since the exact shape may still change.
+- **Accounts:** register (attendee or organizer), login with a signed token, email verification and password reset (the "email" is a row in the `notifications` table, visible through `GET /api/notifications`), account suspension by an admin.
+- **Events:** create, edit, publish, unpublish, cancel, duplicate; ticket types (free or priced, per-order limit, sale window, hidden); seat blocks; public listing with visibility rules; report an event.
+- **Buying:** price quote, checkout with one or several tickets, optional seat (with a 5 minute hold) and promo code. Refused when sold out, seat taken, event not on sale, paid sales not active, outside the sale window, or the promo code is bad or used up. Nobody can get the same seat or the last ticket twice, even when two people click at the same moment.
+- **Tickets:** list, detail, QR image, PDF (with QR, supports Kazakh and Russian), calendar file and Google Calendar link.
+- **Orders:** list, detail, organizer refund (full), cancel a free registration.
+- **Door scanner:** staff accounts per event, QR check-in, undo, manual search by name or email, live check-in numbers. Promo campaign QR codes are rejected at the door.
+- **Promo campaigns:** create, enable and disable, QR image, report, public lookup of a scanned campaign QR.
+- **Organizer dashboard:** profile and simulated identity verification, paid-sales activation checklist and activation, events grouped by phase, attendee and order lists with filters, analytics (capacity, money, per ticket type, over time, campaigns, attendance), activity timeline.
+- **Support:** attendees and organizers open cases, organizers handle attendee cases and can escalate, the platform team handles organizer cases and escalations, messages both ways.
+- **Admin:** search users, events and orders; suspend and reinstate users and events; freeze paid sales; activations, refunds, event reports, promo activity; change the activation fee and processing fee; summary report and CSV export.
 
 ### Known simplifications (be honest about these in the presentation)
 
-- Login returns the user's id; there are no tokens or sessions, and endpoints do not check who is calling. Anyone who knows an id can act as that user.
-- Payment is simulated. Orders are marked paid immediately with a fake reference.
-- "Activate paid sales" just flips a switch; there is no real verification.
-- Confirmation emails are not sent.
+- **Payment is simulated.** Orders are marked paid immediately with a fake reference. Refunds, activation fees and identity verification are simulated too.
+- **Emails are simulated.** They are saved in the `notifications` table and printed in the server log. Nothing is sent.
+- **Buying still accepts the old `attendee_id`** instead of a token (`checkout`, `seats/hold`, `tickets/my-tickets`). This keeps the existing mobile app working. A real launch would make the token compulsory.
+- **Ticket links are open.** `GET /api/tickets/{id}`, its `.png` and `.pdf` need no login; the random id is the secret.
+- **Tokens are simple signed strings** (7 days, no refresh, no server-side logout). The signing secret defaults to a development value; set `BILETFLOW_SECRET` for anything real.
+- **No rate limiting, no real password-strength rules** beyond 8 characters.
+- **Seat maps are generated blocks** (sections, rows, numbers), not a drawn floor plan.
 
-### Not started at all
+### Not built
 
-The entire Admin portal side of things has no backend yet: searching across users and events, suspending a user or event (the `suspended` status exists, but there is no admin endpoint that sets it), reviewing paid sales activation requests, monitoring disputes, handling escalated support cases, changing platform settings, and exporting reports.
+- Any user interface. This repo only contains the backend and the early mobile screens. Web pages, the scanner app, and the admin portal screens still have to be built on top of these endpoints.
+- Real payments, real email, real SMS.
+- Partial refunds (the SRS excludes them).
 
 ---
 
@@ -232,6 +227,17 @@ These are real IDs already sitting in your database once you have loaded `walkth
 
 Promo codes: `MEETUP10` (10 percent off the meetup), `ROCK1000` (1000 off the rock night), `SUMMER20` (20 percent off Almaty Jazz Night).
 
+### Demo logins (password for all of them: `demo1234`)
+
+| Who | Email | Role |
+|---|---|---|
+| Aigerim | `aigerim@example.com` | organizer |
+| Dana | `dana@example.com` | attendee |
+| Nurlan | `nurlan@example.com` | door staff, assigned to all three events |
+| Platform admin | `admin@example.com` | platform_admin |
+
+To try it: `POST /api/auth/login` with the email and password, copy the `token`, click **Authorize** at the top of http://localhost:8000/docs and paste the token. Now every endpoint you click runs as that person.
+
 ---
 
 ## Troubleshooting
@@ -248,7 +254,7 @@ Python is not installed, or was installed without being added to your system's P
 **Old test data is getting in your way**
 Your local database is yours alone, so it is completely safe to wipe it and start over:
 ```sql
-DROP TABLE IF EXISTS audit_log, promo_redemptions, promo_campaigns, support_messages, support_cases, staff_assignments, checkin_records, refunds, tickets, orders, seat_holds, seats, ticket_types, events, organizer_profiles, users CASCADE;
+DROP TABLE IF EXISTS event_reports, platform_settings, paid_sales_activations, notifications, audit_log, promo_redemptions, promo_campaigns, support_messages, support_cases, staff_assignments, checkin_records, refunds, tickets, orders, seat_holds, seats, ticket_types, events, organizer_profiles, users CASCADE;
 ```
 Then repeat Step 4 above, loading `schema.sql`, `walkthrough_demo.sql` and `demo_events.sql` again. (With Option A, just run `reset-demo.bat` or `./reset-demo.sh` instead.)
 
