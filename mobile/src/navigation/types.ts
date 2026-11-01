@@ -5,7 +5,13 @@ export type EventsStackParamList = {
   EventDetails: { eventId: string };
 };
 
+export type OrganizerStackParamList = {
+  OrganizerEvents: undefined;
+  EventDashboard: { eventId: string };
+};
+
 export type RootTabParamList = {
   EventsTab: NavigatorScreenParams<EventsStackParamList> | undefined;
   MyTickets: undefined;
+  OrganizerTab: NavigatorScreenParams<OrganizerStackParamList> | undefined;
 };
