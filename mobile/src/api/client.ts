@@ -4,6 +4,14 @@ const REQUEST_TIMEOUT_MS = 15_000;
 const CONNECTION_MESSAGE =
   "Couldn't reach BiletFlow. Check that the API is running and your phone is on the same Wi-Fi as the computer.";
 
+/** An error the backend answered with, so callers can react to the HTTP status (for example 401). */
+export class ApiError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
 function getBaseUrl(): string {
   try {
     const url = new URL(environment.apiBaseUrl);
@@ -36,8 +44,18 @@ function getErrorDetail(body: unknown): string | undefined {
   }
 }
 
-/** Small GET helper shared by the Week 7 API modules. */
-export async function request<T>(path: string, signal?: AbortSignal): Promise<T> {
+export interface RequestOptions {
+  method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+  /** Sent as JSON. */
+  body?: unknown;
+  /** Added as `Authorization: Bearer <token>`. */
+  token?: string | null;
+  signal?: AbortSignal;
+}
+
+/** Shared fetch helper: JSON in and out, token header, timeout and readable errors. */
+export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  const { method = "GET", body, token, signal } = options;
   const baseUrl = getBaseUrl();
   const controller = new AbortController();
   const abort = () => controller.abort();
@@ -50,11 +68,17 @@ export async function request<T>(path: string, signal?: AbortSignal): Promise<T>
     controller.abort();
   }, REQUEST_TIMEOUT_MS);
 
+  const headers: Record<string, string> = { Accept: "application/json" };
+  if (body !== undefined) headers["Content-Type"] = "application/json";
+  if (token) headers.Authorization = `Bearer ${token}`;
+
   try {
     let response: Response;
     try {
       response = await fetch(`${baseUrl}${path}`, {
-        headers: { Accept: "application/json" },
+        method,
+        headers,
+        body: body === undefined ? undefined : JSON.stringify(body),
         signal: controller.signal,
       });
     } catch {
@@ -62,10 +86,11 @@ export async function request<T>(path: string, signal?: AbortSignal): Promise<T>
     }
 
     if (!response.ok) {
-      const body: unknown = await response.json().catch(() => undefined);
-      throw new Error(
-        getErrorDetail(body) ||
-        `BiletFlow couldn't load this information (HTTP ${response.status}). Please try again.`,
+      const errorBody: unknown = await response.json().catch(() => undefined);
+      throw new ApiError(
+        getErrorDetail(errorBody) ||
+        `BiletFlow couldn't complete this request (HTTP ${response.status}). Please try again.`,
+        response.status,
       );
     }
 
@@ -83,4 +108,9 @@ export async function request<T>(path: string, signal?: AbortSignal): Promise<T>
     clearTimeout(timeout);
     signal?.removeEventListener("abort", abort);
   }
+}
+
+/** Small GET helper kept for the existing attendee API modules. */
+export function request<T>(path: string, signal?: AbortSignal): Promise<T> {
+  return apiRequest<T>(path, { signal });
 }

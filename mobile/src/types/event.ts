@@ -5,7 +5,8 @@ export type EventStatus =
   | "upcoming"
   | "active"
   | "completed"
-  | "cancelled";
+  | "cancelled"
+  | "suspended";
 
 export interface Event {
   id: string;
@@ -18,6 +19,12 @@ export interface Event {
   has_assigned_seating: boolean;
   is_paid_sales_active: boolean;
   created_at: string;
+}
+
+/** An event from GET /api/staff/events (full events row). */
+export interface StaffEvent extends Event {
+  end_time: string | null;
+  venue_address: string | null;
 }
 
 export interface EventDetails extends Event {
