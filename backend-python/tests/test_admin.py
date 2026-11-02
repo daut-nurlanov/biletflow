@@ -40,7 +40,7 @@ def test_suspend_and_reinstate_a_user(kit):
     assert kit.client.get("/api/auth/me", headers=victim.h).status_code == 200
     assert kit.client.post(f"/api/admin/users/{admin.id}/suspend", headers=admin.h).status_code == 400       #not yourself
     assert kit.client.post(f"/api/admin/users/{uuid4()}/suspend", headers=admin.h).status_code == 404
-    actions = [r["action"] for r in __import__("conftest").fetch("SELECT action FROM audit_log WHERE entity_id = %s", (victim.id,))]
+    actions = [r["action"] for r in __import__("conftest").fetch("SELECT action FROM audit_log WHERE entity_id = %s ORDER BY created_at, id", (victim.id,))]
     assert actions == ["user_suspended", "user_reinstated"]
 
 

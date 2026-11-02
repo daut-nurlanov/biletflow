@@ -1,3 +1,4 @@
+import re
 from uuid import uuid4
 
 from conftest import fetch_one, run_sql
@@ -18,7 +19,9 @@ def test_create_campaign_generates_code_token_and_trackable_link(kit):
     c = response.json()
     assert len(c["code"]) == 8 and c["qr_token"].startswith("cmp_") and c["is_active"] is True
     assert c["campaign_link"].endswith(f"/events/{event['id']}?c={c['qr_token']}")
-    assert "20" not in c["campaign_link"].split("?c=")[1]            #the link carries no discount value
+    #the link is only an opaque lookup key: no discount value, no readable code in it
+    assert re.fullmatch(r"cmp_[A-Za-z0-9_-]{12,}", c["qr_token"]) and c["code"] not in c["qr_token"]
+    assert c["campaign_link"].count("?") == 1 and "discount" not in c["campaign_link"].lower()
     other = campaign(kit, org, event["id"])
     assert other.json()["code"] != c["code"] and other.json()["qr_token"] != c["qr_token"]
     assert len(kit.client.get(f"/api/events/{event['id']}/promo-campaigns", headers=org.h).json()) == 2

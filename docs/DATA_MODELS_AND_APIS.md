@@ -2,7 +2,7 @@
 
 This document explains how BiletFlow stores information and how the different parts of our app talk to each other. It's written so that **anyone on the team can understand it, even with zero coding background.**
 
-This version reflects what is **actually built and running** in `backend-python/` (`main.py` plus the files in `routers/`) and `docs/schema.sql`. The endpoint list in Section 3 was checked against the code by a script, and 104 automated tests cover it.
+This version reflects what is **actually built and running** in `backend-python/` (`main.py` plus the files in `routers/`) and `docs/schema.sql`. The endpoint list in Section 3 was checked against the code by a script, and 106 automated tests cover it.
 
 ---
 
@@ -358,7 +358,7 @@ The **Who** column uses these words:
 
 | Method and path | Who | What it does |
 |---|---|---|
-| `GET /api/events` | Public | Optional `?public=true` (only upcoming/active public events, use this for the app home screen) or `?organizer_id=`. |
+| `GET /api/events` | Public | The public list: only upcoming or active events whose visibility is public. Drafts, suspended and private events are never listed. `?organizer_id=X` filters to one organizer; if the signed-in user **is** that organizer (or a platform admin), it returns all of that organizer's events, drafts included. A platform admin's bare list returns every event. `?public=true` always gives the public list. |
 | `GET /api/events/{id}` | Public | One event. Drafts and suspended events are visible only to their organizer and platform admins; `private` events only to those too; `unlisted` ones to anyone with the link. |
 | `POST /api/events` | Organizer | Create a draft. Required: `title`, `venue_name`, `start_time`. The organizer is the signed-in user. |
 | `PUT /api/events/{id}` | Organizer | Edit details. Cannot change `status`; use publish, unpublish and cancel below. |
@@ -385,7 +385,7 @@ The **Who** column uses these words:
 
 Checkout enforces: event is upcoming or active, paid sales are active (and not frozen by an admin) for priced tickets, sale window is open, quantity is within `max_per_order` and what is left, seat category matches the ticket type, the seat is not sold or held by someone else, and the promo code is valid, not used up, and allowed for that ticket type. Everything happens in one database transaction with row locks, so two people cannot get the same seat or the last ticket.
 
-> **Weak spot, on purpose:** `checkout`, `seats/hold` and `tickets/my-tickets` still accept the old `attendee_id` instead of a token, so the existing mobile app keeps working. If a token is sent, the token wins and a different `attendee_id` is rejected. Before a real launch, make the token compulsory.
+> **Weak spot, on purpose:** `checkout`, `seats/hold` and `tickets/my-tickets` still accept the old `attendee_id` instead of a token, so the early mobile prototype keeps working. The mobile app is expected to switch to token login. If a token is sent, the token wins and a different `attendee_id` is rejected. Before a real launch, make the token compulsory.
 
 ### 📥 Tickets, Orders & Refunds
 
@@ -407,7 +407,7 @@ Checkout enforces: event is upcoming or active, paid sales are active (and not f
 | Method and path | Who | What it does |
 |---|---|---|
 | `GET /api/staff/events` | Staff | Events you can scan for. |
-| `POST /api/checkin/verify-qr` | Staff | Body: `qr_code_hash`. Result is one of `valid`, `already_checked_in`, `cancelled`, `refunded`, `event_cancelled`, `event_suspended`. A wrong code gives 404 "Not a valid ticket". A **promo campaign QR** is rejected with 400 and never admits anyone. Staff of a different event get 403. |
+| `POST /api/checkin/verify-qr` | Staff | Body: `qr_code_hash` and (recommended) `event_id`, the event the scanner is open on. Result is one of `valid`, `wrong_event` (the ticket belongs to another event; nothing is checked in and no attendee details are returned), `already_checked_in`, `cancelled`, `refunded`, `event_cancelled`, `event_suspended`. A wrong code gives 404 "Not a valid ticket". A **promo campaign QR** is rejected with 400 and never admits anyone. Staff of a different event get 403. |
 | `POST /api/checkin/undo` | Staff | Body: `ticket_id`. Reverses a scan by mistake. |
 | `GET /api/events/{id}/checkin-stats` | Staff | `registered`, `checked_in`, `not_arrived`, `percent_checked_in`. |
 | `POST /api/checkin/manual-search` | Staff | Body: `event_id`, `name`. Finds tickets by attendee name or email when a QR will not scan. |

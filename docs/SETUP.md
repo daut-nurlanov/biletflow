@@ -155,13 +155,13 @@ If both of those work, your setup is complete.
 
 ## Part 3: What to actually do with this, based on your role
 
-Once the steps above are done, here is what changes for you specifically. The SRS (`docs/BiletFlow_SRS_Initial_Draft.pdf`) decides what we build: a responsive **web app** for organizers and attendees, one **mobile app for door staff (the scanner)**, and an **admin web portal**. The native attendee and organizer mobile apps are listed as excluded in the SRS. `docs/TASKS.md` has the exact split.
+Once the steps above are done, here is what changes for you specifically. The SRS (`docs/BiletFlow_SRS_Initial_Draft.pdf`) plus the instructors' clarification of Nov 2 decide what we build: a responsive **website** for organizers and attendees, **one mobile app** where an attendee, an organizer or door staff can log in (full parity with the website is not required, so each side gets the features that suit it), and an **admin web portal**. `docs/TASKS.md` has the exact split and the list of which features go where.
 
 **If you are building the website (organizer and attendee pages):**
 Call `http://localhost:8000/api/events?public=true` and the other endpoints in `docs/DATA_MODELS_AND_APIS.md`. Register or log in, keep the `token` from the response, and send it as `Authorization: Bearer <token>` on every request that needs a signed-in user.
 
-**If you are building the scanner app (mobile):**
-A phone cannot reach `localhost` the way your laptop's browser can, since `localhost` always means "this exact device". Use your laptop's network address instead (on Windows, run `ipconfig` and look for "IPv4 Address"), and keep the phone on the same WiFi. Log in as door staff (see the logins below), then use `GET /api/staff/events`, `POST /api/checkin/verify-qr`, `POST /api/checkin/manual-search`, and `GET /api/events/{id}/checkin-stats`.
+**If you are building the mobile app (all roles, including the scanner):**
+Log in with `POST /api/auth/login`. The answer contains the person's `role` and a `token`; use the role to decide which screens to show and send the token on every request. A phone cannot reach `localhost` the way your laptop's browser can, since `localhost` always means "this exact device". Use your laptop's network address instead (on Windows, run `ipconfig` and look for "IPv4 Address"), and keep the phone on the same WiFi. Set `EXPO_PUBLIC_API_URL` in `mobile/.env` to that address (see `mobile/README.md`), and allow port 8000 in Windows Firewall if the phone cannot connect. For the scanner, log in as door staff (see the logins below), then use `GET /api/staff/events`, `POST /api/checkin/verify-qr`, `POST /api/checkin/manual-search`, and `GET /api/events/{id}/checkin-stats`.
 
 **If you are building the admin portal:**
 Log in as the platform admin (below). Every endpoint under `/api/admin/` is ready.
@@ -173,7 +173,7 @@ Try to break things: buy the last ticket twice, take a seat someone else holds, 
 
 ## Part 4: What is actually finished, and what is not
 
-This section is checked against `docs/DATA_MODELS_AND_APIS.md`, which lists every endpoint (a script, `docs/check_docs.py`, confirms the list matches the code). The backend has **86 endpoints** and **104 automated tests**.
+This section is checked against `docs/DATA_MODELS_AND_APIS.md`, which lists every endpoint (a script, `docs/check_docs.py`, confirms the list matches the code). The backend has **86 endpoints** and **106 automated tests**.
 
 ### Built and tested
 
@@ -192,7 +192,7 @@ This section is checked against `docs/DATA_MODELS_AND_APIS.md`, which lists ever
 
 - **Payment is simulated.** Orders are marked paid immediately with a fake reference. Refunds, activation fees and identity verification are simulated too.
 - **Emails are simulated.** They are saved in the `notifications` table and printed in the server log. Nothing is sent.
-- **Buying still accepts the old `attendee_id`** instead of a token (`checkout`, `seats/hold`, `tickets/my-tickets`). This keeps the existing mobile app working. A real launch would make the token compulsory.
+- **Buying still accepts the old `attendee_id`** instead of a token (`checkout`, `seats/hold`, `tickets/my-tickets`). This keeps the early mobile prototype working. The mobile app should move to token login (see `docs/TASKS.md`). A real launch would make the token compulsory.
 - **Ticket links are open.** `GET /api/tickets/{id}`, its `.png` and `.pdf` need no login; the random id is the secret.
 - **Tokens are simple signed strings** (7 days, no refresh, no server-side logout). The signing secret defaults to a development value; set `BILETFLOW_SECRET` for anything real.
 - **No rate limiting, no real password-strength rules** beyond 8 characters.
@@ -200,7 +200,7 @@ This section is checked against `docs/DATA_MODELS_AND_APIS.md`, which lists ever
 
 ### Not built
 
-- Any user interface. This repo only contains the backend and the early mobile screens. Web pages, the scanner app, and the admin portal screens still have to be built on top of these endpoints.
+- Most of the user interface. This repo contains the backend and an early version of the mobile app (events list, event details, My Tickets). The website, the mobile login with role-based screens, the organizer and scanner screens, and the admin portal still have to be built on top of these endpoints.
 - Real payments, real email, real SMS.
 - Partial refunds (the SRS excludes them).
 
