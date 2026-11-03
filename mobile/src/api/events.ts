@@ -10,3 +10,11 @@ export function getEvents(signal?: AbortSignal): Promise<Event[]> {
 export function getEvent(eventId: string, signal?: AbortSignal): Promise<EventDetails> {
   return request<EventDetails>(`/api/events/${encodeURIComponent(eventId)}`, signal);
 }
+
+/** Every event the organizer owns, in server order and with every status, drafts included. */
+export function getOrganizerEvents(organizerId: string, signal?: AbortSignal): Promise<Event[]> {
+  return request<Event[]>(
+    `/api/events?organizer_id=${encodeURIComponent(organizerId)}`,
+    signal,
+  );
+}

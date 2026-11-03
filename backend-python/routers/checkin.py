@@ -12,6 +12,7 @@ STAFF_ROLES = ("event_admin", "organizer", "platform_admin")
 class VerifyRequest(BaseModel):
     qr_code_hash: str
     checked_in_by: str | None = None  #ignored, the scanner is whoever is signed in
+    event_id: str | None = None  #the event the scanner app is currently open on (recommended)
 
 
 class UndoRequest(BaseModel):
@@ -60,6 +61,10 @@ def verify_qr(payload: VerifyRequest, user=Depends(require_roles(*STAFF_ROLES)))
         ticket = cur.fetchone()
         if not ticket:
             raise HTTPException(status_code=404, detail="Not a valid ticket")
+        #a staff member assigned to two events must not admit event B's ticket at
+        #event A's door. nothing about the ticket is revealed, nothing is changed
+        if payload.event_id and str(ticket["event_id"]) != payload.event_id.strip().lower():
+            return {"result": "wrong_event"}
         event = assert_event_staff(cur, user, ticket["event_id"])
 
         base = {"attendee_name": ticket["attendee_name"], "ticket_id": ticket["id"],

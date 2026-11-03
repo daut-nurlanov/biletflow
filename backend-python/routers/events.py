@@ -85,19 +85,30 @@ class ReportRequest(BaseModel):
 
 
 @router.get("/api/events")
-def list_events(organizer_id: str | None = None, public: bool = False):
-    #?public=true is what the attendee apps should use: only events people
-    #can actually buy into (upcoming/active) that the organizer made public
+def list_events(organizer_id: str | None = None, public: bool = False, user=Depends(optional_user)):
+    #what an anonymous visitor sees: only events people can actually buy into
+    #(upcoming/active) that the organizer made public. drafts, suspended and
+    #private events are never listed to them.
+    #?organizer_id=X shows EVERYTHING of that organizer, but only to that
+    #organizer (or a platform admin) when signed in. nobody else gets drafts.
+    #a bare /api/events (no filter) is the public list too, except for
+    #platform admins, who get every event.
     with tx() as cur:
-        if organizer_id:
+        owner_view = bool(user) and (user["role"] == "platform_admin" or (organizer_id and str(user["id"]) == organizer_id))
+        if organizer_id and owner_view:
             cur.execute("SELECT * FROM events WHERE organizer_id = %s ORDER BY start_time", (organizer_id,))
-        elif public:
+        elif organizer_id:
+            cur.execute(
+                """SELECT * FROM events
+                   WHERE organizer_id = %s AND status IN ('upcoming','active') AND visibility = 'public'
+                   ORDER BY start_time""", (organizer_id,))
+        elif user and user["role"] == "platform_admin" and not public:
+            cur.execute("SELECT * FROM events ORDER BY start_time")
+        else:
             cur.execute(
                 """SELECT * FROM events
                    WHERE status IN ('upcoming','active') AND visibility = 'public'
                    ORDER BY start_time""")
-        else:
-            cur.execute("SELECT * FROM events ORDER BY start_time")
         return cur.fetchall()
 
 

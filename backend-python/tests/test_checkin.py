@@ -125,3 +125,21 @@ def test_staff_invites(kit):
     listed = kit.client.get(url, headers=org.h).json()
     assert {s["email"] for s in listed} == {new_email, existing.email}
     assert kit.client.get(url, headers=rival.h).status_code == 403
+
+
+def test_ticket_for_another_event_is_refused_at_this_door(kit):
+    org, buyer, event_a, tt, ticket_a, staff = setup(kit)
+    event_b, tt_b = kit.event(org, title="Other event")
+    ticket_b = kit.buy(buyer, event_b["id"], tt_b["id"], attendee_name="Aidos Nurlan").json()["ticket"]
+    kit.client.post(f"/api/events/{event_b['id']}/staff", json={"email": staff.email}, headers=org.h)   #same person works both doors
+
+    def scan_at(door, code):
+        return kit.client.post("/api/checkin/verify-qr", json={"qr_code_hash": code, "event_id": door["id"]}, headers=staff.h)
+
+    wrong = scan_at(event_a, ticket_b["qr_code_hash"])                      #event B ticket at event A's door
+    assert wrong.status_code == 200 and wrong.json() == {"result": "wrong_event"}       #no attendee details leaked
+    assert fetch_one("SELECT status FROM tickets WHERE id = %s", (ticket_b["id"],))["status"] == "valid"   #and not checked in
+    assert fetch_one("SELECT count(*) AS n FROM checkin_records WHERE ticket_id = %s", (ticket_b["id"],))["n"] == 0
+    assert scan_at(event_b, ticket_b["qr_code_hash"]).json()["result"] == "valid"     #at the right door it works
+    assert scan_at(event_a, ticket_a["qr_code_hash"]).json()["result"] == "valid"
+    assert scan(kit, staff, "no-such-code").status_code == 404

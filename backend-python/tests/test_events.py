@@ -80,7 +80,33 @@ def test_public_list_filter(kit):
     kit.client.put(f"/api/events/{eid}", json={"visibility": "public"}, headers=org.h)
     run_sql("UPDATE events SET status = 'suspended' WHERE id = %s", (eid,))
     assert not listed()
-    assert eid in [e["id"] for e in kit.client.get(f"/api/events?organizer_id={org.id}").json()]
+    assert eid in [e["id"] for e in kit.client.get(f"/api/events?organizer_id={org.id}", headers=org.h).json()]
+
+
+def test_drafts_and_hidden_events_never_leak_through_the_list(kit):
+    org, other, admin = kit.user("organizer"), kit.user("organizer"), kit.user("platform_admin")
+    live, _ = kit.event(org, title="Live")
+    draft, _ = kit.event(org, publish=False, title="Draft")
+    private, _ = kit.event(org, title="Private")
+    kit.client.put(f"/api/events/{private['id']}", json={"visibility": "private"}, headers=org.h)
+    ids = lambda url, headers=None: {e["id"] for e in kit.client.get(url, headers=headers).json()}
+
+    for url in ("/api/events", "/api/events?public=true", f"/api/events?organizer_id={org.id}"):
+        for headers in (None, other.h, kit.user().h):                       #anonymous, another organizer, an attendee
+            seen = ids(url, headers)
+            assert live["id"] in seen, (url, headers)
+            assert draft["id"] not in seen and private["id"] not in seen, (url, headers)
+    assert live["id"] in ids(f"/api/events?organizer_id={org.id}")           #the public part is still listed
+    others_live, _ = kit.event(other, title="Someone else")
+    assert others_live["id"] not in ids(f"/api/events?organizer_id={org.id}")      #the filter still filters for outsiders
+    assert others_live["id"] in ids("/api/events")
+
+    mine = ids(f"/api/events?organizer_id={org.id}", org.h)                  #the owner sees everything of theirs
+    assert {live["id"], draft["id"], private["id"]} <= mine
+    assert draft["id"] in ids(f"/api/events?organizer_id={org.id}", admin.h)
+    assert draft["id"] in ids("/api/events", admin.h)                        #admins see all on the bare list
+    assert draft["id"] not in ids("/api/events?public=true", admin.h)        #unless they ask for the public list
+    assert draft["id"] not in ids("/api/events", org.h)                      #the owner's bare list is still the public one
 
 
 def test_publish_rules(kit):
