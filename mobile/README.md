@@ -1,4 +1,65 @@
-# BiletFlow mobile — Week 7
+# BiletFlow mobile
+
+## Door scanner (current app)
+
+The app now opens as the **door scanner** for event staff (the one mobile app the SRS
+requires, see `docs/TASKS.md` section 3C). Built so far:
+
+- **Staff login** (`POST /api/auth/login`). Only `event_admin`, `organizer` and
+  `platform_admin` accounts may sign in; attendees get a clear message instead.
+- The token is kept in the phone's keychain with `expo-secure-store`, so staff stay
+  signed in after closing the app. On launch the app checks it with
+  `GET /api/auth/me` and returns to login if it expired or the account was suspended.
+- **Assigned events list** (`GET /api/staff/events`), grouped into Today, Upcoming
+  and Past in the phone's time zone. Today's events are highlighted; cancelled or
+  suspended events are marked because their tickets will be refused. Pull to
+  refresh, and a Sign out button (with confirmation) in the header. Tapping an
+  event opens its scanner.
+- **Camera scanner** (`POST /api/checkin/verify-qr`, `expo-camera`). Each scan shows a
+  full-screen answer: green for `valid` (the person is checked in; the screen clears
+  itself after 2.5 s), red for `already_checked_in`, `cancelled`, `refunded`,
+  `event_cancelled`, `event_suspended`, "Not a valid ticket" (404) and "not your event"
+  (403), amber for a promo campaign QR (400) and for connection problems (with Try
+  again). The phone vibrates on every answer. A flashlight toggle helps in dark
+  entrances, and the same QR is ignored for 3 s after closing its result so it
+  doesn't re-scan as "Already checked in".
+- **Known backend gap:** `verify-qr` does not know which event the scanner is open
+  for. Staff assigned to several events (Nurlan is assigned to all three demo events)
+  can check in a ticket for event B from event A's screen. The app already sends
+  `event_id` and shows a "Different event" result for `wrong_event`; the backend
+  needs to read that field. See `src/api/checkin.ts`.
+- If the backend rejects the token mid-session (expired, or account suspended), the
+  app signs out and returns to login (`authed` in `SessionContext.tsx`).
+- Every request can send `Authorization: Bearer <token>` through `apiRequest` in
+  `src/api/client.ts`.
+
+First-time setup after pulling: `npx expo install expo-secure-store expo-camera` (both
+are included in Expo Go, so no development build is needed). Then follow the run steps below. Demo staff
+login: `nurlan@example.com` / `demo1234` (a "fill in" link appears in development builds).
+
+| File | Purpose |
+| --- | --- |
+| `src/auth/SessionContext.tsx` | Sign in, sign out, restore saved session, role check |
+| `src/api/auth.ts` | Login and "who am I" requests |
+| `src/types/auth.ts` | User, roles, and which roles may scan |
+| `src/screens/LoginScreen.tsx` | Staff login form |
+| `src/api/staff.ts` | Assigned events request |
+| `src/utils/eventTiming.ts` | Sorts an event into Today / Upcoming / Past |
+| `src/components/StaffEventCard.tsx` | One event in the list, with Today and closed markers |
+| `src/screens/StaffEventsScreen.tsx` | Assigned events list, refresh, sign out |
+| `src/api/checkin.ts` | Ticket check-in request (and the backend gap note) |
+| `src/types/checkin.ts` | Check-in answers from the backend |
+| `src/utils/scanOutcome.ts` | Turns each answer or error into color, headline and message |
+| `src/components/ScanResultPanel.tsx` | Full-screen green / red / amber answer |
+| `src/screens/ScanScreen.tsx` | Camera, permission prompts, scan lock, flashlight |
+| `src/navigation/ScannerNavigator.tsx` | Shows login or the signed-in screens |
+
+Insar's attendee screens below are unchanged and still in the code
+(`src/navigation/RootNavigator.tsx`), but `App.tsx` no longer shows them.
+
+---
+
+## Attendee screens — Week 7 (Insar)
 
 Attendee browsing and existing tickets, using the current FastAPI backend:
 

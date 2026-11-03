@@ -20,6 +20,15 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "BiletFlow uses the camera to scan ticket QR codes at the event entrance.",
+          "recordAudioAndroid": false
+        }
+      ]
+    ]
   }
 }

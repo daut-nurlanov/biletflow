@@ -13,6 +13,7 @@ const statuses: Record<Status, { label: string; tone: Tone }> = {
   active: { label: "Active", tone: "positive" },
   completed: { label: "Completed", tone: "neutral" },
   cancelled: { label: "Cancelled", tone: "negative" },
+  suspended: { label: "Suspended", tone: "negative" },
   valid: { label: "Valid", tone: "positive" },
   checked_in: { label: "Checked in", tone: "info" },
   refunded: { label: "Refunded", tone: "neutral" },
