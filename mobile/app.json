@@ -28,7 +28,9 @@
           "cameraPermission": "BiletFlow uses the camera to scan ticket QR codes at the event entrance.",
           "recordAudioAndroid": false
         }
-      ]
+      ],
+      "expo-secure-store",
+      "expo-status-bar"
     ]
   }
 }

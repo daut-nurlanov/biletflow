@@ -1,3 +1,5 @@
+import type { EventStatus } from "./event";
+
 export type TicketStatus = "valid" | "checked_in" | "cancelled" | "refunded";
 
 export interface TicketType {
@@ -27,4 +29,6 @@ export interface Ticket {
   created_at: string;
   event_title: string;
   start_time: string;
+  // Returned by the join; event cancellation/suspension does not change ticket.status.
+  event_status: EventStatus;
 }

@@ -22,7 +22,7 @@ export function EventsScreen({ navigation }: Props) {
         <ErrorState title="Couldn't load events" message={error} onRetry={retry} />
       ) : (
         <FlatList
-          data={data}
+          data={data ?? []}
           keyExtractor={(event) => event.id}
           contentContainerStyle={sharedStyles.listContent}
           refreshing={refreshing}

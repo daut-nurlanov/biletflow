@@ -5,13 +5,10 @@ import {
 
 import { getMe, login } from "../api/auth";
 import { ApiError } from "../api/client";
-import { SCANNER_ROLES, type User } from "../types/auth";
+import type { User } from "../types/auth";
 
-const TOKEN_KEY = "biletflow.staff.token";
+const TOKEN_KEY = "biletflow.staff.token"; // Keep old key to preserve existing scanner logins.
 const USER_KEY = "biletflow.staff.user";
-
-export const WRONG_ROLE_MESSAGE =
-  "This account can't scan tickets. Sign in with a door staff account (or the event's organizer).";
 
 type SessionState =
   | { status: "restoring" }
@@ -65,10 +62,6 @@ function isSessionEnded(error: ApiError) {
   return error.status === 401 || (error.status === 403 && /suspended/i.test(error.message));
 }
 
-function canScan(user: User) {
-  return SCANNER_ROLES.includes(user.role);
-}
-
 export function SessionProvider({ children }: PropsWithChildren) {
   const [state, setState] = useState<SessionState>({ status: "restoring" });
 
@@ -85,11 +78,6 @@ export function SessionProvider({ children }: PropsWithChildren) {
       try {
         const user = await getMe(saved.token);
         if (cancelled) return;
-        if (!canScan(user)) {
-          await clearSession();
-          setState({ status: "signedOut" });
-          return;
-        }
         await saveSession(saved.token, user);
         setState({ status: "signedIn", token: saved.token, user });
       } catch (error) {
@@ -109,7 +97,6 @@ export function SessionProvider({ children }: PropsWithChildren) {
 
   const signIn = useCallback(async (email: string, password: string) => {
     const { token, ...user } = await login(email, password);
-    if (!canScan(user)) throw new Error(WRONG_ROLE_MESSAGE);
     await saveSession(token, user);
     setState({ status: "signedIn", token, user });
   }, []);

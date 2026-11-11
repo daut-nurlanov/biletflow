@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import {
-  KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
+  KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, type TextInputInstance, View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -8,8 +8,12 @@ import { useSession } from "../auth/SessionContext";
 import { AppButton } from "../components/AppButton";
 import { sharedStyles, theme } from "../theme";
 
-// Seeded door staff account from docs/SETUP.md, offered only in development builds.
-const DEMO_STAFF = { email: "nurlan@example.com", password: "demo1234" };
+// Seeded demo accounts are offered only in development builds.
+const DEMO_ACCOUNTS = [
+  { label: "Attendee (Dana)", email: "dana@example.com" },
+  { label: "Organizer (Aigerim)", email: "aigerim@example.com" },
+  { label: "Door staff (Nurlan)", email: "nurlan@example.com" },
+] as const;
 
 export function LoginScreen() {
   const { signIn } = useSession();
@@ -18,7 +22,7 @@ export function LoginScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const passwordInput = useRef<TextInput>(null);
+  const passwordInput = useRef<TextInputInstance>(null);
 
   const canSubmit = email.trim().length > 0 && password.length > 0 && !submitting;
 
@@ -44,9 +48,9 @@ export function LoginScreen() {
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           <View style={styles.header}>
             <Text style={styles.brand}>BiletFlow</Text>
-            <Text accessibilityRole="header" style={styles.heading}>Door scanner</Text>
+            <Text accessibilityRole="header" style={styles.heading}>Sign in</Text>
             <Text style={sharedStyles.muted}>
-              Sign in with your staff account to check tickets at the entrance.
+              Attendees, organizers and event staff all use this app.
             </Text>
           </View>
 
@@ -57,7 +61,7 @@ export function LoginScreen() {
               style={styles.input}
               value={email}
               onChangeText={setEmail}
-              placeholder="staff@example.com"
+              placeholder="you@example.com"
               placeholderTextColor={theme.colors.muted}
               autoCapitalize="none"
               autoCorrect={false}
@@ -114,19 +118,20 @@ export function LoginScreen() {
             />
           </View>
 
-          {__DEV__ && (
+          {__DEV__ && DEMO_ACCOUNTS.map((account) => (
             <Pressable
+              key={account.email}
               accessibilityRole="button"
               onPress={() => {
-                setEmail(DEMO_STAFF.email);
-                setPassword(DEMO_STAFF.password);
+                setEmail(account.email);
+                setPassword("demo1234");
                 setError(null);
               }}
               style={styles.demo}
             >
-              <Text style={styles.demoText}>Fill in demo staff login (Nurlan)</Text>
+              <Text style={styles.demoText}>Fill demo: {account.label}</Text>
             </Pressable>
-          )}
+          ))}
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
