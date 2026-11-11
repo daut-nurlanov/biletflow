@@ -14,7 +14,7 @@ services:
     ports:
       #only this computer can reach the database. a bare "5432:5432" would open it (with a known
       #password) to everybody on the same WiFi, which is exactly where a demo happens
-      - "127.0.0.1:5432:5432"
+      - "127.0.0.1:5433:5432"
     volumes:
       - biletflow-data:/var/lib/postgresql/data
       # Files in this special folder run once, in alphabetical order,
