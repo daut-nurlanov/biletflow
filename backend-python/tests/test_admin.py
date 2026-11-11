@@ -85,7 +85,7 @@ def test_admin_sees_activations_refunds_and_promo_activity(kit):
     refunds = [r for r in kit.client.get("/api/admin/refunds", headers=admin.h).json() if r["order_id"] == order["id"]]
     assert len(refunds) == 1 and refunds[0]["attendee_email"] == buyer.email and float(refunds[0]["amount"]) == 900
     activity = [p for p in kit.client.get("/api/admin/promo-activity", headers=admin.h).json() if p["id"] == promo["id"]]
-    assert activity[0]["redemptions_count"] == 1 and activity[0]["organizer_email"] == org.email
+    assert activity[0]["redemptions_count"] == 0 and activity[0]["organizer_email"] == org.email
 
 
 def test_event_reports_review(kit):

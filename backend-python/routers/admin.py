@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel
 
 from db import audit, notify, tx
-from security import load_event, require_roles
+from security import check_number, load_event, require_roles
 
 router = APIRouter(prefix="/api/admin")
 
@@ -18,9 +18,23 @@ class ReportReview(BaseModel):
     status: str
 
 
+PAYOUT_STATUSES = ("not_started", "pending", "processing", "paid", "failed")
+
+
+class PayoutUpdate(BaseModel):
+    status: str
+
+
 class SettingsUpdate(BaseModel):
     activation_fee: float | None = None
     processing_fee_rate: float | None = None
+
+
+def safe_cell(value):
+    #a spreadsheet treats a cell starting with = + - @ as a formula. event titles are typed by
+    #organizers, so one could plant a formula that runs when an admin opens the export
+    text = str(value)
+    return "'" + text if text[:1] in ("=", "+", "-", "@", "\t", "\r") else text
 
 
 def like(q):
@@ -41,6 +55,10 @@ def _set_suspended(user_id, admin, suspended):
     if str(user_id) == str(admin["id"]):
         raise HTTPException(status_code=400, detail="You cannot suspend your own account")
     with tx() as cur:
+        cur.execute("SELECT role FROM users WHERE id = %s", (user_id,))
+        found = cur.fetchone()
+        if found and found["role"] == "platform_admin":
+            raise HTTPException(status_code=400, detail="Platform admin accounts cannot be suspended")
         cur.execute("UPDATE users SET is_suspended = %s WHERE id = %s RETURNING id, email, full_name, role, is_suspended",
                     (suspended, user_id))
         target = cur.fetchone()
@@ -79,7 +97,11 @@ def suspend_event(event_id: str, admin=Depends(admin_only)):
         event = load_event(cur, event_id, lock=True)
         if event["status"] == "suspended":
             raise HTTPException(status_code=409, detail="Already suspended")
-        cur.execute("UPDATE events SET status = 'suspended' WHERE id = %s RETURNING *", (event_id,))
+        if event["status"] in ("cancelled", "completed"):
+            raise HTTPException(status_code=409, detail=f"A {event['status']} event does not need suspending")
+        #remember what it was, so reinstating puts it back exactly (a suspended draft must not go on sale)
+        cur.execute("UPDATE events SET status = 'suspended', suspended_from = %s WHERE id = %s RETURNING *",
+                    (event["status"], event_id))
         suspended = cur.fetchone()
         audit(cur, admin["id"], event_id, "event_suspended", "Event suspended by a platform admin", "event", event_id)
         notify(cur, event["organizer_id"], "event_suspended", f"{event['title']} was suspended",
@@ -89,12 +111,13 @@ def suspend_event(event_id: str, admin=Depends(admin_only)):
 
 @router.post("/events/{event_id}/reinstate")
 def reinstate_event(event_id: str, admin=Depends(admin_only)):
-    #comes back as a published (upcoming) event. the organizer can unpublish it again
+    #comes back as whatever it was before the suspension (a draft stays a draft)
     with tx() as cur:
         event = load_event(cur, event_id, lock=True)
         if event["status"] != "suspended":
             raise HTTPException(status_code=409, detail="This event is not suspended")
-        cur.execute("UPDATE events SET status = 'upcoming' WHERE id = %s RETURNING *", (event_id,))
+        cur.execute("UPDATE events SET status = COALESCE(suspended_from, 'upcoming'), suspended_from = NULL WHERE id = %s RETURNING *",
+                    (event_id,))
         reinstated = cur.fetchone()
         audit(cur, admin["id"], event_id, "event_reinstated", "Event reinstated by a platform admin", "event", event_id)
         return reinstated
@@ -136,6 +159,35 @@ def search_orders(q: str | None = None, status: str | None = None, user=Depends(
                  AND (%(s)s IS NULL OR o.status = %(s)s)
                ORDER BY o.created_at DESC LIMIT 200""", {"q": like(q), "s": status})
         return cur.fetchall()
+
+
+@router.get("/payment-failures")
+def payment_failures(user=Depends(admin_only)):
+    #every simulated payment that failed, newest first, so an admin can see what went wrong
+    with tx() as cur:
+        cur.execute(
+            """SELECT o.id, o.total_amount, o.payment_reference, o.created_at, o.event_id,
+                      e.title AS event_title, u.email AS attendee_email
+               FROM orders o JOIN users u ON o.attendee_id = u.id JOIN events e ON o.event_id = e.id
+               WHERE o.status = 'failed' ORDER BY o.created_at DESC LIMIT 200""")
+        return cur.fetchall()
+
+
+@router.put("/events/{event_id}/payout-status")
+def set_payout_status(event_id: str, payload: PayoutUpdate, admin=Depends(admin_only)):
+    #the (simulated) money transfer to the organizer. the admin moves it along and the organizer is told
+    if payload.status not in PAYOUT_STATUSES:
+        raise HTTPException(status_code=400, detail="Status must be one of: " + ", ".join(PAYOUT_STATUSES))
+    with tx() as cur:
+        event = load_event(cur, event_id)
+        if event["payout_status"] == payload.status:
+            return {"event_id": event_id, "payout_status": payload.status, "changed": False}
+        cur.execute("UPDATE events SET payout_status = %s WHERE id = %s", (payload.status, event_id))
+        audit(cur, admin["id"], event_id, "payout_status_changed",
+              f"Payout status changed from {event['payout_status']} to {payload.status}", "event", event_id)
+        notify(cur, event["organizer_id"], "payout_status", f"Payout update for {event['title']}",
+               f"The payout status of your event is now: {payload.status.replace('_', ' ')}.")
+        return {"event_id": event_id, "payout_status": payload.status, "changed": True}
 
 
 @router.get("/activations")
@@ -204,6 +256,8 @@ def update_settings(payload: SettingsUpdate, admin=Depends(admin_only)):
     changes = payload.model_dump(exclude_none=True)
     if not changes:
         raise HTTPException(status_code=400, detail="Nothing to update")
+    for name, value in changes.items():
+        check_number(value, name)
     if changes.get("activation_fee", 0) < 0 or not 0 <= changes.get("processing_fee_rate", 0) <= 1:
         raise HTTPException(status_code=400, detail="activation_fee cannot be negative and processing_fee_rate must be between 0 and 1")
     with tx() as cur:
@@ -249,7 +303,8 @@ def export_orders_csv(user=Depends(admin_only)):
     writer = csv.writer(out)
     writer.writerow(["order_id", "created_at", "event", "attendee", "status", "total_kzt", "promo_code", "payment_reference"])
     for r in rows:
-        writer.writerow([r["id"], r["created_at"].isoformat(), r["event"], r["attendee"], r["status"],
-                         r["total_amount"], r["promo_code_applied"] or "", r["payment_reference"] or ""])
+        writer.writerow([safe_cell(c) for c in (
+            r["id"], r["created_at"].isoformat(), r["event"], r["attendee"], r["status"],
+            r["total_amount"], r["promo_code_applied"] or "", r["payment_reference"] or "")])
     return Response(content=out.getvalue(), media_type="text/csv",
                     headers={"Content-Disposition": 'attachment; filename="orders.csv"'})

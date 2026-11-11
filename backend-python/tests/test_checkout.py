@@ -29,7 +29,7 @@ def checkout_records():
             """INSERT INTO events
                (id, organizer_id, title, venue_name, start_time, capacity, status, has_assigned_seating,
                 is_paid_sales_active)
-               VALUES (%s, %s, 'Checkout Test Event', 'Test Venue', now(), 10, 'upcoming', true, true)""",
+               VALUES (%s, %s, 'Checkout Test Event', 'Test Venue', now(), 10, 'upcoming', false, true)""",
             (event_id, organizer_id),
         )
         for index, ticket_type_id in enumerate(ticket_type_ids):

@@ -97,7 +97,7 @@ class Kit:
         response = self.client.post(f"/api/events/{event_id}/seats", headers=organizer.h, json={
             "section": section, "category": category, "rows": rows, "seats_per_row": per_row})
         assert response.status_code == 201, response.text
-        return [s["id"] for s in self.client.get(f"/api/events/{event_id}/seats").json() if s["category"] == category]
+        return [s["id"] for s in self.client.get(f"/api/events/{event_id}/seats", headers=organizer.h).json() if s["category"] == category]
 
     def buy(self, attendee, event_id, ticket_type_id, signed_in=True, **kw):
         body = {"event_id": event_id, "ticket_type_id": ticket_type_id, "attendee_name": "Buyer"}

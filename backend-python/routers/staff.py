@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from db import audit, notify, tx
-from security import assert_manager, hash_password, require_roles
+from security import assert_manager, check_email, check_password_rules, hash_password, require_roles
 
 router = APIRouter()
 
@@ -18,7 +18,7 @@ def invite_staff(event_id: str, payload: StaffInvite, user=Depends(require_roles
     #the organizer either assigns someone who already has an event admin
     #account, or creates that account right here by giving a name and a
     #starting password (which they pass on to the person themselves)
-    email = payload.email.strip().lower()
+    email = check_email(payload.email)
     with tx() as cur:
         event = assert_manager(cur, user, event_id)
         cur.execute("SELECT * FROM users WHERE email = %s", (email,))
@@ -27,8 +27,9 @@ def invite_staff(event_id: str, payload: StaffInvite, user=Depends(require_roles
             if staff["role"] != "event_admin":
                 raise HTTPException(status_code=409, detail="That email belongs to an account that is not a door-staff account")
         else:
-            if not payload.full_name or not payload.password or len(payload.password) < 8:
+            if not payload.full_name or not payload.full_name.strip() or not payload.password:
                 raise HTTPException(status_code=400, detail="New staff need full_name and a password of at least 8 characters")
+            check_password_rules(payload.password)
             cur.execute(
                 """INSERT INTO users (email, password_hash, full_name, role, is_email_verified)
                    VALUES (%s, %s, %s, 'event_admin', true) RETURNING *""",

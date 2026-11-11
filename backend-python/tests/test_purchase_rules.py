@@ -215,6 +215,14 @@ def test_concurrent_last_ticket_and_last_seat_and_last_promo(kit):
             return sorted(ex.map(go, range(2)))
 
     base = {"event_id": event["id"], "attendee_name": "x"}
+    #adding seats switches the event to assigned seating, where every ticket needs a seat.
+    #the plain races run as general admission, the seat race as assigned seating
+    def seating(on):
+        run_sql("UPDATE events SET has_assigned_seating = %s WHERE id = %s", (on, event["id"]))
+
+    seating(False)
     assert race(lambda i: {**base, "ticket_type_id": tt["id"]}) == [201, 409]
+    seating(True)
     assert race(lambda i: {**base, "ticket_type_id": two["id"], "seat_id": seats[0]}) == [201, 409]
+    seating(False)
     assert race(lambda i: {**base, "ticket_type_id": two["id"], "promo_code": code}) == [201, 409]

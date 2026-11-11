@@ -26,7 +26,7 @@ Nobody on the front end needs to touch the kitchen. Your job is to build screens
 
 **What is already done**
 - The database with all its tables, and demo data (3 events, users, promo codes).
-- The backend with 86 endpoints and 106 automated tests. It runs with one command.
+- The backend with 88 endpoints and 176 automated tests. It runs with one command.
 - Login, tickets with QR codes and PDFs, promo codes with QR codes, refunds, door check-in, organizer numbers, support chat, admin tools.
 - Documentation: how to set up (`SETUP.md`), what you can ask the backend (`DATA_MODELS_AND_APIS.md`), and this plan.
 - A start on the mobile app (`mobile/`): Events list, Event details and My Tickets screens, an API client and shared components (Insar). Organizer screens, My events and Event dashboard (Farzad, PR #1, merged on Nov 1).
@@ -72,7 +72,7 @@ create event, make a promo campaign QR, open the QR link and land on the event w
 
 ## 2. What the backend already does
 
-Everything the web, the app and the admin portal need exists as endpoints: **86 endpoints, 106 automated tests** (`backend-python/`). Full list with who may call each: `docs/DATA_MODELS_AND_APIS.md`. Live, clickable version: http://localhost:8000/docs.
+Everything the web, the app and the admin portal need exists as endpoints: **88 endpoints, 176 automated tests** (`backend-python/`). Full list with who may call each: `docs/DATA_MODELS_AND_APIS.md`. Live, clickable version: http://localhost:8000/docs.
 
 | Area | Ready |
 |---|---|
@@ -141,6 +141,7 @@ Each person has a short plain-words description and a checklist.
 - [ ] Replace the demo `attendee_id` (`mobile/src/config/environment.ts`) with the logged-in user. Send the token on requests (the client from PR #2 already supports it).
 - [ ] Use `GET /api/events?public=true` for the event list.
 - [ ] Buy flow: pick a ticket type and quantity, optional promo code (`POST /api/orders/quote` shows the price), `POST /api/orders/checkout`, then show the confirmation and go to My Tickets.
+  - Also show: event `image_url` and `refund_policy`; the quote's `processing_fee` is only informational (the organizer pays it). If `POST /api/orders/checkout` answers **402** the payment failed: show the message and let the buyer retry. Send `simulate_payment: "fail"` only in the demo. If a registration window is set, a 409 says it is not open or closed. Several seats: send `seat_ids` (an assigned-seating event needs exactly one seat per ticket).
 - [ ] My Tickets: show each ticket with its QR. Use `/api/tickets/{id}/qr.png` as an image.
 - [ ] Register screen for new attendees (`POST /api/auth/register`), link from the login screen.
 - [ ] If time is short, do browse and My Tickets with QR first and let buying happen on the website (section 5).

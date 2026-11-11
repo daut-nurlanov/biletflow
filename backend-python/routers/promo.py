@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel
 
 from db import audit, tx
-from security import assert_manager, require_roles
+from security import assert_manager, check_number, require_roles
 from routers.orders import qr_png
 
 router = APIRouter()
@@ -39,12 +39,15 @@ def with_link(campaign):
 def create_campaign(event_id: str, payload: CampaignCreate, user=Depends(require_roles("organizer", "platform_admin"))):
     if payload.discount_type not in ("percentage", "fixed"):
         raise HTTPException(status_code=400, detail="discount_type must be percentage or fixed")
+    check_number(payload.discount_value, "discount_value")
     if payload.discount_value <= 0 or (payload.discount_type == "percentage" and payload.discount_value > 100):
         raise HTTPException(status_code=400, detail="Discount must be above 0 (and at most 100 for percentages)")
     if payload.max_redemptions < 1:
         raise HTTPException(status_code=400, detail="max_redemptions must be at least 1")
     code = (payload.code or "").strip().upper() or "".join(
         secrets.choice(string.ascii_uppercase + string.digits) for _ in range(8))
+    if len(code) > 40 or not all(c.isalnum() or c in "-_" for c in code):
+        raise HTTPException(status_code=400, detail="A promo code can only contain letters, digits, - and _ (at most 40 characters)")
     with tx() as cur:
         assert_manager(cur, user, event_id)
         if payload.ticket_type_ids:
@@ -64,6 +67,8 @@ def create_campaign(event_id: str, payload: CampaignCreate, user=Depends(require
              payload.valid_from, payload.valid_until, payload.ticket_type_ids or None,
              "cmp_" + secrets.token_urlsafe(12), user["id"]))
         campaign = cur.fetchone()
+        if campaign["valid_from"] and campaign["valid_until"] and campaign["valid_until"] <= campaign["valid_from"]:
+            raise HTTPException(status_code=400, detail="valid_until must be after valid_from")
         audit(cur, user["id"], event_id, "promo_created", f"Promo code {code} created", "promo_campaign", campaign["id"])
         return with_link(campaign)
 

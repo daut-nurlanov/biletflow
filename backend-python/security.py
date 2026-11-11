@@ -2,8 +2,13 @@ import base64
 import hashlib
 import hmac
 import json
+import math
 import os
+import re
+import secrets
 import time
+from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import bcrypt
 from fastapi import Depends, Header, HTTPException
@@ -12,12 +17,60 @@ from db import tx
 
 #set BILETFLOW_SECRET in the real environment. the default only exists so
 #local development works with zero setup
-SECRET = os.getenv("BILETFLOW_SECRET", "dev-secret-change-me")
+#if nobody sets BILETFLOW_SECRET, make a random one. a fixed default would be public (this code is on
+#GitHub), and anyone on the same network could then forge a login token for any account
+SECRET = os.getenv("BILETFLOW_SECRET") or secrets.token_hex(32)
 TOKEN_LIFETIME = 7 * 24 * 3600
 
 
 def hash_password(password: str) -> str:
     return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+
+
+def check_password_rules(password: str):
+    #bcrypt can only use the first 72 bytes and refuses longer passwords, so say so clearly
+    if len(password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+    if len(password.encode()) > 72:
+        raise HTTPException(status_code=400, detail="Password is too long (at most 72 bytes, about 70 characters)")
+
+
+def check_email(email: str) -> str:
+    email = email.strip().lower()
+    if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]{2,}", email) or len(email) > 254:
+        raise HTTPException(status_code=400, detail="Enter a valid email address")
+    return email
+
+
+ALMATY = ZoneInfo("Asia/Almaty")
+
+
+def _parse_moment(text, name, end_of_range):
+    text = text.strip()
+    try:
+        if len(text) == 10:
+            #a plain date means the whole day in Kazakhstan, so the end of the range is the start of the NEXT day
+            day = date.fromisoformat(text)
+            moment = datetime(day.year, day.month, day.day, tzinfo=ALMATY)
+            return moment + timedelta(days=1) if end_of_range else moment
+        moment = datetime.fromisoformat(text.replace("Z", "+00:00"))
+        return moment if moment.tzinfo else moment.replace(tzinfo=ALMATY)
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"{name} must look like 2026-11-30 or 2026-11-30T18:00:00+05:00")
+
+
+def day_range(date_from, date_to):
+    """Turns the ?date_from / ?date_to filters into exact moments. Both ends are INCLUDED:
+    date_to=2026-11-30 covers all of the 30th (Almaty time)."""
+    start = _parse_moment(date_from, "date_from", False) if date_from else None
+    end = _parse_moment(date_to, "date_to", True) if date_to else None
+    return start, end
+
+
+def check_number(value, name):
+    #JSON from some clients can contain NaN or Infinity, which Python and PostgreSQL both accept as numbers
+    if value is not None and not math.isfinite(value):
+        raise HTTPException(status_code=400, detail=f"{name} must be a normal number")
 
 
 def check_password(password: str, password_hash: str | None) -> bool:

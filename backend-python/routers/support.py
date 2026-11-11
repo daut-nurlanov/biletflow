@@ -11,6 +11,9 @@ CATEGORIES = ("ticket_delivery", "payment", "refund", "seating", "event_informat
 STATUSES = ("open", "in_progress", "waiting_customer", "resolved")
 
 
+MAX_MESSAGE = 4000
+
+
 class CaseCreate(BaseModel):
     category: str
     message: str
@@ -54,6 +57,15 @@ def load_case(cur, case_id, user):
     return case, level
 
 
+def assignee_blocked(cur, assignee, case):
+    #the person who opened the case is the customer, never the one handling it
+    if str(assignee["id"]) == str(case["opened_by"]):
+        return True
+    if assignee["role"] == "platform_admin":
+        return not (case["kind"] == "organizer" or case["escalated"])
+    return access_level(cur, assignee, case) != "handler"
+
+
 def notify_other_side(cur, case, sender, subject, body):
     recipients = set()
     if str(sender["id"]) != str(case["opened_by"]):
@@ -76,8 +88,8 @@ def notify_other_side(cur, case, sender, subject, body):
 def open_case(payload: CaseCreate, user=Depends(require_roles("attendee", "organizer"))):
     if payload.category not in CATEGORIES:
         raise HTTPException(status_code=400, detail="category must be one of: " + ", ".join(CATEGORIES))
-    if not payload.message.strip():
-        raise HTTPException(status_code=400, detail="Write a message describing the problem")
+    if not payload.message.strip() or len(payload.message) > MAX_MESSAGE:
+        raise HTTPException(status_code=400, detail=f"Write a message describing the problem (at most {MAX_MESSAGE} characters)")
     kind = "organizer" if user["role"] == "organizer" else "attendee"
     event_id, order_id, ticket_id = payload.event_id, payload.order_id, payload.ticket_id
 
@@ -154,15 +166,20 @@ def get_case(case_id: str, user=Depends(current_user)):
 
 @router.post("/api/support/cases/{case_id}/messages", status_code=201)
 def add_message(case_id: str, payload: MessageCreate, user=Depends(current_user)):
-    if not payload.message.strip():
-        raise HTTPException(status_code=400, detail="Message cannot be empty")
+    if not payload.message.strip() or len(payload.message) > MAX_MESSAGE:
+        raise HTTPException(status_code=400, detail=f"Message cannot be empty or longer than {MAX_MESSAGE} characters")
     with tx() as cur:
         case, level = load_case(cur, case_id, user)
         cur.execute("INSERT INTO support_messages (case_id, sender_id, message) VALUES (%s, %s, %s) RETURNING *",
                     (case_id, user["id"], payload.message.strip()))
         message = cur.fetchone()
         #a customer replying while we were waiting on them puts it back in progress
-        new_status = "in_progress" if level == "owner" and case["status"] == "waiting_customer" else case["status"]
+        #(and a customer writing on a resolved case reopens it)
+        new_status = case["status"]
+        if level == "owner" and case["status"] == "waiting_customer":
+            new_status = "in_progress"
+        elif level == "owner" and case["status"] == "resolved":
+            new_status = "open"
         cur.execute("UPDATE support_cases SET updated_at = now(), status = %s WHERE id = %s", (new_status, case_id))
         notify_other_side(cur, case, user, "New reply on your support case", payload.message.strip()[:200])
         return message
@@ -177,10 +194,12 @@ def update_case(case_id: str, payload: CaseUpdate, user=Depends(current_user)):
         if payload.status is not None and payload.status not in STATUSES:
             raise HTTPException(status_code=400, detail="status must be one of: " + ", ".join(STATUSES))
         if payload.assigned_to:
-            cur.execute("SELECT role FROM users WHERE id = %s", (payload.assigned_to,))
+            #only somebody who can actually open the case: the event's organizer, or platform staff
+            cur.execute("SELECT id, role FROM users WHERE id = %s", (payload.assigned_to,))
             assignee = cur.fetchone()
-            if not assignee or assignee["role"] not in ("organizer", "platform_admin"):
-                raise HTTPException(status_code=400, detail="A case can only be assigned to an organizer or platform admin")
+            allowed = bool(assignee) and not assignee_blocked(cur, assignee, case)
+            if not allowed:
+                raise HTTPException(status_code=400, detail="A case can only be assigned to the event's organizer or a platform admin")
         cur.execute(
             """UPDATE support_cases SET status = COALESCE(%s, status), assigned_to = COALESCE(%s, assigned_to),
                       updated_at = now() WHERE id = %s RETURNING *""",

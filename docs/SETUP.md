@@ -173,29 +173,31 @@ Try to break things: buy the last ticket twice, take a seat someone else holds, 
 
 ## Part 4: What is actually finished, and what is not
 
-This section is checked against `docs/DATA_MODELS_AND_APIS.md`, which lists every endpoint (a script, `docs/check_docs.py`, confirms the list matches the code). The backend has **86 endpoints** and **106 automated tests**.
+This section is checked against `docs/DATA_MODELS_AND_APIS.md`, which lists every endpoint (a script, `docs/check_docs.py`, confirms the list matches the code). The backend has **88 endpoints** and **176 automated tests**.
 
 ### Built and tested
 
 - **Accounts:** register (attendee or organizer), login with a signed token, email verification and password reset (the "email" is a row in the `notifications` table, visible through `GET /api/notifications`), account suspension by an admin.
 - **Events:** create, edit, publish, unpublish, cancel, duplicate; ticket types (free or priced, per-order limit, sale window, hidden); seat blocks; public listing with visibility rules; report an event.
-- **Buying:** price quote, checkout with one or several tickets, optional seat (with a 5 minute hold) and promo code. Refused when sold out, seat taken, event not on sale, paid sales not active, outside the sale window, or the promo code is bad or used up. Nobody can get the same seat or the last ticket twice, even when two people click at the same moment.
+- **Buying:** price quote, checkout with one or several tickets (and one seat per ticket), optional seat hold (5 minutes) and promo code, a simulated processing fee, and a simulated payment failure. Refused when sold out, seat taken, event not on sale, paid sales not active, outside the sale window or the event's registration window, after the event has ended, or the promo code is bad or used up. Nobody can get the same seat or the last ticket twice, even when two people click at the same moment.
 - **Tickets:** list, detail, QR image, PDF (with QR, supports Kazakh and Russian), calendar file and Google Calendar link.
 - **Orders:** list, detail, organizer refund (full), cancel a free registration.
 - **Door scanner:** staff accounts per event, QR check-in, undo, manual search by name or email, live check-in numbers. Promo campaign QR codes are rejected at the door.
 - **Promo campaigns:** create, enable and disable, QR image, report, public lookup of a scanned campaign QR.
 - **Organizer dashboard:** profile and simulated identity verification, paid-sales activation checklist and activation, events grouped by phase, attendee and order lists with filters, analytics (capacity, money, per ticket type, over time, campaigns, attendance), activity timeline.
 - **Support:** attendees and organizers open cases, organizers handle attendee cases and can escalate, the platform team handles organizer cases and escalations, messages both ways.
-- **Admin:** search users, events and orders; suspend and reinstate users and events; freeze paid sales; activations, refunds, event reports, promo activity; change the activation fee and processing fee; summary report and CSV export.
+- **Admin:** search users, events and orders; suspend and reinstate users and events; freeze paid sales; activations, refunds, event reports, promo activity; see failed payments; move an event's payout status (the organizer is notified); change the activation fee and processing fee; summary report and CSV export.
 
 ### Known simplifications (be honest about these in the presentation)
 
-- **Payment is simulated.** Orders are marked paid immediately with a fake reference. Refunds, activation fees and identity verification are simulated too.
+- **Payment is simulated.** Orders are marked paid immediately with a fake reference (or fail on request, with `simulate_payment: "fail"`, to demo the failure path). The processing fee is a stored stand-in charged to the organizer, not added to the buyer's price. Refunds, activation fees and identity verification are simulated too.
 - **Emails are simulated.** They are saved in the `notifications` table and printed in the server log. Nothing is sent.
 - **Buying still accepts the old `attendee_id`** instead of a token (`checkout`, `seats/hold`, `tickets/my-tickets`). This keeps the early mobile prototype working. The mobile app should move to token login (see `docs/TASKS.md`). A real launch would make the token compulsory.
 - **Ticket links are open.** `GET /api/tickets/{id}`, its `.png` and `.pdf` need no login; the random id is the secret.
-- **Tokens are simple signed strings** (7 days, no refresh, no server-side logout). The signing secret defaults to a development value; set `BILETFLOW_SECRET` for anything real.
+- **Tokens are simple signed strings** (7 days, no refresh, no server-side logout). If `BILETFLOW_SECRET` is not set, the server makes a random signing secret each time it starts (so everyone must sign in again after a restart). Set it to keep logins across restarts. The database port is only open on your own computer, not to the WiFi.
 - **No rate limiting, no real password-strength rules** beyond 8 characters.
+- **Login attempts are limited in memory only:** 10 wrong passwords per email, then 15 minutes of refusal. It resets when the server restarts.
+- **Sales rules the API enforces for you:** no sales after an event ended, outside the registration or ticket sale window, for private events, or for a suspended organizer; ticket quantities and seats can never exceed the event capacity; assigned-seating events need one seat per ticket; a person can hold at most 10 seats at once. Double taps on "Pay" are safe when the app sends an `Idempotency-Key` header.
 - **Seat maps are generated blocks** (sections, rows, numbers), not a drawn floor plan.
 
 ### Not built

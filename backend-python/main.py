@@ -38,6 +38,18 @@ async def fk_violation(request: Request, exc):
     return JSONResponse(status_code=404, content={"detail": "A record you referred to does not exist"})
 
 
+@app.exception_handler(psycopg2.errors.NotNullViolation)
+async def not_null_violation(request: Request, exc):
+    return JSONResponse(status_code=400, content={"detail": "A required value is missing"})
+
+
+@app.exception_handler(psycopg2.errors.DeadlockDetected)
+@app.exception_handler(psycopg2.errors.SerializationFailure)
+@app.exception_handler(psycopg2.errors.LockNotAvailable)
+async def busy(request: Request, exc):
+    return JSONResponse(status_code=409, content={"detail": "The system was busy with the same record, please try again"})
+
+
 @app.exception_handler(psycopg2.DataError)
 async def data_error(request: Request, exc):
     return JSONResponse(status_code=400, content={"detail": "A value has the wrong format (for example an id or a date)"})

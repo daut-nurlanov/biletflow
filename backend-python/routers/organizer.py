@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from db import audit, get_setting, notify, tx
-from security import assert_manager, require_roles
+from security import assert_manager, day_range, require_roles
 
 router = APIRouter()
 
@@ -177,7 +177,8 @@ def analytics(event_id: str, date_from: str | None = None, date_to: str | None =
               ticket_type_id: str | None = None, user=Depends(require_roles("organizer", "platform_admin"))):
     """All numbers come straight from the orders, tickets, refunds, promo and
     check-in tables. Filters: date_from / date_to (order date), ticket_type_id."""
-    p = {"e": event_id, "f": date_from, "t": date_to, "tt": ticket_type_id}
+    date_start, date_end = day_range(date_from, date_to)
+    p = {"e": event_id, "f": date_start, "t": date_end, "tt": ticket_type_id}
     #an order is "in range" if its date matches and (when asked) it contains that ticket type
     order_filter = """o.event_id = %(e)s
         AND (%(f)s::timestamptz IS NULL OR o.created_at >= %(f)s::timestamptz)
@@ -204,16 +205,19 @@ def analytics(event_id: str, date_from: str | None = None, date_to: str | None =
 
         cur.execute(f"""SELECT COALESCE(sum(o.total_amount + COALESCE(r.discount_amount, 0)) FILTER (WHERE o.status IN ('paid','refunded')), 0) AS gross,
                                COALESCE(sum(r.discount_amount) FILTER (WHERE o.status IN ('paid','refunded')), 0) AS discounts,
-                               COALESCE(sum(o.total_amount) FILTER (WHERE o.status = 'refunded'), 0) AS refunds
+                               COALESCE(sum(o.total_amount) FILTER (WHERE o.status = 'refunded'), 0) AS refunds,
+                               COALESCE(sum(o.processing_fee) FILTER (WHERE o.status = 'paid'), 0) AS fees
                         FROM orders o
                         LEFT JOIN (SELECT order_id, sum(discount_amount) AS discount_amount FROM promo_redemptions GROUP BY order_id) r
                                ON r.order_id = o.id
                         WHERE {order_filter}""", p)
         money = cur.fetchone()
         net = money["gross"] - money["discounts"] - money["refunds"]
-        #the processing fee is a stand-in: a real payment provider takes a cut of each payment
-        fee_rate = Decimal(get_setting(cur, "processing_fee_rate", "0.03"))
-        fee = (net * fee_rate).quantize(Decimal("0.01"))
+        #the processing fee is a stand-in: each paid order stored the fee it was charged at checkout
+        #(refunded orders give their fee back)
+        fee = money["fees"]
+        cur.execute("SELECT payout_status FROM events WHERE id = %s", (event_id,))
+        payout_status = cur.fetchone()["payout_status"]
 
         cur.execute(f"""SELECT (o.created_at AT TIME ZONE 'Asia/Almaty')::date AS day, count(*) AS orders,
                                COALESCE(sum(o.total_amount), 0) AS revenue,
@@ -249,7 +253,8 @@ def analytics(event_id: str, date_from: str | None = None, date_to: str | None =
         "ticket_counts": {"available": stock["remaining"], "reserved": reserved, "sold": tickets["sold"],
                           "refunded": tickets["refunded"], "checked_in": tickets["checked_in"]},
         "money": {"gross_sales": money["gross"], "discounts": money["discounts"], "refunds": money["refunds"],
-                  "net_revenue": net, "processing_fee_simulated": fee, "estimated_payout": net - fee},
+                  "net_revenue": net, "processing_fee_simulated": fee, "estimated_payout": net - fee,
+                  "payout_status": payout_status},
         "sales_over_time": over_time, "by_ticket_type": by_type, "campaigns": campaigns,
         "attendance": {"registered": registered, "checked_in": tickets["checked_in"], "absent": tickets["not_arrived"],
                        "percent_checked_in": round(100 * tickets["checked_in"] / registered, 1) if registered else 0},
@@ -261,6 +266,7 @@ def timeline(event_id: str, date_from: str | None = None, date_to: str | None = 
              user=Depends(require_roles("organizer", "platform_admin"))):
     with tx() as cur:
         assert_manager(cur, user, event_id)
+        range_start, range_end = day_range(date_from, date_to)
         cur.execute(
             """SELECT a.created_at AS timestamp, u.full_name AS actor, a.action, a.entity_type, a.entity_id, a.details
                FROM audit_log a LEFT JOIN users u ON a.actor_id = u.id
@@ -269,5 +275,5 @@ def timeline(event_id: str, date_from: str | None = None, date_to: str | None = 
                  AND (%(t)s::timestamptz IS NULL OR a.created_at < %(t)s::timestamptz)
                  AND (%(a)s IS NULL OR a.action = %(a)s)
                ORDER BY a.created_at DESC, a.id LIMIT 500""",
-            {"e": event_id, "f": date_from, "t": date_to, "a": action})
+            {"e": event_id, "f": range_start, "t": range_end, "a": action})
         return cur.fetchall()

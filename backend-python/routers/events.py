@@ -1,18 +1,19 @@
 import os
-from datetime import timedelta, timezone
+from datetime import datetime, timedelta, timezone
 
 import psycopg2
 from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel
 
 from db import audit, notify, release_expired_holds, tx
-from security import (assert_manager, can_manage, load_event, optional_user, require_roles,
+from security import (assert_manager, can_manage, check_number, day_range, load_event, optional_user, require_roles,
                       resolve_actor)
 
 router = APIRouter()
 
 BASE_URL = os.getenv("PUBLIC_BASE_URL", "http://localhost:3000")
 SEAT_CATEGORIES = ("premium", "standard", "accessible")
+MAX_ACTIVE_HOLDS = 10  #seats one person may hold at the same time
 
 
 class EventCreate(BaseModel):
@@ -27,6 +28,10 @@ class EventCreate(BaseModel):
     end_time: str | None = None
     visibility: str = "public"
     has_assigned_seating: bool = False
+    image_url: str | None = None
+    refund_policy: str | None = None
+    registration_opens_at: str | None = None
+    registration_closes_at: str | None = None
 
 
 class EventUpdate(BaseModel):
@@ -41,6 +46,54 @@ class EventUpdate(BaseModel):
     venue_address: str | None = None
     end_time: str | None = None
     visibility: str | None = None
+    image_url: str | None = None
+    refund_policy: str | None = None
+    registration_opens_at: str | None = None
+    registration_closes_at: str | None = None
+
+
+#changes to these fields are things a ticket holder needs to know about
+NOTIFY_FIELDS = ("title", "start_time", "end_time", "venue_name", "venue_address")
+
+
+def check_event_fields(fields):
+    """Small sanity checks shared by create and update."""
+    image = fields.get("image_url")
+    if image and not (image.startswith("https://") or image.startswith("http://") or image.startswith("/")):
+        raise HTTPException(status_code=400, detail="image_url must be a web address (https://...) or a path starting with /")
+    limits = {"title": 200, "venue_name": 200, "venue_address": 300, "category": 60, "description": 5000,
+              "refund_policy": 2000, "image_url": 500}
+    for name, limit in limits.items():
+        if fields.get(name) and len(fields[name]) > limit:
+            raise HTTPException(status_code=400, detail=f"{name} is too long (at most {limit} characters)")
+    for name in ("title", "venue_name"):
+        if name in fields and fields[name] is not None and not fields[name].strip():
+            raise HTTPException(status_code=400, detail=f"{name} cannot be empty")
+    if fields.get("capacity") is not None and fields["capacity"] < 1:
+        raise HTTPException(status_code=400, detail="Capacity must be at least 1")
+    if fields.get("visibility") and fields["visibility"] not in ("public", "unlisted", "private"):
+        raise HTTPException(status_code=400, detail="visibility must be public, unlisted or private")
+
+
+def check_event_times(event):
+    """Run on the saved row (inside the transaction), so it sees the final values."""
+    if event["end_time"] and event["end_time"] <= event["start_time"]:
+        raise HTTPException(status_code=400, detail="The event must end after it starts")
+    if event["registration_opens_at"] and event["registration_closes_at"] and \
+       event["registration_closes_at"] <= event["registration_opens_at"]:
+        raise HTTPException(status_code=400, detail="Registration must close after it opens")
+
+
+def check_capacity(cur, event_id, capacity, ticket_total_change=0, ignore_ticket_type=None):
+    """All ticket types together can never offer more tickets than the venue holds."""
+    cur.execute("SELECT COALESCE(sum(total_quantity), 0) AS n FROM ticket_types WHERE event_id = %s AND id IS DISTINCT FROM %s",
+                (event_id, ignore_ticket_type))
+    offered = cur.fetchone()["n"] + ticket_total_change
+    if offered > capacity:
+        raise HTTPException(
+            status_code=400,
+            detail=f"The ticket types add up to {offered} tickets but the event capacity is {capacity}. "
+                   "Lower the ticket quantities or raise the capacity")
 
 
 class TicketTypeCreate(BaseModel):
@@ -84,8 +137,32 @@ class ReportRequest(BaseModel):
     reason: str
 
 
+def load_visible_event(cur, event_id, user):
+    """An event as the public may see it: drafts, suspended and private events
+    are only visible to the people who run them (everyone else gets a 404)."""
+    event = load_event(cur, event_id)
+    if not can_manage(user, event) and (event["status"] in ("draft", "suspended") or event["visibility"] == "private"):
+        raise HTTPException(status_code=404, detail="Event not found")
+    return event
+
+
+def check_sales_window(start, end):
+    if start and end and end <= start:
+        raise HTTPException(status_code=400, detail="Ticket sales must end after they start")
+
+
+def assert_editable(event, user):
+    """Setup changes (ticket types, seats) only make sense while the event can still happen."""
+    if event["status"] in ("cancelled", "completed"):
+        raise HTTPException(status_code=409, detail=f"A {event['status']} event cannot be changed")
+    if event["status"] == "suspended" and user["role"] != "platform_admin":
+        raise HTTPException(status_code=403, detail="This event is suspended by BiletFlow and cannot be edited")
+
+
 @router.get("/api/events")
-def list_events(organizer_id: str | None = None, public: bool = False, user=Depends(optional_user)):
+def list_events(organizer_id: str | None = None, public: bool = False, q: str | None = None,
+                category: str | None = None, date_from: str | None = None, date_to: str | None = None,
+                limit: int = 200, offset: int = 0, user=Depends(optional_user)):
     #what an anonymous visitor sees: only events people can actually buy into
     #(upcoming/active) that the organizer made public. drafts, suspended and
     #private events are never listed to them.
@@ -93,34 +170,38 @@ def list_events(organizer_id: str | None = None, public: bool = False, user=Depe
     #organizer (or a platform admin) when signed in. nobody else gets drafts.
     #a bare /api/events (no filter) is the public list too, except for
     #platform admins, who get every event.
+    #optional search filters, applied on top of whichever list the caller is allowed to see
+    start_from, start_to = day_range(date_from, date_to)
+    filters = """ AND (%(q)s::text IS NULL OR title ILIKE %(q)s OR venue_name ILIKE %(q)s OR description ILIKE %(q)s)
+                 AND (%(cat)s::text IS NULL OR lower(category) = lower(%(cat)s))
+                 AND (%(f)s::timestamptz IS NULL OR start_time >= %(f)s)
+                 AND (%(t)s::timestamptz IS NULL OR start_time < %(t)s)"""
+    limit, offset = max(1, min(limit, 500)), max(0, offset)
+    params = {"limit": limit, "offset": offset, "q": f"%{q.strip()}%" if q and q.strip() else None, "cat": category or None,
+              "f": start_from, "t": start_to, "org": organizer_id}
+    on_sale = """status IN ('upcoming','active') AND visibility = 'public'
+                 AND COALESCE(end_time, start_time + interval '2 hours') > now()
+                 AND NOT EXISTS (SELECT 1 FROM users u WHERE u.id = events.organizer_id AND u.is_suspended)"""
     with tx() as cur:
         owner_view = bool(user) and (user["role"] == "platform_admin" or (organizer_id and str(user["id"]) == organizer_id))
         if organizer_id and owner_view:
-            cur.execute("SELECT * FROM events WHERE organizer_id = %s ORDER BY start_time", (organizer_id,))
+            cur.execute("SELECT * FROM events WHERE organizer_id = %(org)s" + filters + " ORDER BY start_time, id LIMIT %(limit)s OFFSET %(offset)s", params)
         elif organizer_id:
-            cur.execute(
-                """SELECT * FROM events
-                   WHERE organizer_id = %s AND status IN ('upcoming','active') AND visibility = 'public'
-                   ORDER BY start_time""", (organizer_id,))
+            cur.execute(f"SELECT * FROM events WHERE organizer_id = %(org)s AND {on_sale}" + filters + " ORDER BY start_time, id LIMIT %(limit)s OFFSET %(offset)s", params)
         elif user and user["role"] == "platform_admin" and not public:
-            cur.execute("SELECT * FROM events ORDER BY start_time")
+            cur.execute("SELECT * FROM events WHERE true" + filters + " ORDER BY start_time, id LIMIT %(limit)s OFFSET %(offset)s", params)
         else:
-            cur.execute(
-                """SELECT * FROM events
-                   WHERE status IN ('upcoming','active') AND visibility = 'public'
-                   ORDER BY start_time""")
+            cur.execute(f"SELECT * FROM events WHERE {on_sale}" + filters + " ORDER BY start_time, id LIMIT %(limit)s OFFSET %(offset)s", params)
         return cur.fetchall()
 
 
 @router.get("/api/events/{event_id}")
 def get_event(event_id: str, user=Depends(optional_user)):
     with tx() as cur:
-        event = load_event(cur, event_id)
-        manager = can_manage(user, event)
         #drafts, suspended events and private events are only visible to the
         #people who run them (this is also how an organizer previews a draft)
-        if not manager and (event["status"] in ("draft", "suspended") or event["visibility"] == "private"):
-            raise HTTPException(status_code=404, detail="Event not found")
+        event = load_visible_event(cur, event_id, user)
+        manager = can_manage(user, event)
         cur.execute(
             "SELECT * FROM ticket_types WHERE event_id = %s AND (is_hidden = false OR %s) ORDER BY price DESC, name",
             (event_id, manager))
@@ -133,16 +214,20 @@ def get_event(event_id: str, user=Depends(optional_user)):
 def create_event(payload: EventCreate, user=Depends(require_roles("organizer"))):
     if payload.organizer_id and payload.organizer_id != str(user["id"]):
         raise HTTPException(status_code=403, detail="You can only create events for yourself")
+    check_event_fields(payload.model_dump())
     with tx() as cur:
         cur.execute(
             """INSERT INTO events (organizer_id, title, venue_name, start_time, capacity,
                                    description, category, venue_address, end_time, visibility,
-                                   has_assigned_seating)
-               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING *""",
+                                   has_assigned_seating, image_url, refund_policy,
+                                   registration_opens_at, registration_closes_at)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING *""",
             (user["id"], payload.title, payload.venue_name, payload.start_time, payload.capacity,
              payload.description, payload.category, payload.venue_address, payload.end_time,
-             payload.visibility, payload.has_assigned_seating))
+             payload.visibility, payload.has_assigned_seating, payload.image_url, payload.refund_policy,
+             payload.registration_opens_at, payload.registration_closes_at))
         event = cur.fetchone()
+        check_event_times(event)
         audit(cur, user["id"], event["id"], "event_created", f"Event '{event['title']}' created as draft",
               "event", event["id"])
         return event
@@ -157,19 +242,34 @@ def update_event(event_id: str, payload: EventUpdate, user=Depends(require_roles
         event = assert_manager(cur, user, event_id, lock=True)
         if event["status"] in ("cancelled", "completed"):
             raise HTTPException(status_code=409, detail=f"A {event['status']} event cannot be edited")
-        if "capacity" in changes and changes["capacity"] < 1:
-            raise HTTPException(status_code=400, detail="Capacity must be at least 1")
+        if event["status"] == "suspended" and user["role"] != "platform_admin":
+            raise HTTPException(status_code=403, detail="This event is suspended by BiletFlow and cannot be edited")
+        check_event_fields(changes)
+        if "capacity" in changes:
+            check_capacity(cur, event_id, changes["capacity"])
         #column names come from this fixed model (never from user input), so
         #building the SQL like this is safe
         set_clause = ", ".join(f"{col} = %s" for col in changes)
         cur.execute(f"UPDATE events SET {set_clause} WHERE id = %s RETURNING *", (*changes.values(), event_id))
         updated = cur.fetchone()
+        check_event_times(updated)
         if "capacity" in changes and changes["capacity"] != event["capacity"]:
             audit(cur, user["id"], event_id, "capacity_changed",
                   f"Capacity changed from {event['capacity']} to {changes['capacity']}", "event", event_id)
         other = [c for c in changes if c != "capacity"]
         if other:
             audit(cur, user["id"], event_id, "event_updated", "Updated: " + ", ".join(other), "event", event_id)
+
+        #people who already bought are told when the time, place or name changes
+        #(only if the event is on sale; a draft has no buyers anyway)
+        changed = [f for f in NOTIFY_FIELDS if f in changes and updated[f] != event[f]]
+        if changed:
+            cur.execute("SELECT DISTINCT attendee_id FROM orders WHERE event_id = %s AND status = 'paid'", (event_id,))
+            buyers = [row["attendee_id"] for row in cur.fetchall()]
+            lines = "; ".join(f"{f.replace('_', ' ')}: {updated[f]}" for f in changed)
+            for buyer in buyers:
+                notify(cur, buyer, "event_updated", f"Update for {updated['title']}",
+                       f"The organizer changed details of this event. New values: {lines}.")
         return updated
 
 
@@ -179,6 +279,8 @@ def publish_event(event_id: str, user=Depends(require_roles("organizer", "platfo
         event = assert_manager(cur, user, event_id, lock=True)
         if event["status"] != "draft":
             raise HTTPException(status_code=409, detail=f"Only draft events can be published (this one is {event['status']})")
+        if (event["end_time"] or event["start_time"] + timedelta(hours=2)) < datetime.now(timezone.utc):
+            raise HTTPException(status_code=409, detail="This event is already over. Change its date before publishing")
         cur.execute("SELECT is_email_verified FROM users WHERE id = %s", (event["organizer_id"],))
         if not cur.fetchone()["is_email_verified"]:
             raise HTTPException(status_code=403, detail="Verify your email before publishing an event")
@@ -239,11 +341,12 @@ def duplicate_event(event_id: str, user=Depends(require_roles("organizer"))):
             raise HTTPException(status_code=403, detail="You can only duplicate your own events")
         cur.execute(
             """INSERT INTO events (organizer_id, title, venue_name, start_time, capacity, description, category,
-                                   venue_address, end_time, visibility, has_assigned_seating)
-               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING *""",
+                                   venue_address, end_time, visibility, has_assigned_seating,
+                                   image_url, refund_policy)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING *""",
             (user["id"], event["title"] + " (copy)", event["venue_name"], event["start_time"], event["capacity"],
              event["description"], event["category"], event["venue_address"], event["end_time"],
-             event["visibility"], event["has_assigned_seating"]))
+             event["visibility"], event["has_assigned_seating"], event["image_url"], event["refund_policy"]))
         new = cur.fetchone()
         cur.execute(
             """INSERT INTO ticket_types (event_id, name, description, price, total_quantity, quantity_available,
@@ -274,16 +377,21 @@ def report_event(event_id: str, payload: ReportRequest, user=Depends(optional_us
 
 @router.post("/api/events/{event_id}/ticket-types", status_code=201)
 def create_ticket_type(event_id: str, payload: TicketTypeCreate, user=Depends(require_roles("organizer", "platform_admin"))):
+    if not payload.name.strip():
+        raise HTTPException(status_code=400, detail="name cannot be empty")
     if payload.total_quantity < 1:
         raise HTTPException(status_code=400, detail="total_quantity must be at least 1")
-    if payload.price < 0:
-        raise HTTPException(status_code=400, detail="price cannot be negative")
+    check_number(payload.price, "price")
+    if payload.price < 0 or payload.price > 10_000_000:
+        raise HTTPException(status_code=400, detail="price must be between 0 and 10 000 000 KZT")
     if payload.max_per_order < 1:
         raise HTTPException(status_code=400, detail="max_per_order must be at least 1")
     if payload.seat_category not in (None, *SEAT_CATEGORIES):
         raise HTTPException(status_code=400, detail="seat_category must be premium, standard or accessible")
     with tx() as cur:
-        assert_manager(cur, user, event_id)
+        event = assert_manager(cur, user, event_id, lock=True)
+        assert_editable(event, user)
+        check_capacity(cur, event_id, event["capacity"], payload.total_quantity)
         cur.execute(
             """INSERT INTO ticket_types (event_id, name, description, price, total_quantity, quantity_available,
                                          seat_category, sales_start_time, sales_end_time, max_per_order, is_hidden)
@@ -292,6 +400,7 @@ def create_ticket_type(event_id: str, payload: TicketTypeCreate, user=Depends(re
              payload.total_quantity, payload.seat_category, payload.sales_start_time, payload.sales_end_time,
              payload.max_per_order, payload.is_hidden))
         ticket_type = cur.fetchone()
+        check_sales_window(ticket_type["sales_start_time"], ticket_type["sales_end_time"])
         audit(cur, user["id"], event_id, "ticket_type_created",
               f"Ticket type '{ticket_type['name']}' created at {ticket_type['price']} KZT", "ticket_type", ticket_type["id"])
         return ticket_type
@@ -300,7 +409,7 @@ def create_ticket_type(event_id: str, payload: TicketTypeCreate, user=Depends(re
 @router.get("/api/events/{event_id}/ticket-types")
 def list_ticket_types(event_id: str, user=Depends(optional_user)):
     with tx() as cur:
-        event = load_event(cur, event_id)
+        event = load_visible_event(cur, event_id, user)
         manager = can_manage(user, event)
         cur.execute(
             "SELECT * FROM ticket_types WHERE event_id = %s AND (is_hidden = false OR %s) ORDER BY price DESC, name",
@@ -313,8 +422,13 @@ def update_ticket_type(ticket_type_id: str, payload: TicketTypeUpdate, user=Depe
     changes = payload.model_dump(exclude_none=True)
     if not changes:
         raise HTTPException(status_code=400, detail="Nothing to update")
-    if changes.get("price", 0) < 0 or changes.get("max_per_order", 1) < 1:
+    check_number(changes.get("price"), "price")
+    if changes.get("price", 0) < 0 or changes.get("price", 0) > 10_000_000 or changes.get("max_per_order", 1) < 1:
         raise HTTPException(status_code=400, detail="Invalid price or max_per_order")
+    if "name" in changes and not changes["name"].strip():
+        raise HTTPException(status_code=400, detail="name cannot be empty")
+    if "total_quantity" in changes and changes["total_quantity"] < 1:
+        raise HTTPException(status_code=400, detail="total_quantity must be at least 1")
     if changes.get("seat_category") not in (None, *SEAT_CATEGORIES):
         raise HTTPException(status_code=400, detail="seat_category must be premium, standard or accessible")
     with tx() as cur:
@@ -322,8 +436,10 @@ def update_ticket_type(ticket_type_id: str, payload: TicketTypeUpdate, user=Depe
         old = cur.fetchone()
         if not old:
             raise HTTPException(status_code=404, detail="Ticket type not found")
-        assert_manager(cur, user, old["event_id"])
+        event = assert_manager(cur, user, old["event_id"], lock=True)
+        assert_editable(event, user)
         if "total_quantity" in changes:
+            check_capacity(cur, old["event_id"], event["capacity"], changes["total_quantity"], ticket_type_id)
             sold = old["total_quantity"] - old["quantity_available"]
             if changes["total_quantity"] < sold:
                 raise HTTPException(status_code=409, detail=f"{sold} tickets are already sold, so the total cannot go below {sold}")
@@ -331,6 +447,7 @@ def update_ticket_type(ticket_type_id: str, payload: TicketTypeUpdate, user=Depe
         set_clause = ", ".join(f"{col} = %s" for col in changes)
         cur.execute(f"UPDATE ticket_types SET {set_clause} WHERE id = %s RETURNING *", (*changes.values(), ticket_type_id))
         new = cur.fetchone()
+        check_sales_window(new["sales_start_time"], new["sales_end_time"])
         if "price" in changes and float(changes["price"]) != float(old["price"]):
             audit(cur, user["id"], old["event_id"], "ticket_price_changed",
                   f"'{old['name']}' price changed from {old['price']} to {new['price']} KZT", "ticket_type", ticket_type_id)
@@ -346,11 +463,22 @@ def create_seats(event_id: str, payload: SeatBlock, user=Depends(require_roles("
     #seats each, all "standard". call it once per section/category
     if payload.category not in SEAT_CATEGORIES:
         raise HTTPException(status_code=400, detail="category must be premium, standard or accessible")
+    if not payload.section.strip() or len(payload.section) > 20:
+        raise HTTPException(status_code=400, detail="section must be 1 to 20 characters")
+    if payload.first_row_label < 1:
+        raise HTTPException(status_code=400, detail="first_row_label must be at least 1")
     if payload.rows < 1 or payload.seats_per_row < 1 or payload.rows * payload.seats_per_row > 2000:
         raise HTTPException(status_code=400, detail="Use between 1 and 2000 seats per call")
     try:
         with tx() as cur:
-            assert_manager(cur, user, event_id)
+            event = assert_manager(cur, user, event_id, lock=True)
+            assert_editable(event, user)
+            cur.execute("SELECT count(*) AS n FROM seats WHERE event_id = %s", (event_id,))
+            existing = cur.fetchone()["n"]
+            if existing + payload.rows * payload.seats_per_row > event["capacity"]:
+                raise HTTPException(status_code=400,
+                                    detail=f"The event has {existing} seats and a capacity of {event['capacity']}. "
+                                           "Raise the capacity before adding more seats")
             for row in range(payload.first_row_label, payload.first_row_label + payload.rows):
                 for number in range(1, payload.seats_per_row + 1):
                     cur.execute(
@@ -364,11 +492,12 @@ def create_seats(event_id: str, payload: SeatBlock, user=Depends(require_roles("
 
 
 @router.get("/api/events/{event_id}/seats")
-def get_seats(event_id: str):
+def get_seats(event_id: str, user=Depends(optional_user)):
     #this is what the seat map screen renders from: every seat for the event,
     #plus whatever active hold or sold ticket currently sits on top of it, so
     #the frontend can color each one correctly
     with tx() as cur:
+        load_visible_event(cur, event_id, user)
         cur.execute(
             """SELECT
                  seats.*,
@@ -391,8 +520,15 @@ def hold_seat(payload: SeatHoldRequest, user=Depends(optional_user)):
     holder = resolve_actor(user, payload.held_by_user_id, "held_by_user_id")
     with tx() as cur:
         release_expired_holds(cur)
-        cur.execute("SELECT id FROM seats WHERE id = %s", (payload.seat_id,))
-        if not cur.fetchone():
+        cur.execute("""SELECT e.* FROM seats s JOIN events e ON e.id = s.event_id WHERE s.id = %s""", (payload.seat_id,))
+        seat_event = cur.fetchone()
+        if not seat_event:
+            raise HTTPException(status_code=404, detail="Seat not found")
+        if seat_event["status"] not in ("upcoming", "active"):
+            raise HTTPException(status_code=409, detail="This event is not on sale")
+        if (seat_event["end_time"] or seat_event["start_time"] + timedelta(hours=2)) < datetime.now(timezone.utc):
+            raise HTTPException(status_code=409, detail="This event has already ended")
+        if seat_event["visibility"] == "private" and not can_manage(user, seat_event):
             raise HTTPException(status_code=404, detail="Seat not found")
 
         #FOR UPDATE locks this seat's existing holds so two people clicking
@@ -408,6 +544,11 @@ def hold_seat(payload: SeatHoldRequest, user=Depends(optional_user)):
         if cur.fetchone():
             raise HTTPException(status_code=409, detail="Seat is already sold")
 
+        #one person cannot block the whole seat map by holding every seat
+        cur.execute("SELECT count(*) AS n FROM seat_holds WHERE held_by_user_id = %s AND status = 'active'", (holder,))
+        if cur.fetchone()["n"] >= MAX_ACTIVE_HOLDS:
+            raise HTTPException(status_code=409, detail=f"You are already holding {MAX_ACTIVE_HOLDS} seats. Buy them or wait for the holds to expire")
+
         #5-minute hold window, matches the countdown the seat map screen shows
         cur.execute(
             """INSERT INTO seat_holds (seat_id, held_by_user_id, expires_at, status)
@@ -421,9 +562,14 @@ def _ics_text(text):
 
 
 @router.get("/api/events/{event_id}/export.ics")
-def export_ics(event_id: str):
+def export_ics(event_id: str, user=Depends(optional_user)):
     with tx() as cur:
-        event = load_event(cur, event_id)
+        event = load_visible_event(cur, event_id, user)
+        #SEQUENCE goes up every time the event changes, otherwise calendar apps ignore the
+        #updated file instead of replacing the old entry
+        cur.execute("SELECT count(*) AS n FROM audit_log WHERE event_id = %s AND action IN ('event_updated','capacity_changed')",
+                    (event_id,))
+        revision = cur.fetchone()["n"]
     #calendar apps want times in UTC like 20261014T140000Z. if the organizer
     #never set an end_time we fall back to a 2 hour block
     start = event["start_time"].astimezone(timezone.utc)
@@ -434,11 +580,12 @@ def export_ics(event_id: str):
     lines = [
         "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//BiletFlow//EN",
         "METHOD:CANCEL" if cancelled else "METHOD:PUBLISH",
+        "X-WR-TIMEZONE:Asia/Almaty",
         "BEGIN:VEVENT",
         #the same UID every time, so importing an updated file replaces the old entry
         f"UID:{event['id']}@biletflow",
         f"DTSTAMP:{event['created_at'].astimezone(timezone.utc).strftime(fmt)}",
-        f"SEQUENCE:{1 if cancelled else 0}",
+        f"SEQUENCE:{revision + (1 if cancelled else 0)}",
         f"DTSTART:{start.strftime(fmt)}", f"DTEND:{end.strftime(fmt)}",
         f"SUMMARY:{_ics_text(('CANCELLED: ' if cancelled else '') + event['title'])}",
         f"LOCATION:{_ics_text(place)}",
@@ -454,12 +601,12 @@ def export_ics(event_id: str):
 
 
 @router.get("/api/events/{event_id}/calendar-links")
-def calendar_links(event_id: str):
+def calendar_links(event_id: str, user=Depends(optional_user)):
     #one-click links: the .ics file works for Apple/Outlook, the Google link opens
     #Google Calendar with the event filled in. neither needs access to anyone's calendar
     from urllib.parse import quote
     with tx() as cur:
-        event = load_event(cur, event_id)
+        event = load_visible_event(cur, event_id, user)
     start = event["start_time"].astimezone(timezone.utc)
     end = event["end_time"].astimezone(timezone.utc) if event["end_time"] else start + timedelta(hours=2)
     fmt = "%Y%m%dT%H%M%SZ"

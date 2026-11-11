@@ -12,7 +12,9 @@ services:
       POSTGRES_PASSWORD: devpassword
       POSTGRES_DB: biletflow
     ports:
-      - "5432:5432"
+      #only this computer can reach the database. a bare "5432:5432" would open it (with a known
+      #password) to everybody on the same WiFi, which is exactly where a demo happens
+      - "127.0.0.1:5432:5432"
     volumes:
       - biletflow-data:/var/lib/postgresql/data
       # Files in this special folder run once, in alphabetical order,
@@ -36,6 +38,10 @@ services:
       DB_PASSWORD: devpassword
       #campaign QR codes and calendar files link to the WEB app at this address
       PUBLIC_BASE_URL: http://localhost:3000
+      #the key that signs login tokens. leave it empty and the server makes a random one every
+      #time it starts (everyone has to sign in again after a restart). to keep logins across
+      #restarts, set your own secret first:  BILETFLOW_SECRET=some-long-random-text docker compose up -d
+      BILETFLOW_SECRET: ${BILETFLOW_SECRET:-}
     ports:
       - "8000:8000"
 

@@ -20,11 +20,11 @@ VALUES
   ('44444444-4444-4444-4444-444444444445', '11111111-1111-1111-1111-111111111111',
    'Almaty Tech Meetup', 'An evening of short talks from local developers and founders.', 'conference',
    'Almaty Digital Hub', 'Abay Ave 10, Almaty',
-   '2026-11-20 18:00:00+05', '2026-11-20 21:00:00+05', 150, 'upcoming', 'public', false, true),
+   ((date_trunc('day', now() AT TIME ZONE 'Asia/Almaty') + interval '10 days 18 hours') AT TIME ZONE 'Asia/Almaty'), ((date_trunc('day', now() AT TIME ZONE 'Asia/Almaty') + interval '10 days 21 hours') AT TIME ZONE 'Asia/Almaty'), 150, 'upcoming', 'public', false, true),
   ('44444444-4444-4444-4444-444444444446', '11111111-1111-1111-1111-111111111111',
    'Astana Rock Night', 'Live rock bands, standing and seated tickets.', 'music',
    'Astana Arena Club', 'Turan Ave 5, Astana',
-   '2026-11-28 19:30:00+05', '2026-11-28 23:30:00+05', 60, 'upcoming', 'public', true, true);
+   ((date_trunc('day', now() AT TIME ZONE 'Asia/Almaty') + interval '21 days 19 hours 30 minutes') AT TIME ZONE 'Asia/Almaty'), ((date_trunc('day', now() AT TIME ZONE 'Asia/Almaty') + interval '21 days 23 hours 30 minutes') AT TIME ZONE 'Asia/Almaty'), 60, 'upcoming', 'public', true, true);
 
 INSERT INTO ticket_types (id, event_id, name, description, price, total_quantity, quantity_available, seat_category) VALUES
   ('66666666-6666-6666-6666-666666666671', '44444444-4444-4444-4444-444444444445', 'Community (free)', 'Free entry, limited spots', 0, 100, 100, NULL),
@@ -67,3 +67,15 @@ INSERT INTO paid_sales_activations (event_id, activated_by, fee_amount, fee_refe
 -- Every demo promo code gets a campaign QR token, like codes created through the API.
 -- The campaign link is  <PUBLIC_BASE_URL>/events/<event id>?c=<token>
 UPDATE promo_campaigns SET qr_token = 'cmp_demo_' || lower(code) WHERE qr_token IS NULL;
+
+-- Demo content for the newer event fields (image, refund policy).
+-- The images are random placeholder pictures from picsum.photos; replace them with real ones if you like.
+UPDATE events SET
+  image_url = 'https://picsum.photos/seed/' || replace(title, ' ', '-') || '/800/400',
+  refund_policy = 'Full refund up to 48 hours before the event. After that, tickets are not refundable.'
+WHERE id IN ('44444444-4444-4444-4444-444444444444', '44444444-4444-4444-4444-444444444445',
+             '44444444-4444-4444-4444-444444444446') AND image_url IS NULL;
+
+-- The demo orders were created before the processing fee existed; give them the standard 3 percent.
+UPDATE orders SET processing_fee = round(total_amount * 0.03, 2)
+WHERE processing_fee = 0 AND status IN ('paid', 'refunded');

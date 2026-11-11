@@ -31,7 +31,7 @@ VALUES ('33333333-3333-3333-3333-333333333333', 'nurlan@example.com', '$2b$12$vx
 -- STEP 4: The organizer creates and publishes an event with assigned seating
 INSERT INTO events (id, organizer_id, title, venue_name, start_time, capacity, status, has_assigned_seating, is_paid_sales_active)
 VALUES ('44444444-4444-4444-4444-444444444444', '11111111-1111-1111-1111-111111111111',
-        'Almaty Jazz Night', 'Kazakhstan Concert Hall', '2026-10-14 19:00:00+05', 300, 'upcoming', true, true);
+        'Almaty Jazz Night', 'Kazakhstan Concert Hall', ((date_trunc('day', now() AT TIME ZONE 'Asia/Almaty') + interval '14 days 19 hours') AT TIME ZONE 'Asia/Almaty') /* demo dates are relative to the day you load this file */, 300, 'upcoming', true, true);
 
 -- STEP 5: The venue's seats get created for this event (just a handful for the demo)
 INSERT INTO seats (id, event_id, section, row_label, seat_number, category) VALUES

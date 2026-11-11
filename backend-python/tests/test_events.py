@@ -158,7 +158,7 @@ def test_duplicate_copies_setup_but_not_transactions(kit):
     assert new["status"] == "draft" and new["title"].endswith("(copy)") and new["description"] == "keep me"
     types = kit.client.get(f"/api/events/{new['id']}/ticket-types", headers=org.h).json()
     assert len(types) == 1 and types[0]["quantity_available"] == types[0]["total_quantity"] == 10
-    assert len(kit.client.get(f"/api/events/{new['id']}/seats").json()) == 6
+    assert len(kit.client.get(f"/api/events/{new['id']}/seats", headers=org.h).json()) == 6
     assert fetch_one("SELECT count(*) AS n FROM orders WHERE event_id = %s", (new["id"],))["n"] == 0
     assert fetch_one("SELECT count(*) AS n FROM tickets WHERE event_id = %s", (new["id"],))["n"] == 0
 

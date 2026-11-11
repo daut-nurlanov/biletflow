@@ -1,13 +1,29 @@
+import time
+
 import psycopg2
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from db import notify, tx
-from security import check_password, current_user, hash_password, make_token, read_token
+from security import (check_email, check_password, check_password_rules, current_user, hash_password,
+                      make_token, read_token)
 
 router = APIRouter()
 
 PUBLIC_ROLES = ("attendee", "organizer")
+
+#too many wrong passwords for one email in a short time: stop guessing for a while.
+#kept in memory, so it resets when the server restarts (fine for this project)
+MAX_FAILED_LOGINS = 10
+LOCKOUT_SECONDS = 15 * 60
+failed_logins = {}
+
+
+def login_locked(email):
+    now = time.time()
+    recent = [t for t in failed_logins.get(email, []) if now - t < LOCKOUT_SECONDS]
+    failed_logins[email] = recent
+    return len(recent) >= MAX_FAILED_LOGINS
 
 
 class RegisterRequest(BaseModel):
@@ -48,17 +64,16 @@ def register(payload: RegisterRequest):
     #otherwise anyone could simply register as an admin
     if payload.role not in PUBLIC_ROLES:
         raise HTTPException(status_code=400, detail="You can register as an attendee or an organizer")
-    if len(payload.password) < 8:
-        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
-    email = payload.email.strip().lower()
-    if "@" not in email:
-        raise HTTPException(status_code=400, detail="Enter a valid email address")
+    check_password_rules(payload.password)
+    if not payload.full_name.strip() or len(payload.full_name) > 120:
+        raise HTTPException(status_code=400, detail="Enter your name (at most 120 characters)")
+    email = check_email(payload.email)
     try:
         with tx() as cur:
             cur.execute(
                 """INSERT INTO users (email, password_hash, full_name, role)
                    VALUES (%s, %s, %s, %s) RETURNING id, email, full_name, role, is_email_verified, created_at""",
-                (email, hash_password(payload.password), payload.full_name, payload.role))
+                (email, hash_password(payload.password), payload.full_name.strip(), payload.role))
             user = cur.fetchone()
             if payload.role == "organizer":
                 cur.execute("INSERT INTO organizer_profiles (user_id) VALUES (%s)", (user["id"],))
@@ -70,11 +85,16 @@ def register(payload: RegisterRequest):
 
 @router.post("/api/auth/login")
 def login(payload: LoginRequest):
+    email = payload.email.strip().lower()
+    if login_locked(email):
+        raise HTTPException(status_code=429, detail="Too many failed attempts. Wait 15 minutes or reset your password")
     with tx() as cur:
-        cur.execute("SELECT * FROM users WHERE email = %s", (payload.email.strip().lower(),))
+        cur.execute("SELECT * FROM users WHERE email = %s", (email,))
         user = cur.fetchone()
     if not user or not check_password(payload.password, user["password_hash"]):
+        failed_logins.setdefault(email, []).append(time.time())
         raise HTTPException(status_code=401, detail="Invalid email or password")
+    failed_logins.pop(email, None)
     if user["is_suspended"]:
         raise HTTPException(status_code=403, detail="This account has been suspended")
     return {"id": user["id"], "email": user["email"], "full_name": user["full_name"],
@@ -133,8 +153,7 @@ def forgot_password(payload: ForgotRequest):
 
 @router.post("/api/auth/reset-password")
 def reset_password(payload: ResetRequest):
-    if len(payload.new_password) < 8:
-        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+    check_password_rules(payload.new_password)
     data = read_token(payload.token, "reset_password")
     if not data:
         raise HTTPException(status_code=400, detail="That reset code is invalid or has expired")
@@ -143,6 +162,7 @@ def reset_password(payload: ResetRequest):
         user = cur.fetchone()
         if not user or (user["password_hash"] or "")[7:23] != data["x"]:
             raise HTTPException(status_code=400, detail="That reset code is invalid or has expired")
-        cur.execute("UPDATE users SET password_hash = %s WHERE id = %s",
+        cur.execute("UPDATE users SET password_hash = %s WHERE id = %s RETURNING email",
                     (hash_password(payload.new_password), user["id"]))
+        failed_logins.pop(cur.fetchone()["email"], None)
     return {"message": "Password changed, you can sign in now"}

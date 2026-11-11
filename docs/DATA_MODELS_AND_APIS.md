@@ -2,7 +2,7 @@
 
 This document explains how BiletFlow stores information and how the different parts of our app talk to each other. It's written so that **anyone on the team can understand it, even with zero coding background.**
 
-This version reflects what is **actually built and running** in `backend-python/` (`main.py` plus the files in `routers/`) and `docs/schema.sql`. The endpoint list in Section 3 was checked against the code by a script, and 106 automated tests cover it.
+This version reflects what is **actually built and running** in `backend-python/` (`main.py` plus the files in `routers/`) and `docs/schema.sql`. The endpoint list in Section 3 was checked against the code by a script, and 176 automated tests cover it.
 
 ---
 
@@ -78,6 +78,12 @@ Every table below exists right now in `docs/schema.sql`, already built and teste
 | `status` | Text (fixed list) | `draft`, `upcoming`, `active`, `completed`, `cancelled`, or `suspended` | Yes, defaults to draft |
 | `has_assigned_seating` | True/False | Seat map or general admission | Yes, defaults to false |
 | `is_paid_sales_active` | True/False | Can this event charge money yet | Yes, defaults to false |
+| `image_url` | Text | Cover picture link (must start with https://, http:// or /) | No |
+| `refund_policy` | Text | Plain-text refund rules shown to buyers | No |
+| `registration_opens_at` | Date + time | Buying is refused before this moment | No |
+| `registration_closes_at` | Date + time | Buying is refused after this moment | No |
+| `suspended_from` | Text | What the event was before an admin suspended it (restored on reinstate) | No |
+| `payout_status` | Text (fixed list) | `not_started`, `pending`, `processing`, `paid` or `failed`. The simulated transfer to the organizer, moved by an admin | Yes, defaults to not_started |
 | `paid_sales_suspended` | True/False | A platform admin froze paid sales for this event | Yes, defaults to false |
 | `description` | Text | What the event is about | No |
 | `category` | Text | e.g. music, conference | No |
@@ -141,7 +147,9 @@ Every table below exists right now in `docs/schema.sql`, already built and teste
 | `attendee_id` | UUID | Who placed the order | Yes |
 | `event_id` | UUID | Which event it's for | Yes |
 | `total_amount` | Number (KZT) | Final amount charged | Yes, defaults to 0 |
-| `status` | Text (fixed list) | `pending`, `paid`, `refunded`, or `cancelled` | Yes, defaults to pending |
+| `status` | Text (fixed list) | `pending`, `paid`, `failed`, `refunded`, or `cancelled` | Yes, defaults to pending |
+| `idempotency_key` | Text | The `Idempotency-Key` of the checkout that made this order (stops double purchases) | No |
+| `processing_fee` | Number (KZT) | Simulated payment-provider fee, charged to the organizer (not added to the buyer's total) | Yes, defaults to 0 |
 | `payment_reference` | Text | Sandbox payment ID | No |
 | `promo_code_applied` | Text | Discount code used, if any | No |
 | `created_at` | Date + time | When the order was placed | Yes |
@@ -278,7 +286,7 @@ Every table below exists right now in `docs/schema.sql`, already built and teste
 |---|---|---|---|
 | `id` | UUID | Unique ID | Yes |
 | `user_id` | UUID | Who it is for | Yes |
-| `kind` | Text | e.g. `verify_email`, `reset_password`, `order_confirmed`, `event_suspended` | Yes |
+| `kind` | Text | e.g. `verify_email`, `reset_password`, `order_confirmed`, `event_suspended`, `event_updated`, `payment_failed`, `payout_status` | Yes |
 | `subject` / `body` | Text | The message | Yes |
 | `is_read` | True/False | Read yet | Yes, defaults to false |
 | `created_at` | Date + time | When | Yes |
@@ -320,7 +328,7 @@ Every table below exists right now in `docs/schema.sql`, already built and teste
 
 ## Section 3: API Endpoints
 
-All 86 endpoints below are **built and covered by automated tests**. Live, clickable documentation is always at http://localhost:8000/docs (it lists every field).
+All 88 endpoints below are **built and covered by automated tests**. Live, clickable documentation is always at http://localhost:8000/docs (it lists every field).
 
 ### How signing in works
 
@@ -343,8 +351,8 @@ The **Who** column uses these words:
 
 | Method and path | Who | What it does |
 |---|---|---|
-| `POST /api/auth/register` | Public | Body: `email`, `password` (8+ characters), `full_name`, optional `role` (`attendee` or `organizer` only). Sends a simulated verification email. Returns the user plus `token`. |
-| `POST /api/auth/login` | Public | Body: `email`, `password`. Returns the user plus `token`. Suspended accounts get 403. |
+| `POST /api/auth/register` | Public | Body: `email`, `password` (8 to 72 characters), `full_name`, optional `role` (`attendee` or `organizer` only). Sends a simulated verification email. Returns the user plus `token`. |
+| `POST /api/auth/login` | Public | Body: `email`, `password`. Returns the user plus `token`. After 10 wrong passwords for one email, logins are refused (429) for 15 minutes. Suspended accounts get 403. |
 | `POST /api/auth/logout` | Public | Tokens are stateless, so the app just forgets the token. |
 | `GET /api/auth/me` | Token | The signed-in user. |
 | `POST /api/auth/verify-email` | Public | Body: `token` (the code from the simulated email, found in `GET /api/notifications`). |
@@ -358,30 +366,30 @@ The **Who** column uses these words:
 
 | Method and path | Who | What it does |
 |---|---|---|
-| `GET /api/events` | Public | The public list: only upcoming or active events whose visibility is public. Drafts, suspended and private events are never listed. `?organizer_id=X` filters to one organizer; if the signed-in user **is** that organizer (or a platform admin), it returns all of that organizer's events, drafts included. A platform admin's bare list returns every event. `?public=true` always gives the public list. |
+| `GET /api/events` | Public | The public list: only upcoming or active events whose visibility is public and that have not ended yet (no end time means over 2 hours after the start). Drafts, suspended and private events are never listed. `?organizer_id=X` filters to one organizer; if the signed-in user **is** that organizer (or a platform admin), it returns all of that organizer's events, drafts included. A platform admin's bare list returns every event. Optional search filters: `q` (title, venue or description), `category`, `date_from` and `date_to` (dates like `2026-12-01`, whole days in Almaty time, both included), `limit` (default 200, at most 500) and `offset`. `?public=true` always gives the public list. |
 | `GET /api/events/{id}` | Public | One event. Drafts and suspended events are visible only to their organizer and platform admins; `private` events only to those too; `unlisted` ones to anyone with the link. |
-| `POST /api/events` | Organizer | Create a draft. Required: `title`, `venue_name`, `start_time`. The organizer is the signed-in user. |
-| `PUT /api/events/{id}` | Organizer | Edit details. Cannot change `status`; use publish, unpublish and cancel below. |
+| `POST /api/events` | Organizer | Create a draft. Required: `title`, `venue_name`, `start_time`. Optional: `image_url`, `refund_policy`, `registration_opens_at`, `registration_closes_at` (must close after it opens). The event must end after it starts and capacity must be at least 1. The organizer is the signed-in user. |
+| `PUT /api/events/{id}` | Organizer | Edit details (same fields as create). Cannot change `status`; use publish, unpublish and cancel below. A suspended event can only be edited by an admin. Capacity cannot go below the total of the ticket types. If the title, start or end time, or venue changes, everyone with a paid order gets an `event_updated` notification. |
 | `POST /api/events/{id}/publish` | Organizer | Draft to upcoming. Needs at least one ticket type, and the organizer must have verified their email (403 otherwise). |
 | `POST /api/events/{id}/unpublish` | Organizer | Back to draft. Refused with 409 once any ticket has been sold; cancel instead. |
 | `POST /api/events/{id}/cancel` | Organizer | Cancels the event. Ticket holders get a simulated email and their tickets stop scanning. Refunds are a separate step (`POST /api/orders/{id}/refund`). |
-| `POST /api/events/{id}/duplicate` | Organizer | Copies settings and ticket types into a new draft. No orders or tickets are copied. |
+| `POST /api/events/{id}/duplicate` | Organizer | Copies settings (including picture and refund policy, not the registration window) and ticket types into a new draft. No orders or tickets are copied. |
 | `POST /api/events/{id}/report` | Public | Body: `reason`. Reports the event to the platform team. |
-| `POST /api/events/{id}/ticket-types` | Organizer | Body: `name`, `total_quantity`, optional `price` (0 = free), `max_per_order`, `is_hidden`, `seat_category`, `sales_start_time`, `sales_end_time`. |
-| `GET /api/events/{id}/ticket-types` | Public | Hidden types are shown only to the organizer. |
+| `POST /api/events/{id}/ticket-types` | Organizer | Body: `name`, `total_quantity`, optional `price` (0 = free), `max_per_order`, `is_hidden`, `seat_category`, `sales_start_time`, `sales_end_time`. The ticket quantities of an event together cannot exceed its capacity. |
+| `GET /api/events/{id}/ticket-types` | Public | Hidden types are shown only to the organizer. Drafts, suspended and private events answer 404 to everyone but their organizer and admins (same for `seats`, `export.ics` and `calendar-links`). |
 | `PUT /api/ticket-types/{id}` | Organizer | Edit a ticket type. |
-| `GET /api/events/{id}/export.ics` | Public | Calendar file (name, time, venue, description, link; marks cancelled events). |
+| `GET /api/events/{id}/export.ics` | Public | Calendar file (name, time, venue, description, link, Almaty time zone). Same UID every time and a SEQUENCE that rises with each change, so calendar apps replace the old entry; cancelled events get a cancellation file. |
 | `GET /api/events/{id}/calendar-links` | Public | A ready-made Google Calendar link plus the path of the .ics file. |
 
 ### 💺 Seats & Checkout
 
 | Method and path | Who | What it does |
 |---|---|---|
-| `POST /api/events/{id}/seats` | Organizer | Generate a block of seats. Body: `section`, `category`, `rows`, `seats_per_row`. |
+| `POST /api/events/{id}/seats` | Organizer | Generate a block of seats. Body: `section`, `category`, `rows`, `seats_per_row`. The total number of seats cannot exceed the event capacity. |
 | `GET /api/events/{id}/seats` | Public | Every seat with its section, row, number and category, plus `hold_status` (an active hold, if any) and `ticket_status` (`valid` or `checked_in` if sold). Both empty means the seat is free. |
-| `POST /api/seats/hold` | Buyer | Body: `seat_id`. Holds a seat for 5 minutes. Someone else's active hold gives 409. |
-| `POST /api/orders/quote` | Public | Body: `event_id`, `ticket_type_id`, optional `quantity`, `promo_code`. Returns subtotal, discount and total without buying anything. |
-| `POST /api/orders/checkout` | Buyer | Body: `event_id`, `ticket_type_id`, `attendee_name`, optional `quantity`, `seat_id`, `promo_code`. Simulated payment. Returns `{order, ticket, tickets}`. |
+| `POST /api/seats/hold` | Buyer | Body: `seat_id`. Holds a seat for 5 minutes. One person can hold at most 10 seats at once. Someone else's active hold gives 409. |
+| `POST /api/orders/quote` | Public | Body: `event_id`, `ticket_type_id`, optional `quantity`, `promo_code`. Returns subtotal, discount, total and the simulated `processing_fee` without buying anything. Refused if registration is not open or the event has ended. |
+| `POST /api/orders/checkout` | Buyer | Body: `event_id`, `ticket_type_id`, `attendee_name`, optional `quantity`, `seat_id` (one seat) or `seat_ids` (one seat per ticket, all or nothing; **required, one per ticket, when the event has assigned seating**), `promo_code`, `simulate_payment` (`success` default, or `fail`). Simulated payment. Returns `{order, ticket, tickets}`. With `fail` it answers **402**, records a `failed` order, issues no tickets, keeps the buyer's seat hold and sends a `payment_failed` notification. Refused (409) outside the registration window, after the event ended, or when the organizer is suspended; private events cannot be bought by the public (404). Send an `Idempotency-Key` header to make a double tap safe: repeating the same key returns the first order (`"repeated": true`) instead of buying twice. A refund or cancellation gives the promo redemption back. |
 
 Checkout enforces: event is upcoming or active, paid sales are active (and not frozen by an admin) for priced tickets, sale window is open, quantity is within `max_per_order` and what is left, seat category matches the ticket type, the seat is not sold or held by someone else, and the promo code is valid, not used up, and allowed for that ticket type. Everything happens in one database transaction with row locks, so two people cannot get the same seat or the last ticket.
 
@@ -443,7 +451,7 @@ Checkout enforces: event is upcoming or active, paid sales are active (and not f
 | `GET /api/organizer/events` | Organizer | Your events with a `phase`: `draft`, `upcoming`, `active`, `completed`, `cancelled`. Filter with `?phase=`. Completed events stay available with all their records. |
 | `GET /api/events/{id}/attendees` | Organizer | Attendee list. Filters: `?q=` (name/email), `?status=`, `?ticket_type_id=`. |
 | `GET /api/events/{id}/orders` | Organizer | Orders. Filter `?status=`. |
-| `GET /api/events/{id}/analytics` | Organizer | Capacity (total, sold, remaining), ticket counts (sold, reserved, available, refunded, checked in), money (gross, discounts, refunds, net, simulated processing fee, estimated payout), per ticket type, sales over time, campaign performance, attendance. Filters: `date_from`, `date_to`, `ticket_type_id`. |
+| `GET /api/events/{id}/analytics` | Organizer | Capacity (total, sold, remaining), ticket counts (sold, reserved, available, refunded, checked in), money (gross, discounts, refunds, net, simulated processing fee as charged on each paid order, estimated payout, payout status), per ticket type, sales over time, campaign performance, attendance. Filters: `date_from`, `date_to`, `ticket_type_id`. |
 | `GET /api/events/{id}/timeline` | Organizer | History of important actions: who, what, when. Newest first. Filters: `date_from`, `date_to`, `action`. Read only; nothing in the API can edit or delete it. |
 
 ### 💬 Support
@@ -462,10 +470,12 @@ Checkout enforces: event is upcoming or active, paid sales are active (and not f
 | Method and path | What it does |
 |---|---|
 | `GET /api/admin/users` | Search users. `?q=` (name/email), `?role=`. |
-| `POST /api/admin/users/{id}/suspend` / `unsuspend` | Block or restore an account (not your own). |
+| `POST /api/admin/users/{id}/suspend` / `unsuspend` | Block or restore an account (not your own, and not another platform admin). A suspended organizer's events leave the public list and stop selling. |
 | `GET /api/admin/events` | Search events. `?q=` (title, organizer name or email), `?status=`. |
-| `POST /api/admin/events/{id}/suspend` / `reinstate` | Remove an event from public view and stop all sales, or bring it back. The organizer gets a simulated email. |
+| `POST /api/admin/events/{id}/suspend` / `reinstate` | Remove an event from public view and stop all sales, or bring it back exactly as it was before (a suspended draft comes back as a draft). Cancelled or completed events cannot be suspended. The organizer gets a simulated email. |
 | `POST /api/admin/events/{id}/suspend-paid-sales` / `restore-paid-sales` | Freeze or unfreeze only paid ticket sales. Free tickets keep working. |
+| `GET /api/admin/payment-failures` | Every failed (simulated) payment, newest first, with buyer, event and amount. |
+| `PUT /api/admin/events/{id}/payout-status` | Body: `status` (`not_started`, `pending`, `processing`, `paid`, `failed`). Records it in the audit log and notifies the organizer (`payout_status`). |
 | `GET /api/admin/orders` | Search orders by id, buyer email, or payment reference. `?q=`, `?status=`. |
 | `GET /api/admin/activations` | Paid-sales activations with fee records. |
 | `GET /api/admin/refunds` | Refund records. |
