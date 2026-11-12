@@ -1,4 +1,4 @@
-const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
+export const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
 const TOKEN_KEY = 'biletflow_token'
 
 export const getToken = () => localStorage.getItem(TOKEN_KEY)
@@ -43,13 +43,13 @@ export async function api<T>(
     if (options.signal?.aborted) throw error
     throw new Error(
       timeout.aborted
-        ? 'Сервер не ответил вовремя. Обновите данные перед повторным действием.'
-        : 'Не удалось связаться с сервером. Проверьте подключение и запуск API.',
+        ? 'The server did not respond in time. Refresh the data before trying again.'
+        : 'Could not reach the server. Check your connection and make sure the API is running.',
       { cause: error },
     )
   }
 
-  // токен просрочен или недействителен: выходим из аккаунта
+  // expired or invalid token: sign the user out
   if (res.status === 401 && token && getToken() === token) {
     setToken(null)
     window.dispatchEvent(new Event('biletflow:logout'))
@@ -62,11 +62,11 @@ export async function api<T>(
       if (typeof data.detail === 'string') detail = data.detail
       else if (Array.isArray(data.detail)) {
         detail = data.detail
-          .map((item: { msg?: string }) => item.msg ?? 'Некорректное значение')
+          .map((item: { msg?: string }) => item.msg ?? 'Invalid value')
           .join('. ')
       }
     } catch {
-      // тело ответа не JSON, оставляем statusText
+      // body is not JSON, keep statusText
     }
     throw new ApiError(res.status, detail)
   }

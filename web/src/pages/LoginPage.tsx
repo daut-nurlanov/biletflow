@@ -1,15 +1,23 @@
 import { useState, type FormEvent } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth'
 
 export default function LoginPage() {
   const { login } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
-  const [email, setEmail] = useState('dana@example.com')
+  const [email, setEmail] = useState('dana@example.com') // demo account, remove before the final demo
   const [password, setPassword] = useState('demo1234')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+
+  const fromState: unknown = location.state?.from
+  const from =
+    typeof fromState === 'string' &&
+    fromState.startsWith('/') &&
+    !fromState.startsWith('//')
+      ? fromState
+      : undefined
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
@@ -18,19 +26,11 @@ export default function LoginPage() {
     setBusy(true)
     try {
       const user = await login(email, password)
-      const from: unknown = location.state?.from
-      navigate(
-        typeof from === 'string' &&
-          from.startsWith('/') &&
-          !from.startsWith('//')
-          ? from
-          : user.role === 'organizer'
-            ? '/organizer'
-            : '/',
-        { replace: true },
-      )
+      navigate(from ?? (user.role === 'organizer' ? '/organizer' : '/'), {
+        replace: true,
+      })
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Ошибка входа')
+      setError(err instanceof Error ? err.message : 'Sign in failed')
     } finally {
       setBusy(false)
     }
@@ -38,7 +38,7 @@ export default function LoginPage() {
 
   return (
     <>
-      <h1>Вход</h1>
+      <h1>Sign in</h1>
       <form className="form" onSubmit={onSubmit}>
         <label>
           Email
@@ -52,7 +52,7 @@ export default function LoginPage() {
           />
         </label>
         <label>
-          Пароль
+          Password
           <input
             type="password"
             autoComplete="current-password"
@@ -68,9 +68,12 @@ export default function LoginPage() {
           </div>
         )}
         <button className="btn" type="submit" disabled={busy}>
-          {busy ? 'Входим…' : 'Войти'}
+          {busy ? 'Signing in…' : 'Sign in'}
         </button>
       </form>
+      <p className="muted">
+        No account? <Link to="/register" state={{ from }}>Register</Link>
+      </p>
     </>
   )
 }

@@ -22,3 +22,12 @@ a { color: #2563eb; text-decoration: none; }
 .form input { padding: 10px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 15px; }
 .error { color: #b91c1c; }
 .row { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.cover { max-width: 100%; border-radius: 12px; margin-bottom: 12px; }
+.choice { text-align: left; cursor: pointer; font: inherit; width: 100%; }
+.choice:disabled { opacity: 0.5; cursor: not-allowed; }
+.choice.selected { border-color: #2563eb; box-shadow: 0 0 0 2px #bfdbfe; }
+.buy { margin-top: 16px; }
+.totals { margin: 12px 0; display: flex; flex-direction: column; gap: 6px; }
+.success { color: #15803d; }
+.qr { width: 200px; height: 200px; display: block; margin: 12px 0; }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }

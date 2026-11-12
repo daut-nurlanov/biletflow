@@ -31,9 +31,32 @@ export interface TicketType {
   event_id: string
   name: string
   description: string | null
-  price: string | number // деньги приходят то числом, то строкой "5000.00"
+  price: string | number // money arrives either as a number or as a string like "5000.00"
   total_quantity: number
   quantity_available: number
   seat_category: string | null
   max_per_order: number
+}
+
+export interface Quote {
+  subtotal: string | number
+  discount: string | number
+  total: string | number
+  processing_fee?: string | number
+}
+
+// exact shape of /api/tickets/my-tickets is checked in /docs, so most fields are optional
+export interface MyTicket {
+  id: string
+  attendee_name?: string
+  status?: string
+  event_title?: string
+  title?: string
+  event?: { title?: string; start_time?: string; venue_name?: string }
+  start_time?: string
+  venue_name?: string
+  ticket_type_name?: string
+  section?: string
+  row_label?: string
+  seat_number?: string
 }
