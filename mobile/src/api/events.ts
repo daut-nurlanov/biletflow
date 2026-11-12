@@ -1,20 +1,15 @@
 import type { Event, EventDetails } from "../types/event";
-import { request } from "./client";
+import { apiRequest } from "./client";
 
 export function getEvents(signal?: AbortSignal): Promise<Event[]> {
-  // TODO: agree public-event visibility with the backend team. Keep the current
-  // server order and statuses, including drafts, without inventing client rules.
-  return request<Event[]>("/api/events", signal);
+  return apiRequest<Event[]>("/api/events?public=true", { signal });
 }
 
-export function getEvent(eventId: string, signal?: AbortSignal): Promise<EventDetails> {
-  return request<EventDetails>(`/api/events/${encodeURIComponent(eventId)}`, signal);
+export function getEvent(eventId: string, signal?: AbortSignal, token?: string): Promise<EventDetails> {
+  return apiRequest<EventDetails>(`/api/events/${encodeURIComponent(eventId)}`, { signal, token });
 }
 
-/** Every event the organizer owns, in server order and with every status, drafts included. */
-export function getOrganizerEvents(organizerId: string, signal?: AbortSignal): Promise<Event[]> {
-  return request<Event[]>(
-    `/api/events?organizer_id=${encodeURIComponent(organizerId)}`,
-    signal,
-  );
+/** The authenticated organizer's own events, including private drafts. */
+export function getOrganizerEvents(token: string, signal?: AbortSignal): Promise<Event[]> {
+  return apiRequest<Event[]>("/api/organizer/events", { token, signal });
 }

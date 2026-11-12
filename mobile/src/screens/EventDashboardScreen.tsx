@@ -3,6 +3,7 @@ import { useCallback } from "react";
 import { FlatList, StyleSheet, Text, View } from "react-native";
 
 import { getEvent } from "../api/events";
+import { useSession } from "../auth/SessionContext";
 import { EmptyState } from "../components/EmptyState";
 import { ErrorState } from "../components/ErrorState";
 import { LoadingState } from "../components/LoadingState";
@@ -26,7 +27,11 @@ type Props = NativeStackScreenProps<OrganizerStackParamList, "EventDashboard">;
 
 export function EventDashboardScreen({ route }: Props) {
   const { eventId } = route.params;
-  const loadEvent = useCallback((signal: AbortSignal) => getEvent(eventId, signal), [eventId]);
+  const { authed } = useSession();
+  const loadEvent = useCallback(
+    (signal: AbortSignal) => authed((token) => getEvent(eventId, signal, token)),
+    [authed, eventId],
+  );
   const { data: event, loading, refreshing, error, retry, refresh } = useApiResource(loadEvent);
 
   if (loading) return <Screen><LoadingState message="Loading ticket sales…" /></Screen>;

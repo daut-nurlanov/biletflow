@@ -1,24 +1,26 @@
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
+import { useCallback } from "react";
 import { FlatList } from "react-native";
 
 import { getOrganizerEvents } from "../api/events";
+import { useSession } from "../auth/SessionContext";
 import { EmptyState } from "../components/EmptyState";
 import { ErrorState } from "../components/ErrorState";
 import { EventCard } from "../components/EventCard";
 import { LoadingState } from "../components/LoadingState";
 import { Screen } from "../components/Screen";
-import { environment } from "../config/environment";
 import { useApiResource } from "../hooks/useApiResource";
 import type { OrganizerStackParamList } from "../navigation/types";
 import { sharedStyles } from "../theme";
 
 type Props = NativeStackScreenProps<OrganizerStackParamList, "OrganizerEvents">;
 
-// Defined once at module level so useApiResource receives a stable loader.
-const loadOrganizerEvents = (signal: AbortSignal) =>
-  getOrganizerEvents(environment.developmentOrganizerId, signal);
-
 export function OrganizerEventsScreen({ navigation }: Props) {
+  const { authed } = useSession();
+  const loadOrganizerEvents = useCallback(
+    (signal: AbortSignal) => authed((token) => getOrganizerEvents(token, signal)),
+    [authed],
+  );
   const { data, loading, refreshing, error, retry, refresh } = useApiResource(loadOrganizerEvents);
 
   return (
@@ -27,7 +29,7 @@ export function OrganizerEventsScreen({ navigation }: Props) {
         <ErrorState title="Couldn't load your events" message={error} onRetry={retry} />
       ) : (
         <FlatList
-          data={data}
+          data={data ?? []}
           keyExtractor={(event) => event.id}
           contentContainerStyle={sharedStyles.listContent}
           refreshing={refreshing}
