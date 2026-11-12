@@ -42,11 +42,16 @@ export default function EventDetailPage() {
       .catch((e) => setError(e.message))
   }, [id])
 
-  // campaign QR landing: ?c=token fills in the promo code automatically
+    // campaign QR landing: ?c=token fills in the promo code automatically
   useEffect(() => {
     if (!campaignToken) return
     api<Record<string, unknown>>(`/api/campaigns/resolve?token=${encodeURIComponent(campaignToken)}`)
       .then((data) => {
+        const campaignEvent = data.event_id as string | undefined
+        if (campaignEvent && campaignEvent !== id) {
+          setPromoNote('This promo link belongs to a different event')
+          return
+        }
         const code = (data.code ?? data.promo_code) as string | undefined
         if (code) {
           setPromoInput(code)
@@ -55,27 +60,33 @@ export default function EventDetailPage() {
         }
       })
       .catch((e) => setPromoNote(`The promo link did not work: ${e.message}`))
-  }, [campaignToken])
+  }, [campaignToken, id])
 
   const selected = tickets.find((t) => t.id === ticketId) ?? null
   const name = attendeeName || user?.full_name || ''
 
-  // recalculate the price whenever the choice changes
+    // recalculate the price whenever the choice changes
   useEffect(() => {
     keyRef.current = crypto.randomUUID() // a new choice means a new purchase
     if (!selected || !id) return
+    let active = true // ignore answers that arrive after a newer request started
     api<Quote>('/api/orders/quote', {
       method: 'POST',
       body: { event_id: id, ticket_type_id: selected.id, quantity, promo_code: promo || undefined },
     })
       .then((q) => {
+        if (!active) return
         setQuote(q)
         setQuoteError('')
       })
       .catch((e) => {
+        if (!active) return
         setQuote(null)
         setQuoteError(e.message)
       })
+    return () => {
+      active = false
+    }
   }, [id, selected, quantity, promo])
 
   async function buy() {
@@ -173,7 +184,7 @@ export default function EventDetailPage() {
               min={1}
               max={maxQty}
               value={quantity}
-              onChange={(e) => setQuantity(Math.max(1, Number(e.target.value) || 1))}
+              onChange={(e) => setQuantity(Math.min(maxQty, Math.max(1, Number(e.target.value) || 1)))}
             />
 
             <label htmlFor="promo" className="muted">Promo code</label>
