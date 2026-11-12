@@ -6,19 +6,33 @@ export default function LoginPage() {
   const { login } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
-  const from = (location.state as { from?: string } | null)?.from ?? '/'
   const [email, setEmail] = useState('dana@example.com') // demo account, remove before the final demo
   const [password, setPassword] = useState('demo1234')
   const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  const fromState: unknown = location.state?.from
+  const from =
+    typeof fromState === 'string' &&
+    fromState.startsWith('/') &&
+    !fromState.startsWith('//')
+      ? fromState
+      : undefined
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
+    if (busy) return
     setError('')
+    setBusy(true)
     try {
-      await login(email, password)
-      navigate(from)
+      const user = await login(email, password)
+      navigate(from ?? (user.role === 'organizer' ? '/organizer' : '/'), {
+        replace: true,
+      })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Sign in failed')
+    } finally {
+      setBusy(false)
     }
   }
 
@@ -26,10 +40,36 @@ export default function LoginPage() {
     <>
       <h1>Sign in</h1>
       <form className="form" onSubmit={onSubmit}>
-        <input aria-label="Email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" />
-        <input aria-label="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" />
-        {error && <div className="error" role="alert">{error}</div>}
-        <button className="btn" type="submit">Sign in</button>
+        <label>
+          Email
+          <input
+            type="email"
+            autoComplete="username"
+            required
+            disabled={busy}
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+        </label>
+        <label>
+          Password
+          <input
+            type="password"
+            autoComplete="current-password"
+            required
+            disabled={busy}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+        </label>
+        {error && (
+          <div className="error" role="alert">
+            {error}
+          </div>
+        )}
+        <button className="btn" type="submit" disabled={busy}>
+          {busy ? 'Signing in…' : 'Sign in'}
+        </button>
       </form>
       <p className="muted">
         No account? <Link to="/register" state={{ from }}>Register</Link>
