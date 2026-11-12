@@ -167,6 +167,9 @@ Each person has a short plain-words description and a checklist.
 - [ ] Get the instructors' answer about the mobile app in writing.
 
 ### Aldiyar: organizer web, the watch and manage side
+
+Implementation update (November 12, 2026): module 1 is implemented in `feature/organizer-management`: organizer home, event overview, attendees, orders, full simulated refunds and free-registration cancellation. Build, lint and browser checks with API fixtures are covered; live Docker integration is still pending. See [ORGANIZER_MANAGEMENT.md](ORGANIZER_MANAGEMENT.md). Analytics, staff, history and support screens remain. The meeting with Daut is not marked complete.
+
 **In plain words:** you build the pages where an organizer sees what is happening with an event: who bought tickets, how much money, what happened when, and support messages. You know the backend best, so you are also the person everyone asks when an endpoint answers something strange.
 - [ ] 30-minute backend walkthrough with Daut.
 - [ ] Organizer home: events grouped by phase (`GET /api/organizer/events`).
