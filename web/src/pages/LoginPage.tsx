@@ -30,7 +30,7 @@ export default function LoginPage() {
         { replace: true },
       )
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Ошибка входа')
+      setError(err instanceof Error ? err.message : 'Sign-in failed')
     } finally {
       setBusy(false)
     }
@@ -38,7 +38,7 @@ export default function LoginPage() {
 
   return (
     <>
-      <h1>Вход</h1>
+      <h1>Sign in</h1>
       <form className="form" onSubmit={onSubmit}>
         <label>
           Email
@@ -52,7 +52,7 @@ export default function LoginPage() {
           />
         </label>
         <label>
-          Пароль
+          Password
           <input
             type="password"
             autoComplete="current-password"
@@ -68,7 +68,7 @@ export default function LoginPage() {
           </div>
         )}
         <button className="btn" type="submit" disabled={busy}>
-          {busy ? 'Входим…' : 'Войти'}
+          {busy ? 'Signing in…' : 'Sign in'}
         </button>
       </form>
     </>
