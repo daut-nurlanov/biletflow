@@ -3,6 +3,8 @@ import { useAuth } from './auth'
 import EventsPage from './pages/EventsPage'
 import EventDetailPage from './pages/EventDetailPage'
 import LoginPage from './pages/LoginPage'
+import RegisterPage from './pages/RegisterPage'
+import MyTicketsPage from './pages/MyTicketsPage'
 
 export default function App() {
   const { user, logout } = useAuth()
@@ -13,13 +15,17 @@ export default function App() {
         <div className="container">
           <Link to="/" className="logo">BiletFlow</Link>
           <nav className="nav">
+            <Link to="/my-tickets">My tickets</Link>
             {user ? (
               <>
                 <span className="muted">{user.full_name}</span>
-                <button className="btn secondary" onClick={logout}>Выйти</button>
+                <button className="btn secondary" onClick={logout}>Sign out</button>
               </>
             ) : (
-              <Link to="/login">Войти</Link>
+              <>
+                <Link to="/login">Sign in</Link>
+                <Link to="/register">Register</Link>
+              </>
             )}
           </nav>
         </div>
@@ -29,6 +35,8 @@ export default function App() {
           <Route path="/" element={<EventsPage />} />
           <Route path="/events/:id" element={<EventDetailPage />} />
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
+          <Route path="/my-tickets" element={<MyTicketsPage />} />
         </Routes>
       </main>
     </>

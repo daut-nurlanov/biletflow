@@ -15,11 +15,12 @@ export default function EventsPage() {
   }, [])
 
   if (error) return <p className="error">{error}</p>
-  if (!events) return <p>Загрузка…</p>
+  if (!events) return <p>Loading…</p>
 
   return (
     <>
-      <h1>События</h1>
+      <h1>Events</h1>
+      {events.length === 0 && <p className="muted">No upcoming events.</p>}
       <div className="grid">
         {events.map((ev) => (
           <Link to={`/events/${ev.id}`} key={ev.id} className="card">

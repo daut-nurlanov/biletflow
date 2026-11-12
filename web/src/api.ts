@@ -1,4 +1,4 @@
-const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
+export const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
 const TOKEN_KEY = 'biletflow_token'
 
 export const getToken = () => localStorage.getItem(TOKEN_KEY)
@@ -28,7 +28,7 @@ export async function api<T>(
     body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
   })
 
-  // токен просрочен или недействителен: выходим из аккаунта
+  // expired or invalid token: sign the user out
   if (res.status === 401 && token) {
     setToken(null)
     window.dispatchEvent(new Event('biletflow:logout'))
@@ -40,7 +40,7 @@ export async function api<T>(
       const data = await res.json()
       if (typeof data.detail === 'string') detail = data.detail
     } catch {
-      // тело ответа не JSON, оставляем statusText
+      // body is not JSON, keep statusText
     }
     throw new ApiError(res.status, detail)
   }

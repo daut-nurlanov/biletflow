@@ -5,15 +5,18 @@ import type { User } from './types'
 interface AuthValue {
   user: User | null
   login: (email: string, password: string) => Promise<void>
+  register: (fullName: string, email: string, password: string) => Promise<void>
   logout: () => void
 }
+
+type AuthResponse = { token: string; user?: User } & Partial<User>
 
 const AuthContext = createContext<AuthValue | null>(null)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
 
-  // при открытии сайта: если токен сохранён, узнаём, кто это
+  // on page load: if a token is saved, find out who it belongs to
   useEffect(() => {
     if (getToken()) {
       api<User>('/api/auth/me').then(setUser).catch(() => setUser(null))
@@ -23,14 +26,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener('biletflow:logout', onLogout)
   }, [])
 
-  async function login(email: string, password: string) {
-    // ответ: данные пользователя + token (форму можно проверить в /docs)
-    const data = await api<{ token: string; user?: User } & Partial<User>>(
-      '/api/auth/login',
-      { method: 'POST', body: { email, password } },
-    )
+  function applyAuth(data: AuthResponse) {
     setToken(data.token)
     setUser((data.user ?? data) as User)
+  }
+
+  async function login(email: string, password: string) {
+    applyAuth(await api<AuthResponse>('/api/auth/login', { method: 'POST', body: { email, password } }))
+  }
+
+  async function register(fullName: string, email: string, password: string) {
+    applyAuth(
+      await api<AuthResponse>('/api/auth/register', {
+        method: 'POST',
+        body: { email, password, full_name: fullName, role: 'attendee' },
+      }),
+    )
   }
 
   function logout() {
@@ -38,12 +49,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null)
   }
 
-  return <AuthContext.Provider value={{ user, login, logout }}>{children}</AuthContext.Provider>
+  return <AuthContext.Provider value={{ user, login, register, logout }}>{children}</AuthContext.Provider>
 }
 
 // eslint-disable-next-line react-refresh/only-export-components
 export function useAuth() {
   const ctx = useContext(AuthContext)
-  if (!ctx) throw new Error('useAuth нужно использовать внутри AuthProvider')
+  if (!ctx) throw new Error('useAuth must be used inside AuthProvider')
   return ctx
 }

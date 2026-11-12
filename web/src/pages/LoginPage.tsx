@@ -1,11 +1,13 @@
 import { useState, type FormEvent } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth'
 
 export default function LoginPage() {
   const { login } = useAuth()
   const navigate = useNavigate()
-  const [email, setEmail] = useState('dana@example.com')
+  const location = useLocation()
+  const from = (location.state as { from?: string } | null)?.from ?? '/'
+  const [email, setEmail] = useState('dana@example.com') // demo account, remove before the final demo
   const [password, setPassword] = useState('demo1234')
   const [error, setError] = useState('')
 
@@ -14,21 +16,24 @@ export default function LoginPage() {
     setError('')
     try {
       await login(email, password)
-      navigate('/')
+      navigate(from)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Ошибка входа')
+      setError(err instanceof Error ? err.message : 'Sign in failed')
     }
   }
 
   return (
     <>
-      <h1>Вход</h1>
+      <h1>Sign in</h1>
       <form className="form" onSubmit={onSubmit}>
-        <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" />
-        <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Пароль" />
-        {error && <div className="error">{error}</div>}
-        <button className="btn" type="submit">Войти</button>
+        <input aria-label="Email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" />
+        <input aria-label="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" />
+        {error && <div className="error" role="alert">{error}</div>}
+        <button className="btn" type="submit">Sign in</button>
       </form>
+      <p className="muted">
+        No account? <Link to="/register" state={{ from }}>Register</Link>
+      </p>
     </>
   )
 }
