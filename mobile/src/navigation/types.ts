@@ -12,6 +12,7 @@ export type OrganizerStackParamList = {
 
 export type ScannerStackParamList = {
   Login: undefined;
+  Register: undefined;
   StaffEvents: undefined;
   Scan: { eventId: string; eventTitle: string };
 };

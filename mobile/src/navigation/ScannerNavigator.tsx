@@ -4,6 +4,7 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { useSession } from "../auth/SessionContext";
 import { LoadingState } from "../components/LoadingState";
 import { LoginScreen } from "../screens/LoginScreen";
+import { RegisterScreen } from "../screens/RegisterScreen";
 import { ScanScreen } from "../screens/ScanScreen";
 import { StaffEventsScreen } from "../screens/StaffEventsScreen";
 import { theme } from "../theme";
@@ -24,8 +25,8 @@ const navigationTheme = {
 };
 
 /**
- * Door scanner app. Signed-out users only see the login screen; once signed in,
- * the login screen is removed from the stack so "back" can't return to it.
+ * Shared sign-in/registration flow and door scanner. Auth screens are removed
+ * after sign-in so "back" cannot return to them.
  */
 export function ScannerNavigator() {
   const { state } = useSession();
@@ -47,7 +48,10 @@ export function ScannerNavigator() {
             />
           </>
         ) : (
-          <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />
+          <>
+            <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />
+            <Stack.Screen name="Register" component={RegisterScreen} options={{ headerShown: false }} />
+          </>
         )}
       </Stack.Navigator>
     </NavigationContainer>

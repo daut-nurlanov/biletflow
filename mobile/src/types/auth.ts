@@ -8,6 +8,12 @@ export interface User {
   is_email_verified: boolean;
 }
 
+export interface AttendeeRegistration {
+  full_name: string;
+  email: string;
+  password: string;
+}
+
 export interface LoginResponse extends User {
   token: string;
 }
