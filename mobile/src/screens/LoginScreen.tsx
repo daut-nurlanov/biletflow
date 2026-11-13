@@ -1,3 +1,4 @@
+import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useRef, useState } from "react";
 import {
   KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, type TextInputInstance, View,
@@ -6,6 +7,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useSession } from "../auth/SessionContext";
 import { AppButton } from "../components/AppButton";
+import type { ScannerStackParamList } from "../navigation/types";
 import { sharedStyles, theme } from "../theme";
 
 // Seeded demo accounts are offered only in development builds.
@@ -15,7 +17,9 @@ const DEMO_ACCOUNTS = [
   { label: "Door staff (Nurlan)", email: "nurlan@example.com" },
 ] as const;
 
-export function LoginScreen() {
+type Props = NativeStackScreenProps<ScannerStackParamList, "Login">;
+
+export function LoginScreen({ navigation }: Props) {
   const { signIn } = useSession();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -118,6 +122,17 @@ export function LoginScreen() {
             />
           </View>
 
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Create an attendee account"
+            accessibilityState={{ disabled: submitting }}
+            onPress={() => navigation.navigate("Register")}
+            disabled={submitting}
+            style={styles.registerLink}
+          >
+            <Text style={styles.toggleText}>New to BiletFlow? Create an attendee account</Text>
+          </Pressable>
+
           {__DEV__ && DEMO_ACCOUNTS.map((account) => (
             <Pressable
               key={account.email}
@@ -177,6 +192,7 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSize.small,
     lineHeight: 20,
   },
+  registerLink: { minHeight: 48, alignItems: "center", justifyContent: "center", padding: theme.spacing.sm },
   demo: { alignSelf: "center", padding: theme.spacing.sm },
   demoText: { color: theme.colors.muted, fontSize: theme.fontSize.small, textDecorationLine: "underline" },
 });

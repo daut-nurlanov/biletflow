@@ -3,9 +3,9 @@ import {
   createContext, useCallback, useContext, useEffect, useMemo, useState, type PropsWithChildren,
 } from "react";
 
-import { getMe, login } from "../api/auth";
+import { getMe, login, registerAttendee } from "../api/auth";
 import { ApiError } from "../api/client";
-import type { User } from "../types/auth";
+import type { AttendeeRegistration, User } from "../types/auth";
 
 const TOKEN_KEY = "biletflow.staff.token"; // Keep old key to preserve existing scanner logins.
 const USER_KEY = "biletflow.staff.user";
@@ -18,6 +18,7 @@ type SessionState =
 interface SessionValue {
   state: SessionState;
   signIn: (email: string, password: string) => Promise<void>;
+  signUp: (input: AttendeeRegistration) => Promise<void>;
   signOut: () => Promise<void>;
   /**
    * Run a request with the signed-in token. If the backend says the session is
@@ -101,6 +102,12 @@ export function SessionProvider({ children }: PropsWithChildren) {
     setState({ status: "signedIn", token, user });
   }, []);
 
+  const signUp = useCallback(async (input: AttendeeRegistration) => {
+    const { token, ...user } = await registerAttendee(input);
+    await saveSession(token, user);
+    setState({ status: "signedIn", token, user });
+  }, []);
+
   const signOut = useCallback(async () => {
     // Tokens are stateless on the backend, so signing out means forgetting it.
     await clearSession();
@@ -119,8 +126,8 @@ export function SessionProvider({ children }: PropsWithChildren) {
   }, [token, signOut]);
 
   const value = useMemo(
-    () => ({ state, signIn, signOut, authed }),
-    [state, signIn, signOut, authed],
+    () => ({ state, signIn, signUp, signOut, authed }),
+    [state, signIn, signUp, signOut, authed],
   );
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }
