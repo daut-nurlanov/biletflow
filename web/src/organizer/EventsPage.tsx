@@ -16,25 +16,23 @@ export function OrganizerEventsPage() {
     <>
       <div className="org-heading">
         <div>
-          <p className="org-eyebrow">Кабинет организатора</p>
-          <h1>Мои мероприятия</h1>
-          <p className="muted">
-            Продажи, посетители и заказы ваших мероприятий.
-          </p>
+          <p className="org-eyebrow">Organizer dashboard</p>
+          <h1>My events</h1>
+          <p className="muted">Sales, attendees and orders for your events.</p>
         </div>
         <button className="btn secondary" onClick={resource.refresh}>
-          Обновить
+          Refresh
         </button>
       </div>
       <label className="org-field org-filter">
-        Стадия мероприятия
+        Event phase
         <select
           value={phase}
           onChange={(e) =>
             setParams(e.target.value ? { phase: e.target.value } : {})
           }
         >
-          <option value="">Все мероприятия</option>
+          <option value="">All events</option>
           {Object.entries(phaseLabels).map(([value, label]) => (
             <option key={value} value={value}>
               {label}
@@ -44,9 +42,7 @@ export function OrganizerEventsPage() {
       </label>
       <ResourceState {...resource} retry={resource.refresh} />
       {events?.length === 0 && (
-        <Notice>
-          Здесь пока нет мероприятий. Попробуйте выбрать другую стадию.
-        </Notice>
+        <Notice>No events to show. Try selecting a different phase.</Notice>
       )}
       <div className="org-event-grid">
         {events?.map((event) => (
@@ -59,22 +55,22 @@ export function OrganizerEventsPage() {
             <p className="muted">{event.venue_name}</p>
             <dl className="org-facts">
               <div>
-                <dt>Билетов продано</dt>
+                <dt>Tickets sold</dt>
                 <dd>
                   {event.tickets_sold} / {event.tickets_total}
                 </dd>
               </div>
               <div>
-                <dt>Прошли на входе</dt>
+                <dt>Checked in</dt>
                 <dd>{event.tickets_checked_in}</dd>
               </div>
               <div>
-                <dt>Выручка после скидок и возвратов</dt>
+                <dt>Revenue after discounts and refunds</dt>
                 <dd>{money(event.net_revenue)}</dd>
               </div>
             </dl>
             <Link className="btn" to={`/organizer/events/${event.id}`}>
-              Управлять
+              Manage
             </Link>
           </article>
         ))}
@@ -88,50 +84,49 @@ export function EventOverviewPage() {
   return (
     <>
       <div className="org-stats">
-        <Stat title="Билетов в продаже всего" value={event.tickets_total} />
-        <Stat title="Действующих билетов" value={event.tickets_sold} />
-        <Stat title="Прошли на входе" value={event.tickets_checked_in} />
+        <Stat title="Total ticket inventory" value={event.tickets_total} />
+        <Stat title="Valid and checked-in tickets" value={event.tickets_sold} />
+        <Stat title="Checked in" value={event.tickets_checked_in} />
         <Stat
-          title="Выручка после скидок и возвратов"
+          title="Revenue after discounts and refunds"
           value={money(event.net_revenue)}
         />
       </div>
       <p className="muted">
-        Демонстрационные платежи. Выручка указана до вычета комиссии. Обновите
-        страницу, чтобы получить свежие показатели.
+        Demo payments. Revenue is shown before processing fees. Refresh the page
+        to see the latest figures.
       </p>
       <div className="org-event-grid">
         <article className="org-panel">
-          <h2>Посетители</h2>
-          <p>Найдите билет по имени или email и проверьте статус прохода.</p>
+          <h2>Attendees</h2>
+          <p>Find a ticket by name or email and check its admission status.</p>
           <Link className="btn" to={`${base}/attendees`}>
-            Открыть посетителей
+            View attendees
           </Link>
         </article>
         <article className="org-panel">
-          <h2>Заказы</h2>
+          <h2>Orders</h2>
           <p>
-            Посмотрите билеты заказа, оформите возврат или отмените бесплатную
-            регистрацию.
+            Review order tickets, issue a refund or cancel a free registration.
           </p>
           <Link className="btn" to={`${base}/orders`}>
-            Открыть заказы
+            View orders
           </Link>
         </article>
       </div>
       <section className="org-panel">
-        <h2>Условия мероприятия</h2>
+        <h2>Event information</h2>
         <p>
-          Площадка: {event.venue_name}
+          Venue: {event.venue_name}
           {event.venue_address ? `, ${event.venue_address}` : ''}
         </p>
-        <p>Вместимость площадки: {event.capacity}</p>
+        <p>Venue capacity: {event.capacity}</p>
         <p>
-          Платные продажи:{' '}
-          {event.is_paid_sales_active ? 'активированы' : 'не активированы'}
+          Paid sales:{' '}
+          {event.is_paid_sales_active ? 'activated' : 'not activated'}
         </p>
-        <p>Политика возврата: {event.refund_policy || 'не указана'}</p>
-        <Link to={`/events/${event.id}`}>Открыть страницу мероприятия →</Link>
+        <p>Refund policy: {event.refund_policy || 'not specified'}</p>
+        <Link to={`/events/${event.id}`}>View event page →</Link>
       </section>
     </>
   )

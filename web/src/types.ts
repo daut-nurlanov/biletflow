@@ -31,7 +31,7 @@ export interface TicketType {
   event_id: string
   name: string
   description: string | null
-  price: string | number // деньги приходят то числом, то строкой "5000.00"
+  price: string | number //amounts may be numbers or decimal strings
   total_quantity: number
   quantity_available: number
   seat_category: string | null

@@ -23,7 +23,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(() => Boolean(getToken()))
   const [error, setError] = useState('')
 
-  // при открытии сайта: если токен сохранён, узнаём, кто это
+  //restore the user associated with the saved token
   useEffect(() => {
     let active = true
     const token = getToken()
@@ -35,7 +35,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .catch((err: unknown) => {
           if (active && getToken() === token) {
             setError(
-              err instanceof Error ? err.message : 'Не удалось проверить вход',
+              err instanceof Error
+                ? err.message
+                : 'Could not restore your session',
             )
           }
         })
@@ -56,7 +58,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   async function login(email: string, password: string) {
-    // ответ: данные пользователя + token (форму можно проверить в /docs)
+    //the login response includes user details and a token
     const data = await api<{ token: string; user?: User } & Partial<User>>(
       '/api/auth/login',
       { method: 'POST', body: { email, password } },
@@ -86,6 +88,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 // eslint-disable-next-line react-refresh/only-export-components
 export function useAuth() {
   const ctx = useContext(AuthContext)
-  if (!ctx) throw new Error('useAuth нужно использовать внутри AuthProvider')
+  if (!ctx) throw new Error('useAuth must be used within AuthProvider')
   return ctx
 }

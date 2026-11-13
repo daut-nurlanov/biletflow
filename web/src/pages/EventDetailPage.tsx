@@ -7,7 +7,7 @@ import type { EventItem, TicketType } from '../types'
 export default function EventDetailPage() {
   const { id } = useParams()
   const [searchParams] = useSearchParams()
-  const campaignToken = searchParams.get('c') // токен промо-QR, используем позже
+  const campaignToken = searchParams.get('c') //campaign QR token, used by the checkout flow later
 
   const [event, setEvent] = useState<EventItem | null>(null)
   const [tickets, setTickets] = useState<TicketType[]>([])
@@ -26,7 +26,7 @@ export default function EventDetailPage() {
   }, [id])
 
   if (error) return <p className="error">{error}</p>
-  if (!event) return <p>Загрузка…</p>
+  if (!event) return <p>Loading…</p>
 
   return (
     <>
@@ -35,10 +35,10 @@ export default function EventDetailPage() {
         {formatDate(event.start_time)} · {event.venue_name}
         {event.venue_address ? `, ${event.venue_address}` : ''}
       </p>
-      {campaignToken && <p className="muted">Промо-ссылка: {campaignToken}</p>}
+      {campaignToken && <p className="muted">Campaign link: {campaignToken}</p>}
       {event.description && <p>{event.description}</p>}
 
-      <h2>Билеты</h2>
+      <h2>Tickets</h2>
       <div className="grid">
         {tickets.map((t) => (
           <div className="card" key={t.id}>
@@ -47,7 +47,7 @@ export default function EventDetailPage() {
               <strong>{formatPrice(t.price)}</strong>
             </div>
             {t.description && <div className="muted">{t.description}</div>}
-            <div className="muted">Осталось: {t.quantity_available}</div>
+            <div className="muted">Remaining: {t.quantity_available}</div>
           </div>
         ))}
       </div>

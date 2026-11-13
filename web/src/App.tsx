@@ -22,15 +22,15 @@ export default function App() {
             {user ? (
               <>
                 {user.role === 'organizer' && (
-                  <Link to="/organizer">Кабинет организатора</Link>
+                  <Link to="/organizer">Organizer dashboard</Link>
                 )}
                 <span className="muted">{user.full_name}</span>
                 <button className="btn secondary" onClick={logout}>
-                  Выйти
+                  Sign out
                 </button>
               </>
             ) : (
-              <Link to="/login">Войти</Link>
+              <Link to="/login">Sign in</Link>
             )}
           </nav>
         </div>
@@ -52,8 +52,7 @@ export default function App() {
               path="*"
               element={
                 <p>
-                  Страница не найдена.{' '}
-                  <Link to="/organizer">Мои мероприятия</Link>
+                  Page not found. <Link to="/organizer">My events</Link>
                 </p>
               }
             />

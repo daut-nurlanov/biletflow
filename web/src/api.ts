@@ -43,13 +43,13 @@ export async function api<T>(
     if (options.signal?.aborted) throw error
     throw new Error(
       timeout.aborted
-        ? 'Сервер не ответил вовремя. Обновите данные перед повторным действием.'
-        : 'Не удалось связаться с сервером. Проверьте подключение и запуск API.',
+        ? 'The server took too long to respond. Refresh the data before trying again.'
+        : 'Could not reach the server. Check your connection and make sure the API is running.',
       { cause: error },
     )
   }
 
-  // токен просрочен или недействителен: выходим из аккаунта
+  //clear only the session that produced this unauthorized response
   if (res.status === 401 && token && getToken() === token) {
     setToken(null)
     window.dispatchEvent(new Event('biletflow:logout'))
@@ -62,11 +62,11 @@ export async function api<T>(
       if (typeof data.detail === 'string') detail = data.detail
       else if (Array.isArray(data.detail)) {
         detail = data.detail
-          .map((item: { msg?: string }) => item.msg ?? 'Некорректное значение')
+          .map((item: { msg?: string }) => item.msg ?? 'Invalid value')
           .join('. ')
       }
     } catch {
-      // тело ответа не JSON, оставляем statusText
+      //keep statusText when the response is not JSON
     }
     throw new ApiError(res.status, detail)
   }
