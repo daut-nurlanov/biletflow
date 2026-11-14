@@ -1,4 +1,4 @@
-const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
+export const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
 const TOKEN_KEY = 'biletflow_token'
 
 export const getToken = () => localStorage.getItem(TOKEN_KEY)
@@ -43,13 +43,13 @@ export async function api<T>(
     if (options.signal?.aborted) throw error
     throw new Error(
       timeout.aborted
-        ? 'The server took too long to respond. Refresh the data before trying again.'
+        ? 'The server did not respond in time. Refresh the data before trying again.'
         : 'Could not reach the server. Check your connection and make sure the API is running.',
       { cause: error },
     )
   }
 
-  //clear only the session that produced this unauthorized response
+  // expired or invalid token: sign the user out
   if (res.status === 401 && token && getToken() === token) {
     setToken(null)
     window.dispatchEvent(new Event('biletflow:logout'))
@@ -66,7 +66,7 @@ export async function api<T>(
           .join('. ')
       }
     } catch {
-      //keep statusText when the response is not JSON
+      // body is not JSON, keep statusText
     }
     throw new ApiError(res.status, detail)
   }
