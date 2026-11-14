@@ -39,6 +39,7 @@ export default function SupportNewPage() {
   const [sending, setSending] = useState(false)
   const [orders, setOrders] = useState<OrderOption[] | null>(null)
   const [orderId, setOrderId] = useState('')
+  const [ordersError, setOrdersError] = useState('')
 
   const ticketId = searchParams.get('ticket_id') || undefined
   const linkedOrderId = searchParams.get('order_id') || undefined
@@ -51,8 +52,13 @@ export default function SupportNewPage() {
     const controller = new AbortController()
     api<OrderOption[]>('/api/orders/my-orders', { signal: controller.signal })
       .then(setOrders)
-      .catch(() => {
-        if (!controller.signal.aborted) setOrders([])
+      .catch((err: unknown) => {
+        if (!controller.signal.aborted) {
+          setOrders([])
+          setOrdersError(
+            err instanceof Error ? err.message : 'Could not load your orders',
+          )
+        }
       })
     return () => controller.abort()
   }, [user, hasContext])
@@ -108,7 +114,8 @@ export default function SupportNewPage() {
     }
   }
 
-  const noOrders = !hasContext && orders !== null && orders.length === 0
+    const noOrders =
+    !hasContext && orders !== null && orders.length === 0 && !ordersError
 
   return (
     <>
@@ -122,6 +129,11 @@ export default function SupportNewPage() {
       {noOrders && (
         <p className="muted">
           You have no orders yet, so there is nothing to ask support about.
+        </p>
+      )}
+      {ordersError && (
+        <p className="error" role="alert">
+          {ordersError}
         </p>
       )}
       <form className="form wide" onSubmit={submit}>

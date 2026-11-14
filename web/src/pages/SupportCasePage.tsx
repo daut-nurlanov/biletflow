@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useLocation, useParams } from 'react-router-dom'
 import { api, ApiError } from '../api'
 import { useAuth } from '../auth'
@@ -19,49 +19,45 @@ export default function SupportCasePage() {
   const [reply, setReply] = useState('')
   const [replyError, setReplyError] = useState('')
   const [sending, setSending] = useState(false)
-
-  const loadCase = useCallback(
-    async (signal?: AbortSignal, silent = false) => {
-      if (!id || !user) return
-      if (!silent) setLoading(true)
-      try {
-        const data = await api<SupportCase>(
-          `/api/support/cases/${encodeURIComponent(id)}`,
-          { signal },
-        )
-        setSupportCase(data)
-        setNotFound(false)
-        setLoadError('')
-      } catch (err) {
-        if (signal?.aborted) return
-        if (err instanceof ApiError && err.status === 404) {
-          setSupportCase(null)
-          setNotFound(true)
-          setLoadError('')
-        } else {
-          setLoadError(
-            err instanceof Error ? err.message : 'Could not load the request',
-          )
-        }
-      } finally {
-        if (!signal?.aborted && !silent) setLoading(false)
-      }
-    },
-    [id, user],
-  )
+  const [refreshKey, setRefreshKey] = useState(0)
 
   useEffect(() => {
     if (!user || !id) return
     const controller = new AbortController()
-    void loadCase(controller.signal)
+    const fetchCase = () => {
+      api<SupportCase>(`/api/support/cases/${encodeURIComponent(id)}`, {
+        signal: controller.signal,
+      })
+        .then((data) => {
+          setSupportCase(data)
+          setNotFound(false)
+          setLoadError('')
+        })
+        .catch((err: unknown) => {
+          if (controller.signal.aborted) return
+          if (err instanceof ApiError && err.status === 404) {
+            setSupportCase(null)
+            setNotFound(true)
+            setLoadError('')
+          } else {
+            setLoadError(
+              err instanceof Error ? err.message : 'Could not load the request',
+            )
+          }
+        })
+        .finally(() => {
+          if (!controller.signal.aborted) setLoading(false)
+        })
+    }
+    void fetchCase()
     const interval = window.setInterval(() => {
-      void loadCase(controller.signal, true)
+      void fetchCase()
     }, 10_000)
     return () => {
       window.clearInterval(interval)
       controller.abort()
     }
-  }, [id, loadCase, user])
+  }, [id, refreshKey, user])
 
   async function submitReply(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -79,7 +75,7 @@ export default function SupportCasePage() {
         { method: 'POST', body: { message: text } },
       )
       setReply('')
-      await loadCase(undefined, true)
+      setRefreshKey((value) => value + 1)
     } catch (err) {
       setReplyError(
         err instanceof Error ? err.message : 'Could not send the reply',
