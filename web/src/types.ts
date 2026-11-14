@@ -60,3 +60,47 @@ export interface MyTicket {
   row_label?: string
   seat_number?: string
 }
+
+export type SupportCategory =
+  | 'ticket_delivery'
+  | 'payment'
+  | 'refund'
+  | 'seating'
+  | 'event_information'
+  | 'check_in'
+  | 'account'
+  | 'technical'
+
+export type SupportStatus =
+  | 'open'
+  | 'in_progress'
+  | 'waiting_customer'
+  | 'resolved'
+
+export interface SupportMessage {
+  id: string
+  case_id: string
+  sender_id: string
+  message: string
+  created_at: string
+  sender_name?: string
+}
+
+export interface SupportCase {
+  id: string
+  opened_by: string
+  event_id: string | null
+  order_id: string | null
+  ticket_id: string | null
+  category: SupportCategory
+  status: SupportStatus
+  created_at: string
+  kind: 'attendee' | 'organizer'
+  assigned_to: string | null
+  escalated: boolean
+  updated_at: string
+  event_title?: string | null
+  opened_by_name?: string
+  your_role_in_case?: 'owner' | 'handler' | 'admin'
+  messages?: SupportMessage[]
+}
