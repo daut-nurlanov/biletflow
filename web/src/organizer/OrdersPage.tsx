@@ -18,45 +18,45 @@ export function OrdersPage() {
     <>
       <div className="org-heading">
         <div>
-          <h2>Заказы</h2>
+          <h2>Orders</h2>
           <p className="muted">
-            Платежи и возвраты симулируются. Реальные деньги не списываются.
+            Payments and refunds are simulated. No real money is charged.
           </p>
         </div>
         <button className="btn secondary" onClick={resource.refresh}>
-          Обновить
+          Refresh
         </button>
       </div>
       <label className="org-field org-filter">
-        Статус заказа
+        Order status
         <select
           value={status}
           onChange={(e) =>
             setParams(e.target.value ? { status: e.target.value } : {})
           }
         >
-          <option value="">Все статусы</option>
-          <option value="paid">Подтверждён</option>
-          <option value="failed">Ошибка оплаты</option>
-          <option value="refunded">Возвращён</option>
-          <option value="cancelled">Отменён</option>
-          <option value="pending">Ожидает оплаты</option>
+          <option value="">All statuses</option>
+          <option value="paid">Confirmed</option>
+          <option value="failed">Payment failed</option>
+          <option value="refunded">Refunded</option>
+          <option value="cancelled">Cancelled</option>
+          <option value="pending">Pending payment</option>
         </select>
       </label>
       <ResourceState {...resource} retry={resource.refresh} />
       {resource.data &&
         (resource.data.length === 0 ? (
-          <Notice>Заказов с такими условиями пока нет.</Notice>
+          <Notice>No orders match these filters.</Notice>
         ) : (
           <Table
-            caption="Заказы мероприятия"
+            caption="Event orders"
             headings={[
-              'Заказ / дата (Алматы)',
-              'Покупатель',
-              'Билетов',
-              'Сумма',
-              'Статус',
-              'Действия',
+              'Order / date (Almaty)',
+              'Buyer',
+              'Tickets',
+              'Amount',
+              'Status',
+              'Actions',
             ]}
           >
             {resource.data.map((order) => (
@@ -78,7 +78,7 @@ export function OrdersPage() {
                 </td>
                 <td>
                   <Link to={`/organizer/events/${event.id}/orders/${order.id}`}>
-                    Открыть
+                    View
                   </Link>
                 </td>
               </tr>
@@ -133,8 +133,8 @@ function OrderView({ orderId }: { orderId: string }) {
       setConfirming(false)
       setSuccess(
         paid
-          ? 'Симулированный возврат оформлен. Билеты больше не действуют.'
-          : 'Бесплатная регистрация отменена. Билеты больше не действуют.',
+          ? 'Simulated refund completed. The tickets are no longer valid.'
+          : 'Free registration cancelled. The tickets are no longer valid.',
       )
       resource.refresh()
     } catch (error) {
@@ -147,39 +147,39 @@ function OrderView({ orderId }: { orderId: string }) {
 
   return (
     <>
-      <Link to={`/organizer/events/${event.id}/orders`}>← Все заказы</Link>
+      <Link to={`/organizer/events/${event.id}/orders`}>← All orders</Link>
       <h2>
-        Заказ <span className="org-id">{orderId}</span>
+        Order <span className="org-id">{orderId}</span>
       </h2>
       {success && <Notice>{success}</Notice>}
       <ResourceState {...resource} retry={resource.refresh} />
       {order &&
         (order.event_id !== event.id ? (
-          <Notice error>Этот заказ относится к другому мероприятию.</Notice>
+          <Notice error>This order belongs to a different event.</Notice>
         ) : (
           <>
             <div className="org-panel">
               <div className="org-heading">
                 <div>
                   <Status value={order.status} />
-                  <p>{moment(order.created_at)} · время Алматы</p>
+                  <p>{moment(order.created_at)} · Almaty time</p>
                 </div>
                 <strong className="org-order-amount">
                   {money(order.total_amount)}
                 </strong>
               </div>
-              <p>Промокод: {order.promo_code_applied || 'не применён'}</p>
+              <p>Promo code: {order.promo_code_applied || 'not applied'}</p>
               <p className="muted">
-                Демонстрационный заказ. Все финансовые действия — симуляция.
+                Demo order. All financial transactions are simulated.
               </p>
             </div>
-            <h3>Билеты заказа</h3>
+            <h3>Order tickets</h3>
             {order.tickets.length === 0 ? (
-              <Notice>Билеты не выпущены.</Notice>
+              <Notice>No tickets have been issued.</Notice>
             ) : (
               <Table
-                caption="Билеты заказа"
-                headings={['Посетитель', 'Тип билета', 'Место', 'Статус']}
+                caption="Order tickets"
+                headings={['Attendee', 'Ticket type', 'Seat', 'Status']}
               >
                 {order.tickets.map((ticket) => (
                   <tr key={ticket.id}>
@@ -198,8 +198,8 @@ function OrderView({ orderId }: { orderId: string }) {
             )}
             {hasUsedTickets && (
               <Notice>
-                По этому заказу уже прошли на мероприятие. Возврат и отмена
-                недоступны.
+                Tickets in this order have already been used. Refunds and
+                cancellations are unavailable.
               </Notice>
             )}
             {canChange && !confirming && (
@@ -211,7 +211,7 @@ function OrderView({ orderId }: { orderId: string }) {
                     setActionError('')
                   }}
                 >
-                  {paid ? 'Вернуть оплату…' : 'Отменить регистрацию…'}
+                  {paid ? 'Refund payment…' : 'Cancel registration…'}
                 </button>
               </div>
             )}
@@ -222,23 +222,23 @@ function OrderView({ orderId }: { orderId: string }) {
               >
                 <h3 id="confirm-title">
                   {paid
-                    ? 'Подтвердите полный возврат'
-                    : 'Подтвердите отмену регистрации'}
+                    ? 'Confirm full refund'
+                    : 'Confirm registration cancellation'}
                 </h3>
                 <p>
-                  Заказ <span className="org-id">{order.id}</span> ·{' '}
-                  {order.tickets.length} билетов · {money(order.total_amount)}.
+                  Order <span className="org-id">{order.id}</span> ·{' '}
+                  {order.tickets.length} tickets · {money(order.total_amount)}.
                 </p>
                 <p>
-                  Все билеты заказа станут недействительными, их количество
-                  вернётся в продажу.{' '}
+                  All tickets in this order will become invalid and their
+                  inventory will be released for sale.{' '}
                   {paid &&
-                    'Возврат симулируется, реальные деньги не переводятся.'}
+                    'This refund is simulated. No real money is transferred.'}
                 </p>
                 <form onSubmit={submit}>
                   {paid && (
                     <label className="org-field">
-                      Причина возврата (необязательно)
+                      Refund reason (optional)
                       <textarea
                         autoFocus
                         name="reason"
@@ -252,8 +252,8 @@ function OrderView({ orderId }: { orderId: string }) {
                     <Notice error>
                       {actionError}
                       <p>
-                        Если ответ потерян, обновите заказ и проверьте его
-                        статус перед повторной попыткой.
+                        If the response was lost, refresh the order and check
+                        its status before trying again.
                       </p>
                     </Notice>
                   )}
@@ -264,10 +264,10 @@ function OrderView({ orderId }: { orderId: string }) {
                       disabled={busy}
                     >
                       {busy
-                        ? 'Выполняется…'
+                        ? 'Processing…'
                         : paid
-                          ? 'Подтвердить возврат'
-                          : 'Подтвердить отмену'}
+                          ? 'Confirm refund'
+                          : 'Confirm cancellation'}
                     </button>
                     <button
                       className="btn secondary"
@@ -275,7 +275,7 @@ function OrderView({ orderId }: { orderId: string }) {
                       disabled={busy}
                       onClick={() => setConfirming(false)}
                     >
-                      Назад
+                      Back
                     </button>
                     <button
                       className="btn secondary"
@@ -286,7 +286,7 @@ function OrderView({ orderId }: { orderId: string }) {
                         resource.refresh()
                       }}
                     >
-                      Обновить статус
+                      Refresh status
                     </button>
                   </div>
                 </form>
@@ -294,13 +294,13 @@ function OrderView({ orderId }: { orderId: string }) {
             )}
             {order.refunds.length > 0 && (
               <section className="org-panel">
-                <h3>Оформленные возвраты</h3>
+                <h3>Refund history</h3>
                 {order.refunds.map((refund) => (
                   <div key={refund.id}>
                     <p>
                       {money(refund.amount)} · {moment(refund.created_at)}
                     </p>
-                    <p>{refund.reason || 'Причина не указана'}</p>
+                    <p>{refund.reason || 'No reason provided'}</p>
                   </div>
                 ))}
               </section>

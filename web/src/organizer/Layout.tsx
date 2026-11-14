@@ -17,13 +17,13 @@ import './organizer.css'
 export function OrganizerGuard() {
   const { user, loading, error } = useAuth()
   const location = useLocation()
-  if (loading) return <Notice>Проверяем вход…</Notice>
+  if (loading) return <Notice>Restoring your session…</Notice>
   if (error)
     return (
       <Notice error>
         <p>{error}</p>
         <button className="btn" onClick={() => window.location.reload()}>
-          Проверить снова
+          Try again
         </button>
       </Notice>
     )
@@ -38,8 +38,8 @@ export function OrganizerGuard() {
   if (user.role !== 'organizer')
     return (
       <Notice error>
-        Кабинет доступен организаторам.{' '}
-        <Link to="/">Перейти к мероприятиям</Link>
+        This dashboard is only available to organizers.{' '}
+        <Link to="/">Browse events</Link>
       </Notice>
     )
   return (
@@ -57,32 +57,32 @@ export function EventLayout() {
   if (!event)
     return (
       <Notice error>
-        Мероприятие не найдено или недоступно вашему аккаунту.{' '}
-        <Link to="/organizer">Мои мероприятия</Link>
+        Event not found or unavailable to your account.{' '}
+        <Link to="/organizer">My events</Link>
       </Notice>
     )
   const base = `/organizer/events/${event.id}`
   return (
     <>
       <Link className="org-back" to="/organizer">
-        ← Мои мероприятия
+        ← My events
       </Link>
       <div className="org-heading">
         <div>
-          <p className="org-eyebrow">Кабинет организатора</p>
+          <p className="org-eyebrow">Organizer dashboard</p>
           <h1>{event.title}</h1>
           <p className="muted">
-            {moment(event.start_time)} · {event.venue_name} · время Алматы
+            {moment(event.start_time)} · {event.venue_name} · Almaty time
           </p>
         </div>
         <Status value={event.phase} />
       </div>
-      <nav className="org-tabs" aria-label="Управление мероприятием">
+      <nav className="org-tabs" aria-label="Event management">
         <NavLink to={base} end>
-          Обзор
+          Overview
         </NavLink>
-        <NavLink to={`${base}/attendees`}>Посетители</NavLink>
-        <NavLink to={`${base}/orders`}>Заказы</NavLink>
+        <NavLink to={`${base}/attendees`}>Attendees</NavLink>
+        <NavLink to={`${base}/orders`}>Orders</NavLink>
       </nav>
       <Outlet context={event} />
     </>

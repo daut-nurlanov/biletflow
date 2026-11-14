@@ -24,6 +24,10 @@ Open http://localhost:3000/login. Use the demo organizer account:
 `/organizer`; the header also links there. For another API address, set
 `VITE_API_URL` in an ignored `web/.env.local` and restart Vite.
 
+The web interface uses English labels, statuses, confirmation messages and error
+messages. Amounts remain in KZT and timestamps use Asia/Almaty. Event titles,
+attendee names and other user-provided content retain their original language.
+
 ## What works
 
 - Organizer-only routes wait for session restoration before redirecting.

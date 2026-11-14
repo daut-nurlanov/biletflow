@@ -135,15 +135,15 @@ test(
       const user = {
         id: 'org-1',
         email: 'org@example.com',
-        full_name: 'Организатор',
+        full_name: 'Organizer',
         role: 'organizer',
       }
       const event = {
         id: 'event-1',
         organizer_id: 'org-1',
-        title: 'Тестовый концерт',
+        title: 'Test concert',
         start_time: '2030-01-01T19:00:00+05:00',
-        venue_name: 'Тестовый зал',
+        venue_name: 'Test venue',
         venue_address: null,
         phase: 'upcoming',
         status: 'upcoming',
@@ -156,8 +156,8 @@ test(
       }
       const ticket = {
         id: 'ticket-1',
-        attendee_name: 'Дана',
-        ticket_type_name: 'Стандарт',
+        attendee_name: 'Dana',
+        ticket_type_name: 'Standard',
         status: 'valid',
         section: null,
         row_label: null,
@@ -201,7 +201,7 @@ test(
           else if (url.pathname === '/api/organizer/events') {
             if (outage) {
               status = 503
-              body = { detail: 'Временная ошибка' }
+              body = { detail: 'Temporary error' }
             } else
               body = empty
                 ? []
@@ -210,19 +210,19 @@ test(
                     {
                       ...event,
                       id: 'event-2',
-                      title: 'Архивное событие',
+                      title: 'Past event',
                       phase: 'completed',
                     },
                   ]
           } else if (url.pathname.endsWith('/ticket-types'))
-            body = [{ id: 'type-1', name: 'Стандарт' }]
+            body = [{ id: 'type-1', name: 'Standard' }]
           else if (url.pathname.endsWith('/attendees'))
             body = [
               {
                 ...ticket,
                 ticket_id: ticket.id,
                 email: 'dana@example.com',
-                ticket_type: 'Стандарт',
+                ticket_type: 'Standard',
                 order_id: order.id,
                 checked_in_at: null,
               },
@@ -231,7 +231,7 @@ test(
             body = [
               {
                 ...order,
-                full_name: 'Дана',
+                full_name: 'Dana',
                 email: 'dana@example.com',
                 ticket_count: 1,
               },
@@ -262,7 +262,7 @@ test(
                       {
                         id: 'refund-1',
                         amount: '2000',
-                        reason: 'Тестовый возврат',
+                        reason: 'Test refund',
                         created_at: order.created_at,
                       },
                     ]
@@ -294,17 +294,17 @@ test(
         patterns: [{ urlPattern: '*localhost:8000/*' }],
       })
       await browser.navigate('/login')
-      await browser.wait('Вход')
+      await browser.wait('Sign in')
 
       await t.test(
         'anonymous direct link returns to requested page after login',
         async () => {
           await browser.evaluate('localStorage.clear()')
           await browser.navigate('/organizer/events/event-1/orders')
-          await browser.wait('Вход')
-          await browser.click('Войти')
-          await browser.wait('Заказы')
-          await browser.wait('Дана')
+          await browser.wait('Sign in')
+          await browser.click('Sign in')
+          await browser.wait('Orders')
+          await browser.wait('Dana')
           assert.equal(
             await browser.evaluate('location.pathname'),
             '/organizer/events/event-1/orders',
@@ -323,19 +323,19 @@ test(
         async () => {
           meDelay = 400
           await browser.navigate('/organizer')
-          await browser.wait('Проверяем вход')
+          await browser.wait('Restoring your session')
           assert.equal(
             await browser.evaluate('location.pathname'),
             '/organizer',
           )
-          await browser.wait('Тестовый концерт')
+          await browser.wait('Test concert')
           meDelay = 0
         },
       )
       await t.test('phase filter selects completed events', async () => {
         await browser.navigate('/organizer?phase=completed')
-        await browser.wait('Архивное событие')
-        assert.equal(await browser.has('Тестовый концерт'), false)
+        await browser.wait('Past event')
+        assert.equal(await browser.has('Test concert'), false)
       })
       await t.test(
         'attendee filters are sent to server and persist in URL',
@@ -358,17 +358,17 @@ test(
               ),
             'selected ticket type',
           )
-          await browser.click('Открыть заказ')
-          await browser.wait('Билеты заказа')
+          await browser.click('View order')
+          await browser.wait('Order tickets')
         },
       )
       await t.test(
         'server refusal retains confirmation and shows explanation',
         async () => {
           rejectRefund = true
-          await browser.click('Вернуть оплату…')
-          await browser.click('Подтвердить возврат')
-          await browser.wait('По этому заказу уже прошли')
+          await browser.click('Refund payment…')
+          await browser.click('Confirm refund')
+          await browser.wait('Tickets in this order have already been used')
           assert.equal(order.status, 'paid')
           rejectRefund = false
         },
@@ -380,11 +380,11 @@ test(
           await browser.evaluate(
             `(() => { const form = document.querySelector('.org-confirm form'); form.requestSubmit(); form.requestSubmit(); })()`,
           )
-          await browser.wait('Симулированный возврат оформлен')
-          await browser.wait('Оформленные возвраты')
+          await browser.wait('Simulated refund completed')
+          await browser.wait('Refund history')
           assert.equal(mutations.length - before, 1)
           assert.equal(order.status, 'refunded')
-          assert.equal(await browser.has('Вернуть оплату…'), false)
+          assert.equal(await browser.has('Refund payment…'), false)
         },
       )
       await t.test('used tickets have no refund action', async () => {
@@ -395,8 +395,8 @@ test(
           refunds: [],
         }
         await browser.navigate('/organizer/events/event-1/orders/order-1')
-        await browser.wait('Возврат и отмена недоступны')
-        assert.equal(await browser.has('Вернуть оплату…'), false)
+        await browser.wait('Refunds and cancellations are unavailable')
+        assert.equal(await browser.has('Refund payment…'), false)
       })
       await t.test('free orders use cancel endpoint', async () => {
         order = {
@@ -407,36 +407,36 @@ test(
           refunds: [],
         }
         await browser.navigate('/organizer/events/event-1/orders/order-1')
-        await browser.wait('Отменить регистрацию…')
-        await browser.click('Отменить регистрацию…')
-        await browser.click('Подтвердить отмену')
-        await browser.wait('Бесплатная регистрация отменена')
+        await browser.wait('Cancel registration…')
+        await browser.click('Cancel registration…')
+        await browser.click('Confirm cancellation')
+        await browser.wait('Free registration cancelled')
         assert.ok(mutations.at(-1).url.endsWith('/cancel'))
       })
       await t.test(
         'foreign event and mismatched order are not displayed',
         async () => {
           await browser.navigate('/organizer/events/foreign/orders')
-          await browser.wait('Мероприятие не найдено')
+          await browser.wait('Event not found')
           assert.equal(await browser.has('dana@example.com'), false)
           order = { ...order, event_id: 'foreign' }
           await browser.navigate('/organizer/events/event-1/orders/order-1')
-          await browser.wait('Этот заказ относится к другому мероприятию')
-          assert.equal(await browser.has('Билеты заказа'), false)
+          await browser.wait('This order belongs to a different event')
+          assert.equal(await browser.has('Order tickets'), false)
         },
       )
       await t.test('load error can be retried', async () => {
         outage = true
         await browser.navigate('/organizer')
-        await browser.wait('Временная ошибка')
+        await browser.wait('Temporary error')
         outage = false
-        await browser.click('Повторить')
-        await browser.wait('Тестовый концерт')
+        await browser.click('Retry')
+        await browser.wait('Test concert')
       })
       await t.test('empty event list explains absence of data', async () => {
         empty = true
         await browser.navigate('/organizer')
-        await browser.wait('Здесь пока нет мероприятий')
+        await browser.wait('No events to show')
         empty = false
       })
       await t.test(
@@ -456,6 +456,10 @@ test(
             ),
             true,
           )
+          assert.doesNotMatch(
+            await browser.evaluate('document.body.innerText'),
+            /[А-Яа-яЁё]/u,
+          )
           if (process.env.TEST_SCREENSHOT) {
             const screenshot = await browser.send('Page.captureScreenshot', {
               format: 'png',
@@ -474,7 +478,7 @@ test(
           request.url.includes('/api/organizer'),
         ).length
         await browser.navigate('/organizer')
-        await browser.wait('Кабинет доступен организаторам')
+        await browser.wait('This dashboard is only available to organizers')
         assert.equal(
           requests.filter((request) => request.url.includes('/api/organizer'))
             .length,
@@ -486,7 +490,7 @@ test(
         async () => {
           expired = true
           await browser.navigate('/organizer')
-          await browser.wait('Вход')
+          await browser.wait('Sign in')
           assert.equal(
             await browser.evaluate('localStorage.getItem("biletflow_token")'),
             null,

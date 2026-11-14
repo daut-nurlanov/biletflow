@@ -37,13 +37,14 @@ export default function AttendeesPage() {
     <>
       <div className="org-heading">
         <div>
-          <h2>Посетители</h2>
+          <h2>Attendees</h2>
           <p className="muted">
-            Одна строка — один билет. Email относится к покупателю заказа.
+            Each row represents one ticket. The email belongs to the order
+            buyer.
           </p>
         </div>
         <button className="btn secondary" onClick={resource.refresh}>
-          Обновить
+          Refresh
         </button>
       </div>
       <AttendeeFilters
@@ -57,9 +58,9 @@ export default function AttendeesPage() {
       />
       {types.error && (
         <Notice error>
-          <p>Не удалось загрузить типы билетов: {types.error}</p>
+          <p>Could not load ticket types: {types.error}</p>
           <button className="btn secondary" onClick={types.refresh}>
-            Повторить
+            Retry
           </button>
         </Notice>
       )}
@@ -67,20 +68,20 @@ export default function AttendeesPage() {
       {resource.data && (
         <>
           <p className="muted" role="status">
-            Найдено билетов: {resource.data.length}
+            Tickets found: {resource.data.length}
           </p>
           {resource.data.length === 0 ? (
-            <Notice>Посетители не найдены. Попробуйте изменить фильтры.</Notice>
+            <Notice>No attendees found. Try changing the filters.</Notice>
           ) : (
             <Table
-              caption="Посетители мероприятия"
+              caption="Event attendees"
               headings={[
-                'Посетитель / покупатель',
-                'Билет',
-                'Место',
-                'Статус',
-                'Проход (Алматы)',
-                'Заказ',
+                'Attendee / buyer',
+                'Ticket',
+                'Seat',
+                'Status',
+                'Check-in (Almaty)',
+                'Order',
               ]}
             >
               {resource.data.map((attendee) => (
@@ -108,7 +109,7 @@ export default function AttendeesPage() {
                     <Link
                       to={`/organizer/events/${event.id}/orders/${attendee.order_id}`}
                     >
-                      Открыть заказ
+                      View order
                     </Link>
                   </td>
                 </tr>
@@ -140,38 +141,38 @@ function AttendeeFilters({
   return (
     <form className="org-filters" onSubmit={onSubmit}>
       <label className="org-field">
-        Имя или email
+        Name or email
         <input
           name="q"
           type="search"
           value={values.q}
           onChange={(e) => setValues({ ...values, q: e.target.value })}
           maxLength={254}
-          placeholder="Например, Dana"
+          placeholder="For example, Dana"
         />
       </label>
       <label className="org-field">
-        Статус билета
+        Ticket status
         <select
           name="status"
           value={values.status}
           onChange={(e) => setValues({ ...values, status: e.target.value })}
         >
-          <option value="">Все статусы</option>
-          <option value="valid">Действителен</option>
-          <option value="checked_in">Прошёл</option>
-          <option value="refunded">Возвращён</option>
-          <option value="cancelled">Отменён</option>
+          <option value="">All statuses</option>
+          <option value="valid">Valid</option>
+          <option value="checked_in">Checked in</option>
+          <option value="refunded">Refunded</option>
+          <option value="cancelled">Cancelled</option>
         </select>
       </label>
       <label className="org-field">
-        Тип билета
+        Ticket type
         <select
           name="ticket_type_id"
           value={values.ticketType}
           onChange={(e) => setValues({ ...values, ticketType: e.target.value })}
         >
-          <option value="">Все типы</option>
+          <option value="">All types</option>
           {types?.map((type) => (
             <option value={type.id} key={type.id}>
               {type.name}
@@ -180,10 +181,10 @@ function AttendeeFilters({
         </select>
       </label>
       <button className="btn" type="submit">
-        Применить
+        Apply
       </button>
       <button className="btn secondary" type="button" onClick={onReset}>
-        Сбросить
+        Reset
       </button>
     </form>
   )

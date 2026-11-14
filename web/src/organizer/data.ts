@@ -3,25 +3,27 @@ import { api, ApiError } from '../api'
 
 export function messageFor(error: unknown): string {
   if (error instanceof ApiError) {
-    if (error.status === 401) return 'Сессия истекла. Войдите снова.'
-    if (error.status === 403) return 'У вас нет доступа к этим данным.'
+    if (error.status === 401)
+      return 'Your session has expired. Please sign in again.'
+    if (error.status === 403)
+      return 'You do not have access to this information.'
     if (error.status === 404)
-      return 'Запись не найдена или недоступна вашему аккаунту.'
+      return 'Record not found or unavailable to your account.'
     const messages: Record<string, string> = {
       'Some tickets were already used at the door, so the order cannot be refunded':
-        'По этому заказу уже прошли на мероприятие. Возврат недоступен.',
+        'Tickets in this order have already been used. A refund is not available.',
       'Some tickets were already used at the door':
-        'По этому заказу уже прошли на мероприятие. Отмена недоступна.',
+        'Tickets in this order have already been used. Cancellation is not available.',
       'This is a free registration, use cancel instead of refund':
-        'Это бесплатная регистрация. Используйте отмену регистрации.',
+        'This is a free registration. Use Cancel registration instead.',
       'This order was paid for, ask the organizer for a refund':
-        'Заказ оплачен. Используйте возврат оплаты.',
+        'This order was paid for. Use Refund payment instead.',
     }
     return messages[error.message] ?? error.message
   }
   return error instanceof Error
     ? error.message
-    : 'Не удалось выполнить запрос. Попробуйте ещё раз.'
+    : 'The request failed. Please try again.'
 }
 
 export function useResource<T>(path: string) {

@@ -34,13 +34,13 @@ export function ResourceState({
   error?: string
   retry: () => void
 }) {
-  if (loading) return <Notice>Загрузка данных…</Notice>
+  if (loading) return <Notice>Loading data…</Notice>
   if (error)
     return (
       <Notice error>
         <p>{error}</p>
         <button className="btn secondary" onClick={retry}>
-          Повторить
+          Retry
         </button>
       </Notice>
     )
