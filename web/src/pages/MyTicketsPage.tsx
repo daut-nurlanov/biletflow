@@ -47,6 +47,11 @@ export default function MyTicketsPage() {
               <div className="muted">{t.attendee_name} · {t.status}</div>
               <img className="qr" src={`${BASE}/api/tickets/${t.id}/qr.png`} alt="Ticket QR code" />
               <a href={`${BASE}/api/tickets/${t.id}/pdf`} target="_blank" rel="noreferrer">Download PDF</a>
+              <p>
+                <Link to={`/support/new?ticket_id=${encodeURIComponent(t.id)}`}>
+                  Get help with this ticket
+                </Link>
+              </p>
             </div>
           )
         })}
