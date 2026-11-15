@@ -23,29 +23,36 @@ export default function EventDetailPage() {
   const [promoInput, setPromoInput] = useState('')
   const [promo, setPromo] = useState('') // the promo code that is applied
   const [promoNote, setPromoNote] = useState('')
-  const [quote, setQuote] = useState<Quote | null>(null)
+  const [quoteResult, setQuoteResult] = useState<{ selection: string; value: Quote } | null>(null)
   const [quoteError, setQuoteError] = useState('')
+  const [quoteAttempt, setQuoteAttempt] = useState(0)
   const [buying, setBuying] = useState(false)
   const [buyError, setBuyError] = useState('')
   const keyRef = useRef(crypto.randomUUID())
+  const purchaseChoice = useRef('')
+  const inFlight = useRef(false)
 
   // load the event and its ticket types
   useEffect(() => {
+    const controller = new AbortController()
     Promise.all([
-      api<EventItem>(`/api/events/${id}`),
-      api<TicketType[]>(`/api/events/${id}/ticket-types`),
+      api<EventItem>(`/api/events/${id}`, { signal: controller.signal }),
+      api<TicketType[]>(`/api/events/${id}/ticket-types`, { signal: controller.signal }),
     ])
       .then(([ev, tt]) => {
         setEvent(ev)
         setTickets(tt)
+        setError('')
       })
-      .catch((e) => setError(e.message))
+      .catch((e) => { if (!controller.signal.aborted) setError(e.message) })
+    return () => controller.abort()
   }, [id])
 
     // campaign QR landing: ?c=token fills in the promo code automatically
   useEffect(() => {
     if (!campaignToken) return
-    api<Record<string, unknown>>(`/api/campaigns/resolve?token=${encodeURIComponent(campaignToken)}`)
+    const controller = new AbortController()
+    api<Record<string, unknown>>(`/api/campaigns/resolve?token=${encodeURIComponent(campaignToken)}`, { signal: controller.signal })
       .then((data) => {
         const campaignEvent = data.event_id as string | undefined
         if (campaignEvent && campaignEvent !== id) {
@@ -59,42 +66,53 @@ export default function EventDetailPage() {
           setPromoNote(`Promo code ${code} applied from your link`)
         }
       })
-      .catch((e) => setPromoNote(`The promo link did not work: ${e.message}`))
+      .catch((e) => { if (!controller.signal.aborted) setPromoNote(`The promo link did not work: ${e.message}`) })
+    return () => controller.abort()
   }, [campaignToken, id])
 
-  const selected = tickets.find((t) => t.id === ticketId) ?? null
+  const selected = tickets.find((t) => t.id === ticketId && t.event_id === id) ?? null
   const name = attendeeName || user?.full_name || ''
+  const selection = JSON.stringify([id, selected?.id, quantity, promo, user?.id])
+  const quote = quoteResult?.selection === selection ? quoteResult.value : null
 
     // recalculate the price whenever the choice changes
   useEffect(() => {
-    keyRef.current = crypto.randomUUID() // a new choice means a new purchase
+    if (purchaseChoice.current !== selection) {
+      purchaseChoice.current = selection
+      keyRef.current = crypto.randomUUID()
+    }
     if (!selected || !id) return
+    const controller = new AbortController()
     let active = true // ignore answers that arrive after a newer request started
     api<Quote>('/api/orders/quote', {
       method: 'POST',
+      signal: controller.signal,
       body: { event_id: id, ticket_type_id: selected.id, quantity, promo_code: promo || undefined },
     })
       .then((q) => {
         if (!active) return
-        setQuote(q)
+        setQuoteResult({ selection, value: q })
         setQuoteError('')
       })
       .catch((e) => {
         if (!active) return
-        setQuote(null)
+        setQuoteResult(null)
         setQuoteError(e.message)
       })
     return () => {
       active = false
+      controller.abort()
     }
-  }, [id, selected, quantity, promo])
+  }, [id, selected, quantity, promo, selection, quoteAttempt])
 
   async function buy() {
+    if (inFlight.current || !quote || !name.trim()) return
     if (!getToken()) {
       navigate('/login', { state: { from: location.pathname + location.search } })
       return
     }
-    if (!selected || !event) return
+    if (!selected || !event || event.id !== id) return
+    inFlight.current = true
     setBuying(true)
     setBuyError('')
     try {
@@ -113,12 +131,13 @@ export default function EventDetailPage() {
     } catch (e) {
       setBuyError(e instanceof Error ? e.message : 'Could not complete the purchase')
     } finally {
+      inFlight.current = false
       setBuying(false)
     }
   }
 
   if (error) return <p className="error">{error}</p>
-  if (!event) return <p>Loading…</p>
+  if (!event || event.id !== id) return <p>Loading…</p>
 
   const paidBlocked = (t: TicketType) => Number(t.price) > 0 && !event.is_paid_sales_active
   const soldOut = (t: TicketType) => t.quantity_available <= 0
@@ -138,7 +157,7 @@ export default function EventDetailPage() {
       <h2>Tickets</h2>
       <div className="grid">
         {tickets.map((t) => {
-          const disabled = soldOut(t) || paidBlocked(t) || event.has_assigned_seating
+          const disabled = buying || soldOut(t) || paidBlocked(t) || event.has_assigned_seating
           return (
             <button
               key={t.id}
@@ -175,7 +194,7 @@ export default function EventDetailPage() {
           <h2>Checkout</h2>
           <div className="form">
             <label htmlFor="attendee-name" className="muted">Name on the ticket</label>
-            <input id="attendee-name" value={name} onChange={(e) => setAttendeeName(e.target.value)} />
+            <input id="attendee-name" maxLength={120} disabled={buying} value={name} onChange={(e) => setAttendeeName(e.target.value)} />
 
             <label htmlFor="quantity" className="muted">Quantity (up to {maxQty})</label>
             <input
@@ -183,16 +202,19 @@ export default function EventDetailPage() {
               type="number"
               min={1}
               max={maxQty}
+              step={1}
+              disabled={buying}
               value={quantity}
-              onChange={(e) => setQuantity(Math.min(maxQty, Math.max(1, Number(e.target.value) || 1)))}
+              onChange={(e) => setQuantity(Math.min(maxQty, Math.max(1, Math.floor(Number(e.target.value)) || 1)))}
             />
 
             <label htmlFor="promo" className="muted">Promo code</label>
             <div className="row">
-              <input id="promo" value={promoInput} onChange={(e) => setPromoInput(e.target.value.toUpperCase())} />
+              <input id="promo" disabled={buying} value={promoInput} onChange={(e) => setPromoInput(e.target.value.toUpperCase())} />
               <button
                 type="button"
                 className="btn secondary"
+                disabled={buying}
                 onClick={() => {
                   setPromo(promoInput.trim())
                   setPromoNote('')
@@ -204,7 +226,8 @@ export default function EventDetailPage() {
             {promoNote && <div className="muted">{promoNote}</div>}
           </div>
 
-          {quoteError && <p className="error" role="alert">{quoteError}</p>}
+          {!quote && !quoteError && <p role="status">Calculating price…</p>}
+          {quoteError && <p className="error" role="alert">{quoteError} <button type="button" className="btn secondary" onClick={() => { setQuoteError(''); setQuoteAttempt((attempt) => attempt + 1) }}>Retry quote</button></p>}
           {quote && (
             <div className="totals">
               <div className="row"><span>Subtotal</span><span>{formatPrice(quote.subtotal)}</span></div>
@@ -216,6 +239,7 @@ export default function EventDetailPage() {
           )}
 
           {buyError && <p className="error" role="alert">{buyError}</p>}
+          <p className="muted">Demo checkout: payment is simulated. No real money is charged. Processing fees are paid by the organizer.</p>
           <button className="btn" onClick={buy} disabled={buying || !quote || !name.trim()}>
             {buying ? 'Processing…' : getToken() ? 'Buy' : 'Sign in to buy'}
           </button>

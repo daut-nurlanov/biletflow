@@ -6,14 +6,15 @@ from fastapi.responses import JSONResponse
 from db import get_connection  # noqa: F401  (tests and scripts import it from here)
 from routers import admin, auth, checkin, events, notifications, orders, organizer, promo, staff, support
 
-app = FastAPI(title="BiletFlow API")
+class CorsFastAPI(FastAPI):
+    def build_middleware_stack(self):
+        # Include ServerErrorMiddleware, so even unhandled errors carry CORS
+        # headers instead of being reported as network failures in browsers.
+        return CORSMiddleware(super().build_middleware_stack(),
+                              allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+
+app = CorsFastAPI(title="BiletFlow API")
 
 #the order here matters in one place: orders.py defines the fixed-word
 #routes (like /api/tickets/my-tickets) before the {id} ones inside the file

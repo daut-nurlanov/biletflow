@@ -14,6 +14,8 @@ const chrome =
     '/usr/bin/google-chrome',
     '/usr/bin/chromium',
     '/usr/bin/chromium-browser',
+    'C:/Program Files/Google/Chrome/Application/chrome.exe',
+    'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
   ].find(existsSync)
 const base = process.env.TEST_BASE_URL || 'http://localhost:3000'
 const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
@@ -111,7 +113,7 @@ test(
         `--user-data-dir=${profile}`,
         'about:blank',
       ],
-      { stdio: ['ignore', 'ignore', 'pipe'] },
+      { stdio: ['ignore', 'ignore', 'pipe'], windowsHide: true },
     )
     const browser = new Browser()
     let stderr = ''
@@ -298,10 +300,13 @@ test(
             ],
             body: Buffer.from(JSON.stringify(body ?? {})).toString('base64'),
           })
-        })().catch((error) => interceptErrors.push(error))
+        })().catch((error) => {
+          // Aborted requests lose their interception ID during navigation.
+          if (!error.message.includes('Invalid InterceptionId')) interceptErrors.push(error)
+        })
       })
       await browser.send('Fetch.enable', {
-        patterns: [{ urlPattern: '*localhost:8000/*' }],
+        patterns: [{ urlPattern: '*localhost:8000/*' }, { urlPattern: '*127.0.0.1:8000/*' }],
       })
       await browser.navigate('/login')
       await browser.wait('Sign in')
