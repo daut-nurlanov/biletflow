@@ -3,6 +3,11 @@ import { useAuth } from './auth'
 import EventsPage from './pages/EventsPage'
 import EventDetailPage from './pages/EventDetailPage'
 import LoginPage from './pages/LoginPage'
+import RegisterPage from './pages/RegisterPage'
+import MyTicketsPage from './pages/MyTicketsPage'
+import SupportNewPage from './pages/SupportNewPage'
+import SupportPage from './pages/SupportPage'
+import SupportCasePage from './pages/SupportCasePage'
 import { EventLayout, OrganizerGuard } from './organizer/Layout'
 import { EventOverviewPage, OrganizerEventsPage } from './organizer/EventsPage'
 import AttendeesPage from './organizer/AttendeesPage'
@@ -20,6 +25,8 @@ export default function App() {
             BiletFlow
           </Link>
           <nav className="nav">
+            <Link to="/my-tickets">My tickets</Link>
+            <Link to="/support">Support</Link>
             {user ? (
               <>
                 {user.role === 'organizer' && (
@@ -31,7 +38,10 @@ export default function App() {
                 </button>
               </>
             ) : (
-              <Link to="/login">Sign in</Link>
+              <>
+                <Link to="/login">Sign in</Link>
+                <Link to="/register">Register</Link>
+              </>
             )}
           </nav>
         </div>
@@ -41,6 +51,11 @@ export default function App() {
           <Route path="/" element={<EventsPage />} />
           <Route path="/events/:id" element={<EventDetailPage />} />
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
+          <Route path="/my-tickets" element={<MyTicketsPage />} />
+          <Route path="/support" element={<SupportPage />} />
+          <Route path="/support/new" element={<SupportNewPage />} />
+          <Route path="/support/:id" element={<SupportCasePage />} />
           <Route path="/organizer" element={<OrganizerGuard />}>
             <Route index element={<OrganizerEventsPage />} />
             <Route path="events/:eventId" element={<EventLayout />}>

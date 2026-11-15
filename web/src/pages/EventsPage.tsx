@@ -20,6 +20,7 @@ export default function EventsPage() {
   return (
     <>
       <h1>Events</h1>
+      {events.length === 0 && <p className="muted">No upcoming events.</p>}
       <div className="grid">
         {events.map((ev) => (
           <Link to={`/events/${ev.id}`} key={ev.id} className="card">
