@@ -45,7 +45,9 @@ export default function MyTicketsPage() {
               {t.ticket_type_name && <div className="muted">{t.ticket_type_name}</div>}
               {seat && <div className="muted">{seat}</div>}
               <div className="muted">{t.attendee_name} · {t.status}</div>
-              <img className="qr" src={`${BASE}/api/tickets/${t.id}/qr.png`} alt="Ticket QR code" />
+              {t.status === 'valid' && t.event_status !== 'cancelled' && t.event_status !== 'suspended' ? (
+                <img className="qr" src={`${BASE}/api/tickets/${t.id}/qr.png`} alt={`Admission QR for ${title}`} />
+              ) : <p className="muted">Admission QR unavailable: {t.event_status === 'cancelled' || t.event_status === 'suspended' ? `event ${t.event_status}` : t.status}.</p>}
               <a href={`${BASE}/api/tickets/${t.id}/pdf`} target="_blank" rel="noreferrer">Download PDF</a>
               <p>
                 <Link to={`/support/new?ticket_id=${encodeURIComponent(t.id)}`}>

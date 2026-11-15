@@ -20,7 +20,10 @@ docker compose up -d --build
 
 Then open http://localhost:8000/docs to see and try every endpoint. The database comes preloaded with demo events, tickets and promo codes.
 
-To wipe the database and reload the demo data: `reset-demo.bat` (Windows) or `./reset-demo.sh` (Mac/Linux).
+After pulling updates, run `docker compose up -d --build`. The backend applies
+versioned schema upgrades before starting, preserving the existing database and
+demo records. Do not reset volumes to fix missing columns. See
+`docs/FINAL_INTEGRATION_AUDIT.md` for the verified state and remaining demo work.
 
 ## Where to read next
 
