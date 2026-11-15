@@ -26,7 +26,7 @@ export function messageFor(error: unknown): string {
     : 'The request failed. Please try again.'
 }
 
-export function useResource<T>(path: string) {
+export function useResource<T>(path: string | null) {
   const [revision, setRevision] = useState(0)
   const key = `${path}:${revision}`
   const [result, setResult] = useState<{
@@ -35,6 +35,7 @@ export function useResource<T>(path: string) {
     error?: string
   }>()
   useEffect(() => {
+    if (path === null) return
     const controller = new AbortController()
     api<T>(path, { signal: controller.signal }).then(
       (data) => {
@@ -51,7 +52,7 @@ export function useResource<T>(path: string) {
   return {
     data: current?.data,
     error: current?.error,
-    loading: !current,
+    loading: path !== null && !current,
     refresh: () => setRevision((value) => value + 1),
   }
 }

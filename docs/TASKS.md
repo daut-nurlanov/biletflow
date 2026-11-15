@@ -26,7 +26,7 @@ Nobody on the front end needs to touch the kitchen. Your job is to build screens
 
 **What is already done**
 - The database with all its tables, and demo data (3 events, users, promo codes).
-- The backend with 88 endpoints and 176 automated tests. It runs with one command.
+- The backend with 88 endpoints and 187 automated test cases. It runs with one command.
 - Login, tickets with QR codes and PDFs, promo codes with QR codes, refunds, door check-in, organizer numbers, support chat, admin tools.
 - Documentation: how to set up (`SETUP.md`), what you can ask the backend (`DATA_MODELS_AND_APIS.md`), and this plan.
 - A start on the mobile app (`mobile/`): Events list, Event details and My Tickets screens, an API client and shared components (Insar). Organizer screens, My events and Event dashboard (Farzad, PR #1, merged on Nov 1).
@@ -72,7 +72,7 @@ create event, make a promo campaign QR, open the QR link and land on the event w
 
 ## 2. What the backend already does
 
-Everything the web, the app and the admin portal need exists as endpoints: **88 endpoints, 176 automated tests** (`backend-python/`). Full list with who may call each: `docs/DATA_MODELS_AND_APIS.md`. Live, clickable version: http://localhost:8000/docs.
+Everything the web, the app and the admin portal need exists as endpoints: **88 endpoints, 187 automated test cases** (`backend-python/`). Full list with who may call each: `docs/DATA_MODELS_AND_APIS.md`. Live, clickable version: http://localhost:8000/docs.
 
 | Area | Ready |
 |---|---|
@@ -168,13 +168,13 @@ Each person has a short plain-words description and a checklist.
 
 ### Aldiyar: organizer web, the watch and manage side
 
-Implementation update (November 12, 2026): module 1 is implemented in `feature/organizer-management`: organizer home, event overview, attendees, orders, full simulated refunds and free-registration cancellation. Build, lint and browser checks with API fixtures are covered; live Docker integration is still pending. See [ORGANIZER_MANAGEMENT.md](ORGANIZER_MANAGEMENT.md). Analytics, staff, history and support screens remain. The meeting with Daut is not marked complete.
+Implementation update (November 12, 2026): modules 1 and 2 are implemented in `feature/organizer-management`: organizer home, event overview, attendees, orders, simulated refunds/cancellation and analytics with a sales chart. Analytics filters, financial reconciliation and snapshot consistency are tested against real PostgreSQL; web build, lint and browser checks use deterministic API fixtures. See [ORGANIZER_MANAGEMENT.md](ORGANIZER_MANAGEMENT.md). Staff, history and support screens remain. The meeting with Daut is not marked complete.
 
 **In plain words:** you build the pages where an organizer sees what is happening with an event: who bought tickets, how much money, what happened when, and support messages. You know the backend best, so you are also the person everyone asks when an endpoint answers something strange.
 - [ ] 30-minute backend walkthrough with Daut.
 - [ ] Organizer home: events grouped by phase (`GET /api/organizer/events`).
 - [ ] Attendee list and orders with filters, refund button.
-- [ ] Analytics page with numbers and a sales-over-time chart (`/api/events/{id}/analytics`, filters `date_from`, `date_to`, `ticket_type_id`).
+- [x] Analytics page with numbers and a sales-over-time chart (`/api/events/{id}/analytics`, filters `date_from`, `date_to`, `ticket_type_id`).
 - [ ] Staff: invite by email, list, revoke (`/api/events/{id}/staff`).
 - [ ] Event history page (`/api/events/{id}/timeline`).
 - [ ] Support inbox: attendee cases for your events, reply, escalate.

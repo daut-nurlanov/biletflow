@@ -173,7 +173,7 @@ Try to break things: buy the last ticket twice, take a seat someone else holds, 
 
 ## Part 4: What is actually finished, and what is not
 
-This section is checked against `docs/DATA_MODELS_AND_APIS.md`, which lists every endpoint (a script, `docs/check_docs.py`, confirms the list matches the code). The backend has **88 endpoints** and **176 automated tests**.
+This section is checked against `docs/DATA_MODELS_AND_APIS.md`, which lists every endpoint (a script, `docs/check_docs.py`, confirms the list matches the code). The backend has **88 endpoints** and **187 automated test cases**.
 
 ### Built and tested
 

@@ -1,7 +1,7 @@
-# Organizer management: module 1
+# Organizer management: modules 1 and 2
 
 Implemented in `feature/organizer-management`. This module covers the organizer
-home, event overview, attendee lists and order management from Aldiyar's tasks.
+home, event overview, attendee lists, order management and analytics from Aldiyar's tasks.
 
 ## Run locally
 
@@ -55,7 +55,27 @@ attendee names and other user-provided content retain their original language.
 A timeout does not prove a financial action failed. The confirmation screen
 explains that the organizer should refresh the order status before retrying.
 The API remains the authority on eligibility, inventory release and audit records.
-No backend routes or database schema were changed in this module.
+Module 1 added no backend routes or schema changes. Module 2 corrects the existing
+analytics endpoint and adds response fields; the database schema is unchanged.
+
+## Analytics (module 2)
+
+Open `/organizer/events/:eventId/analytics`, or select Analytics in the event menu.
+The page includes current inventory, revenue/discount/refund/fee/payout figures,
+attendance, a revenue chart with exact daily values, ticket-type comparisons and
+campaign performance. Date and ticket-type filters are stored in the URL.
+All interface text is English, amounts use KZT and dates use Almaty time.
+
+Current inventory is separated from purchase-date reporting. Campaign quota and
+seat holds are labelled with their event-wide/all-date scope. List-price value
+is labelled separately from real recorded revenue. Free registrations and empty
+periods have explicit states; invalid date ranges do not issue analytics requests.
+The chart is keyboard-scrollable on narrow screens and its data is also a table.
+
+Backend fixes: dates/types now apply to campaign and ticket-type breakdowns;
+invalid date ranges and unrelated ticket types are rejected. Reports use one
+read-only database snapshot so concurrent checkout cannot mix old/new totals.
+Full details: [API contract](DATA_MODELS_AND_APIS.md#organizer-analytics-contract).
 
 ## Validation
 
@@ -83,8 +103,20 @@ session restoration, completed-event filter, attendee filter query and selected
 value, server rejection, duplicate-submit protection, successful refund, used
 ticket restrictions, free cancellation, wrong event/order context, retry after
 API error, empty list, mobile overflow, role restriction and expired session.
-These checks verify the frontend with API fixtures; live database integration
-and backend authorization still require the Docker stack and backend tests.
+These browser checks verify the frontend with API fixtures. Backend analytics
+and authorization were also verified against an isolated real PostgreSQL 16
+container: the full 186-case backend suite passed before the final free-ticket
+regression was added; all 11 analytics cases, including that regression, pass.
+These checks cover refunds, date boundaries, filter consistency, access control,
+price changes and a checkout committed midway through an analytics request.
+
+Run the backend regressions against a disposable database initialized from
+`docs/schema.sql` (set `DB_HOST`, `DB_PORT`, `DB_NAME` and `DB_PASSWORD` first):
+
+```sh
+cd backend-python
+python -m pytest tests/test_analytics.py tests/test_organizer.py
+```
 
 Manual integration walkthrough:
 
@@ -100,11 +132,10 @@ Manual integration walkthrough:
 
 ## Remaining modules
 
-- Analytics page, sales graph, consistent backend date/type filtering and tests.
 - Staff assignment, initial-account setup and access revocation.
 - Read-only event history with action/date filters.
 - Organizer support inbox, replies, statuses and escalation.
-- Live end-to-end verification once Docker is running.
+- Final live browser walkthrough with the shared attendee checkout after branch integration.
 - Backend walkthrough with Daut (a team activity, not completed by this code).
 
 Attendee checkout, event creation/editing, activation and campaign creation remain

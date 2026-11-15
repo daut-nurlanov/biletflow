@@ -175,86 +175,117 @@ def event_orders(event_id: str, status: str | None = None, user=Depends(require_
 @router.get("/api/events/{event_id}/analytics")
 def analytics(event_id: str, date_from: str | None = None, date_to: str | None = None,
               ticket_type_id: str | None = None, user=Depends(require_roles("organizer", "platform_admin"))):
-    """All numbers come straight from the orders, tickets, refunds, promo and
-    check-in tables. Filters: date_from / date_to (order date), ticket_type_id."""
+    """Sales use order purchase dates; inventory is a current snapshot."""
     date_start, date_end = day_range(date_from, date_to)
+    if date_start and date_end and date_start >= date_end:
+        raise HTTPException(status_code=400, detail="date_from must not be after date_to")
     p = {"e": event_id, "f": date_start, "t": date_end, "tt": ticket_type_id}
-    #an order is "in range" if its date matches and (when asked) it contains that ticket type
-    order_filter = """o.event_id = %(e)s
-        AND (%(f)s::timestamptz IS NULL OR o.created_at >= %(f)s::timestamptz)
-        AND (%(t)s::timestamptz IS NULL OR o.created_at < %(t)s::timestamptz)
-        AND (%(tt)s::uuid IS NULL OR o.id IN (SELECT order_id FROM tickets WHERE ticket_type_id = %(tt)s::uuid))"""
+    selected_orders = """WITH selected_orders AS (
+        SELECT o.*, COALESCE(r.discount_amount, 0) AS discount_amount
+        FROM orders o
+        LEFT JOIN (SELECT order_id, sum(discount_amount) AS discount_amount
+                   FROM promo_redemptions GROUP BY order_id) r ON r.order_id = o.id
+        WHERE o.event_id = %(e)s
+          AND (%(f)s::timestamptz IS NULL OR o.created_at >= %(f)s::timestamptz)
+          AND (%(t)s::timestamptz IS NULL OR o.created_at < %(t)s::timestamptz)
+          AND (%(tt)s::uuid IS NULL OR EXISTS (
+              SELECT 1 FROM tickets WHERE order_id = o.id AND ticket_type_id = %(tt)s::uuid))
+    ) """
     with tx() as cur:
+        #one snapshot keeps totals and breakdowns consistent during concurrent checkout
+        cur.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY")
         event = assert_manager(cur, user, event_id)
+        if ticket_type_id:
+            cur.execute("SELECT id FROM ticket_types WHERE event_id = %s AND id = %s", (event_id, ticket_type_id))
+            if not cur.fetchone():
+                raise HTTPException(status_code=404, detail="Ticket type not found for this event")
+        cur.execute("SELECT now() AS generated_at")
+        generated_at = cur.fetchone()["generated_at"]
 
-        cur.execute("""SELECT COALESCE(sum(total_quantity), 0) AS capacity, COALESCE(sum(quantity_available), 0) AS remaining
-                       FROM ticket_types WHERE event_id = %(e)s AND (%(tt)s::uuid IS NULL OR id = %(tt)s::uuid)""", p)
+        cur.execute("""SELECT COALESCE(sum(total_quantity), 0) AS capacity,
+                              COALESCE(sum(quantity_available), 0) AS remaining,
+                              (SELECT count(*) FROM tickets WHERE event_id = %(e)s
+                               AND status IN ('valid','checked_in')
+                               AND (%(tt)s::uuid IS NULL OR ticket_type_id = %(tt)s::uuid)) AS sold
+                       FROM ticket_types WHERE event_id = %(e)s
+                       AND (%(tt)s::uuid IS NULL OR id = %(tt)s::uuid)""", p)
         stock = cur.fetchone()
-
-        cur.execute(f"""SELECT count(*) FILTER (WHERE t.status IN ('valid','checked_in')) AS sold,
-                               count(*) FILTER (WHERE t.status = 'refunded') AS refunded,
-                               count(*) FILTER (WHERE t.status = 'checked_in') AS checked_in,
-                               count(*) FILTER (WHERE t.status = 'valid') AS not_arrived
-                        FROM tickets t JOIN orders o ON t.order_id = o.id
-                        WHERE {order_filter} AND (%(tt)s::uuid IS NULL OR t.ticket_type_id = %(tt)s::uuid)""", p)
+        cur.execute(selected_orders + """
+            SELECT count(*) FILTER (WHERE t.status IN ('valid','checked_in')) AS sold,
+                   count(*) FILTER (WHERE t.status = 'refunded') AS refunded,
+                   count(*) FILTER (WHERE t.status = 'checked_in') AS checked_in,
+                   count(*) FILTER (WHERE t.status = 'valid') AS not_arrived
+            FROM tickets t JOIN selected_orders o ON t.order_id = o.id
+            WHERE (%(tt)s::uuid IS NULL OR t.ticket_type_id = %(tt)s::uuid)""", p)
         tickets = cur.fetchone()
-
+        #seat holds have no ticket_type_id, so their scope is always the whole event
         cur.execute("""SELECT count(*) AS n FROM seat_holds h JOIN seats s ON h.seat_id = s.id
                        WHERE s.event_id = %s AND h.status = 'active' AND h.expires_at > now()""", (event_id,))
         reserved = cur.fetchone()["n"]
 
-        cur.execute(f"""SELECT COALESCE(sum(o.total_amount + COALESCE(r.discount_amount, 0)) FILTER (WHERE o.status IN ('paid','refunded')), 0) AS gross,
-                               COALESCE(sum(r.discount_amount) FILTER (WHERE o.status IN ('paid','refunded')), 0) AS discounts,
-                               COALESCE(sum(o.total_amount) FILTER (WHERE o.status = 'refunded'), 0) AS refunds,
-                               COALESCE(sum(o.processing_fee) FILTER (WHERE o.status = 'paid'), 0) AS fees
-                        FROM orders o
-                        LEFT JOIN (SELECT order_id, sum(discount_amount) AS discount_amount FROM promo_redemptions GROUP BY order_id) r
-                               ON r.order_id = o.id
-                        WHERE {order_filter}""", p)
+        cur.execute(selected_orders + """
+            SELECT COALESCE(sum(total_amount + discount_amount) FILTER (WHERE status IN ('paid','refunded')), 0) AS gross,
+                   COALESCE(sum(discount_amount) FILTER (WHERE status IN ('paid','refunded')), 0) AS discounts,
+                   COALESCE(sum(total_amount) FILTER (WHERE status = 'refunded'), 0) AS refunds,
+                   COALESCE(sum(processing_fee) FILTER (WHERE status = 'paid'), 0) AS fees
+            FROM selected_orders""", p)
         money = cur.fetchone()
         net = money["gross"] - money["discounts"] - money["refunds"]
-        #the processing fee is a stand-in: each paid order stored the fee it was charged at checkout
-        #(refunded orders give their fee back)
         fee = money["fees"]
-        cur.execute("SELECT payout_status FROM events WHERE id = %s", (event_id,))
-        payout_status = cur.fetchone()["payout_status"]
-
-        cur.execute(f"""SELECT (o.created_at AT TIME ZONE 'Asia/Almaty')::date AS day, count(*) AS orders,
-                               COALESCE(sum(o.total_amount), 0) AS revenue,
-                               COALESCE(sum((SELECT count(*) FROM tickets t WHERE t.order_id = o.id)), 0) AS tickets
-                        FROM orders o WHERE {order_filter} AND o.status = 'paid' GROUP BY 1 ORDER BY 1""", p)
+        cur.execute(selected_orders + """
+            SELECT (o.created_at AT TIME ZONE 'Asia/Almaty')::date AS day, count(*) AS orders,
+                   COALESCE(sum(o.total_amount), 0) AS revenue,
+                   COALESCE(sum((SELECT count(*) FROM tickets t WHERE t.order_id = o.id
+                                 AND (%(tt)s::uuid IS NULL OR t.ticket_type_id = %(tt)s::uuid))), 0) AS tickets
+            FROM selected_orders o WHERE o.status = 'paid' GROUP BY 1 ORDER BY 1""", p)
         over_time = cur.fetchall()
 
-        cur.execute("""SELECT tt.id, tt.name, tt.price, tt.total_quantity, tt.quantity_available AS remaining,
-                              count(t.id) FILTER (WHERE t.status IN ('valid','checked_in')) AS sold,
-                              count(t.id) FILTER (WHERE t.status = 'refunded') AS refunded,
-                              count(t.id) FILTER (WHERE t.status IN ('valid','checked_in')) * tt.price AS revenue_at_list_price
-                       FROM ticket_types tt LEFT JOIN tickets t ON t.ticket_type_id = tt.id
-                       WHERE tt.event_id = %(e)s AND (%(tt)s::uuid IS NULL OR tt.id = %(tt)s::uuid)
-                       GROUP BY tt.id ORDER BY tt.price DESC, tt.name""", p)
+        cur.execute(selected_orders + """
+            SELECT tt.id, tt.name, tt.price, tt.total_quantity, tt.quantity_available AS remaining,
+                   count(t.id) FILTER (WHERE t.status IN ('valid','checked_in')) AS sold,
+                   count(t.id) FILTER (WHERE t.status = 'refunded') AS refunded,
+                   count(t.id) FILTER (WHERE t.status IN ('valid','checked_in')) * tt.price AS revenue_at_list_price
+            FROM ticket_types tt
+            LEFT JOIN tickets t ON t.ticket_type_id = tt.id AND t.order_id IN (SELECT id FROM selected_orders)
+            WHERE tt.event_id = %(e)s AND (%(tt)s::uuid IS NULL OR tt.id = %(tt)s::uuid)
+            GROUP BY tt.id ORDER BY tt.price DESC, tt.name""", p)
         by_type = cur.fetchall()
 
-        cur.execute("""SELECT c.id, c.code, c.is_active, c.redemptions_count AS redemptions, c.max_redemptions,
-                              COALESCE(sum(o.total_amount) FILTER (WHERE o.status = 'paid'), 0) AS net_revenue,
-                              COALESCE(sum(r.discount_amount) FILTER (WHERE o.status = 'paid'), 0) AS discount_given,
-                              COALESCE(sum((SELECT count(*) FROM tickets t WHERE t.order_id = o.id AND t.status IN ('valid','checked_in'))), 0) AS tickets
-                       FROM promo_campaigns c
-                       LEFT JOIN promo_redemptions r ON r.campaign_id = c.id
-                       LEFT JOIN orders o ON r.order_id = o.id
-                       WHERE c.event_id = %s GROUP BY c.id ORDER BY c.code""", (event_id,))
+        cur.execute(selected_orders + """
+            SELECT c.id, c.code, c.is_active, c.max_redemptions,
+                   c.redemptions_count AS active_redemptions_all_dates,
+                   count(o.id) FILTER (WHERE o.status = 'paid') AS redemptions,
+                   count(o.id) FILTER (WHERE o.status IN ('paid','refunded')) AS orders,
+                   count(o.id) FILTER (WHERE o.status = 'refunded') AS refunded_orders,
+                   COALESCE(sum(o.total_amount + r.discount_amount) FILTER (WHERE o.status IN ('paid','refunded')), 0) AS gross_sales,
+                   COALESCE(sum(r.discount_amount) FILTER (WHERE o.status IN ('paid','refunded')), 0) AS discounts,
+                   COALESCE(sum(o.total_amount) FILTER (WHERE o.status = 'refunded'), 0) AS refunds,
+                   COALESCE(sum(o.total_amount) FILTER (WHERE o.status = 'paid'), 0) AS net_revenue,
+                   COALESCE(sum(r.discount_amount) FILTER (WHERE o.status = 'paid'), 0) AS discount_given,
+                   COALESCE(sum((SELECT count(*) FROM tickets t WHERE t.order_id = o.id
+                                 AND t.status IN ('valid','checked_in')
+                                 AND (%(tt)s::uuid IS NULL OR t.ticket_type_id = %(tt)s::uuid)))
+                            FILTER (WHERE o.status = 'paid'), 0) AS tickets
+            FROM promo_campaigns c
+            LEFT JOIN promo_redemptions r ON r.campaign_id = c.id
+            LEFT JOIN selected_orders o ON r.order_id = o.id
+            WHERE c.event_id = %(e)s GROUP BY c.id ORDER BY c.code""", p)
         campaigns = cur.fetchall()
 
     registered = tickets["sold"]
     return {
-        "event_id": event_id, "currency": "KZT",
+        "event_id": event_id, "currency": "KZT", "generated_at": generated_at,
         "filters": {"date_from": date_from, "date_to": date_to, "ticket_type_id": ticket_type_id},
+        "inventory": {"total": stock["capacity"], "sold": stock["sold"], "remaining": stock["remaining"],
+                      "percent_sold": round(100 * stock["sold"] / stock["capacity"], 1) if stock["capacity"] else 0,
+                      "reserved": reserved, "reserved_scope": "event"},
         "capacity": {"total": stock["capacity"], "sold": tickets["sold"], "remaining": stock["remaining"],
                      "percent_sold": round(100 * tickets["sold"] / stock["capacity"], 1) if stock["capacity"] else 0},
         "ticket_counts": {"available": stock["remaining"], "reserved": reserved, "sold": tickets["sold"],
                           "refunded": tickets["refunded"], "checked_in": tickets["checked_in"]},
         "money": {"gross_sales": money["gross"], "discounts": money["discounts"], "refunds": money["refunds"],
                   "net_revenue": net, "processing_fee_simulated": fee, "estimated_payout": net - fee,
-                  "payout_status": payout_status},
+                  "payout_status": event["payout_status"]},
         "sales_over_time": over_time, "by_ticket_type": by_type, "campaigns": campaigns,
         "attendance": {"registered": registered, "checked_in": tickets["checked_in"], "absent": tickets["not_arrived"],
                        "percent_checked_in": round(100 * tickets["checked_in"] / registered, 1) if registered else 0},

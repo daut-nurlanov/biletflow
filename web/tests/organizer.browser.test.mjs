@@ -1,3 +1,4 @@
+import { analyticsFixture } from './analytics.fixture.mjs'
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { spawn } from 'node:child_process'
@@ -177,6 +178,7 @@ test(
       let outage = false
       let rejectRefund = false
       let meDelay = 0
+      let analyticsError = false
       let expired = false
       let empty = false
       const requests = []
@@ -215,8 +217,16 @@ test(
                     },
                   ]
           } else if (url.pathname.endsWith('/ticket-types'))
-            body = [{ id: 'type-1', name: 'Standard' }]
-          else if (url.pathname.endsWith('/attendees'))
+            body = [
+              { id: 'type-1', name: 'Standard' },
+              { id: 'type-2', name: 'VIP' },
+            ]
+          else if (url.pathname.endsWith('/analytics')) {
+            if (analyticsError) {
+              status = 503
+              body = { detail: 'Analytics unavailable' }
+            } else body = analyticsFixture(url.searchParams)
+          } else if (url.pathname.endsWith('/attendees'))
             body = [
               {
                 ...ticket,
@@ -425,6 +435,186 @@ test(
           assert.equal(await browser.has('Order tickets'), false)
         },
       )
+      await t.test(
+        'analytics renders reconciled figures and accessible daily values',
+        async () => {
+          await browser.navigate('/organizer/events/event-1/analytics')
+          await browser.wait('Revenue for selected purchases')
+          await browser.wait('SPRING')
+          assert.ok(
+            await browser.evaluate(
+              `document.querySelector('svg[role="img"] title').textContent.includes('revenue')`,
+            ),
+          )
+          assert.ok(
+            await browser.evaluate(
+              `document.querySelector('table caption').textContent === 'Daily sales'`,
+            ),
+          )
+          assert.ok(
+            await browser.evaluate(
+              `document.querySelector('[aria-labelledby="revenue-title"]').textContent.includes('7,200')`,
+            ),
+          )
+          assert.ok(
+            await browser.evaluate(
+              `document.querySelector('[aria-labelledby="inventory-title"]').textContent.includes('24')`,
+            ),
+          )
+          if (process.env.TEST_ANALYTICS_SCREENSHOT) {
+            const screenshot = await browser.send('Page.captureScreenshot', {
+              format: 'png',
+              captureBeyondViewport: true,
+            })
+            await writeFile(
+              process.env.TEST_ANALYTICS_SCREENSHOT,
+              Buffer.from(screenshot.data, 'base64'),
+            )
+          }
+        },
+      )
+      await t.test(
+        'analytics filters persist across reload and are sent to the server',
+        async () => {
+          await browser.navigate(
+            '/organizer/events/event-1/analytics?date_from=2029-04-10&date_to=2029-04-12&ticket_type_id=type-2',
+          )
+          await browser.wait('Campaign performance')
+          await eventually(
+            () =>
+              browser.evaluate(
+                `document.querySelector('select[name="ticket_type_id"]').value === 'type-2'`,
+              ),
+            'analytics selected type',
+          )
+          assert.equal(
+            await browser.evaluate(
+              `document.querySelector('input[name="date_from"]').value`,
+            ),
+            '2029-04-10',
+          )
+          assert.equal(
+            await browser.evaluate(
+              `document.querySelector('input[name="date_to"]').value`,
+            ),
+            '2029-04-12',
+          )
+          assert.ok(
+            requests.some((request) =>
+              request.url.includes(
+                '/analytics?date_from=2029-04-10&date_to=2029-04-12&ticket_type_id=type-2',
+              ),
+            ),
+          )
+          assert.ok(
+            await browser.evaluate(
+              `document.querySelector('[aria-labelledby="revenue-title"]').textContent.includes('4,500')`,
+            ),
+          )
+          await browser.evaluate(`(() => {
+            const input = document.querySelector('input[name="date_from"]');
+            Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, '2029-04-11');
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+            input.dispatchEvent(new Event('change', { bubbles: true }));
+          })()`)
+          await browser.click('Apply filters')
+          await eventually(
+            () =>
+              browser.evaluate(
+                `new URLSearchParams(location.search).get('date_from') === '2029-04-11'`,
+              ),
+            'submitted analytics date',
+          )
+          await browser.wait('Campaign performance')
+          await browser.click('Reset filters')
+          await browser.wait('Campaign performance')
+          assert.equal(await browser.evaluate('location.search'), '')
+        },
+      )
+      await t.test(
+        'invalid date range avoids analytics requests and can be reset',
+        async () => {
+          const before = requests.filter((request) =>
+            request.url.includes('/analytics'),
+          ).length
+          await browser.navigate(
+            '/organizer/events/event-1/analytics?date_from=2029-04-12&date_to=2029-04-10',
+          )
+          await browser.wait('The start date must not be after the end date')
+          assert.equal(
+            requests.filter((request) => request.url.includes('/analytics'))
+              .length,
+            before,
+          )
+          await browser.click('Reset filters')
+          await browser.wait('Campaign performance')
+        },
+      )
+      await t.test(
+        'empty analytics retains current inventory without showing a misleading graph',
+        async () => {
+          await browser.navigate(
+            '/organizer/events/event-1/analytics?date_from=2099-01-01',
+          )
+          await browser.wait('No confirmed orders in this selection')
+          assert.equal(
+            await browser.evaluate(
+              `document.querySelectorAll('svg[role="img"]').length`,
+            ),
+            0,
+          )
+          assert.ok(
+            await browser.evaluate(
+              `document.querySelector('[aria-labelledby="inventory-title"]').textContent.includes('24')`,
+            ),
+          )
+          assert.ok(
+            await browser.evaluate(
+              `document.querySelector('[aria-labelledby="revenue-title"]').textContent.includes('KZT')`,
+            ),
+          )
+        },
+      )
+      await t.test(
+        'free registrations show daily ticket counts without a paid-revenue graph',
+        async () => {
+          await browser.navigate(
+            '/organizer/events/event-1/analytics?ticket_type_id=type-free',
+          )
+          await browser.wait(
+            'Confirmed orders in this selection have no paid revenue',
+          )
+          assert.equal(
+            await browser.evaluate(
+              `document.querySelectorAll('svg[role="img"]').length`,
+            ),
+            0,
+          )
+          assert.ok(
+            await browser.evaluate(
+              `document.querySelector('table caption').textContent === 'Daily sales'`,
+            ),
+          )
+          assert.ok(await browser.has('Free admission'))
+        },
+      )
+      await t.test(
+        'analytics failure offers retry without changing filters',
+        async () => {
+          analyticsError = true
+          await browser.navigate(
+            '/organizer/events/event-1/analytics?ticket_type_id=type-2',
+          )
+          await browser.wait('Analytics unavailable')
+          analyticsError = false
+          await browser.click('Retry')
+          await browser.wait('Campaign performance')
+          assert.equal(
+            await browser.evaluate('location.search'),
+            '?ticket_type_id=type-2',
+          )
+        },
+      )
       await t.test('load error can be retried', async () => {
         outage = true
         await browser.navigate('/organizer')
@@ -467,6 +657,34 @@ test(
             })
             await writeFile(
               process.env.TEST_SCREENSHOT,
+              Buffer.from(screenshot.data, 'base64'),
+            )
+          }
+        },
+      )
+      await t.test(
+        'analytics remains usable on mobile with readable chart labels',
+        async () => {
+          await browser.navigate('/organizer/events/event-1/analytics')
+          await browser.wait('Campaign performance')
+          assert.equal(
+            await browser.evaluate(
+              'document.documentElement.scrollWidth <= innerWidth',
+            ),
+            true,
+          )
+          assert.ok(
+            await browser.evaluate(
+              `document.querySelector('.org-sales-chart svg').getBoundingClientRect().width >= 640`,
+            ),
+          )
+          if (process.env.TEST_ANALYTICS_MOBILE_SCREENSHOT) {
+            const screenshot = await browser.send('Page.captureScreenshot', {
+              format: 'png',
+              captureBeyondViewport: true,
+            })
+            await writeFile(
+              process.env.TEST_ANALYTICS_MOBILE_SCREENSHOT,
               Buffer.from(screenshot.data, 'base64'),
             )
           }

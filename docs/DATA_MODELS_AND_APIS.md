@@ -454,6 +454,50 @@ Checkout enforces: event is upcoming or active, paid sales are active (and not f
 | `GET /api/events/{id}/analytics` | Organizer | Capacity (total, sold, remaining), ticket counts (sold, reserved, available, refunded, checked in), money (gross, discounts, refunds, net, simulated processing fee as charged on each paid order, estimated payout, payout status), per ticket type, sales over time, campaign performance, attendance. Filters: `date_from`, `date_to`, `ticket_type_id`. |
 | `GET /api/events/{id}/timeline` | Organizer | History of important actions: who, what, when. Newest first. Filters: `date_from`, `date_to`, `action`. Read only; nothing in the API can edit or delete it. |
 
+### Organizer analytics contract
+
+`GET /api/events/{id}/analytics` uses one read-only, repeatable-read PostgreSQL
+snapshot. `generated_at` identifies that snapshot. The organizer must own the
+event; Platform Admins may also read it. A ticket type from another event is 404.
+Malformed or reversed date ranges are 400.
+
+- `date_from` and `date_to` select orders by **purchase timestamp**, in
+  `Asia/Almaty`. Plain end dates include the entire day. Refunds are attributed
+  to their original order's purchase date, not the date the refund was issued.
+- All sales breakdowns (`money`, `ticket_counts.sold/refunded/checked_in`,
+  `attendance`, `sales_over_time`, `by_ticket_type`, `campaigns`) use the same
+  date and ticket-type selection. Current checkout issues one ticket type per
+  order; financial amounts therefore belong to that type.
+- `inventory` is the **current** state across all purchase dates, narrowed by
+  ticket type: `total`, `sold`, `remaining`, `percent_sold`. Remaining means
+  unissued inventory and may include temporarily held seats. `reserved` counts
+  current seat holds for the whole event (`reserved_scope: "event"`), because
+  holds have no ticket-type association.
+- `capacity` is retained for older clients: its total and remaining are current,
+  while its sold count uses the purchase selection. New dashboards should use
+  `inventory` for current sales progress.
+- `money.gross_sales` includes confirmed and subsequently refunded purchases
+  before discounts. `net_revenue = gross_sales - discounts - refunds`;
+  `estimated_payout = net_revenue - processing_fee_simulated`. Historical
+  amounts come from orders and redemption records, not today's ticket prices.
+  `payout_status` belongs to the whole event and is simulated.
+- `sales_over_time` includes currently confirmed orders only, grouped by their
+  purchase day in Almaty. Free registrations count as orders/tickets with zero
+  revenue; failed, cancelled and refunded orders are excluded.
+- `by_ticket_type.sold/refunded` use the selection. `price`, `total_quantity`
+  and `remaining` are current inventory values. `revenue_at_list_price` is the
+  selected valid ticket count multiplied by today's list price; it is **not**
+  historical revenue.
+- Campaign `orders` includes selected paid/refunded orders; `refunded_orders`
+  counts refunded orders. `redemptions` counts selected orders still confirmed.
+  `tickets` counts their valid/checked-in tickets. `gross_sales`, `discounts`,
+  `refunds`, and `net_revenue` reconcile like event totals. For compatibility,
+  `discount_given` covers only still-confirmed orders. The separate
+  `active_redemptions_all_dates` is current quota usage across all dates/types;
+  compare it with `max_redemptions`.
+- Attendance describes current check-in status of valid tickets from selected
+  purchases. "Not checked in" does not imply the event has already taken place.
+
 ### 💬 Support
 
 | Method and path | Who | What it does |

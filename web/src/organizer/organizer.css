@@ -53,7 +53,7 @@
   gap: 8px;
   border-bottom: 1px solid var(--org-border);
   margin-bottom: 28px;
-  overflow-x: auto;
+  flex-wrap: wrap;
 }
 .org-tabs a {
   padding: 12px 16px;
@@ -294,4 +294,37 @@
     flex-wrap: wrap;
     gap: 12px;
   }
+}
+.org section[aria-labelledby] {
+  margin-block: 28px;
+}
+.org-sales-chart {
+  overflow-x: auto;
+  margin: 0 0 24px;
+}
+.org-sales-chart svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  min-height: 240px;
+  min-width: 640px;
+}
+.org-sales-chart text {
+  fill: #526174;
+  font-size: 13px;
+}
+.org-sales-chart rect {
+  fill: #2563eb;
+}
+.org-chart-grid {
+  stroke: #dce3ec;
+  stroke-width: 1;
+}
+
+.org-money-stats {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+}
+.org-money-stats .org-stat strong {
+  overflow-wrap: normal;
+  font-size: clamp(1.1rem, 2.5vw, 1.6rem);
 }
