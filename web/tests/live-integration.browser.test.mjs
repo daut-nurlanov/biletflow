@@ -15,7 +15,7 @@ const chrome = process.env.CHROME_BIN || [
   '/usr/bin/chromium', '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
 ].find(existsSync)
 
-test('live Docker: organizer campaign -> browser paid/free purchase -> QR -> staff admission',
+test('live Docker: attendee purchase, admission, organizer analytics and support',
   { skip: !apiBase || !chrome, timeout: 120_000 }, async () => {
     async function request(path, { token, body, method = body ? 'POST' : 'GET' } = {}) {
       const response = await fetch(apiBase + path, { method,
@@ -97,7 +97,35 @@ test('live Docker: organizer campaign -> browser paid/free purchase -> QR -> sta
       await browser.navigate('/my-tickets')
       await browser.wait(event.title)
       assert.equal(await browser.evaluate('document.querySelectorAll("img.qr").length'), 1)
-      console.log('Live free/paid orders, campaign discount, HTTP scanner workflow and QR images verified; audit records retained in isolated database.')
+      const analytics = await request(`/api/events/${event.id}/analytics`, { token: org })
+      assert.equal(Number(analytics.money.gross_sales), 5000)
+      assert.equal(Number(analytics.money.discounts), 1000)
+      assert.equal(Number(analytics.money.net_revenue), 4000)
+      assert.equal(analytics.inventory.sold, 2)
+      assert.equal(analytics.inventory.remaining, 18)
+      assert.equal(analytics.attendance.checked_in, 1)
+      await browser.evaluate(`localStorage.setItem('biletflow_token', ${JSON.stringify(org)})`)
+      await browser.navigate(`/organizer/events/${event.id}/analytics`)
+      await browser.wait('Campaign performance')
+      assert.ok(await browser.evaluate(`document.querySelector('[aria-labelledby="revenue-title"]').textContent.includes('4,000')`))
+      assert.ok(await browser.evaluate(`document.querySelector('svg[role="img"]') !== null`))
+
+      const support = await request('/api/support/cases', { token: attendee.token, body: {
+        category: 'payment', order_id: orders.find((order) => Number(order.total_amount) === 4000).id,
+        message: 'Live support inquiry about my order',
+      } })
+      await browser.navigate(`/support/${support.id}`)
+      await browser.wait('Live support inquiry about my order')
+      await browser.evaluate(`(() => {
+        const input = document.querySelector('#support-reply');
+        Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(input, 'Organizer reply verified in live integration');
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      })()`)
+      await browser.click('Send reply')
+      await browser.wait('Organizer reply verified in live integration')
+      const conversation = await request(`/api/support/cases/${support.id}`, { token: attendee.token })
+      assert.ok(conversation.messages.some((message) => message.message === 'Organizer reply verified in live integration'))
+      console.log('Live purchase, QR, admission, organizer analytics and cross-role support verified on the isolated database.')
     } finally {
       browser.socket?.close()
       child.kill()

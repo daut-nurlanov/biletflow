@@ -302,11 +302,15 @@ test(
           })
         })().catch((error) => {
           // Aborted requests lose their interception ID during navigation.
-          if (!error.message.includes('Invalid InterceptionId')) interceptErrors.push(error)
+          if (!error.message.includes('Invalid InterceptionId'))
+            interceptErrors.push(error)
         })
       })
       await browser.send('Fetch.enable', {
-        patterns: [{ urlPattern: '*localhost:8000/*' }, { urlPattern: '*127.0.0.1:8000/*' }],
+        patterns: [
+          { urlPattern: '*localhost:8000/*' },
+          { urlPattern: '*127.0.0.1:8000/*' },
+        ],
       })
       await browser.navigate('/login')
       await browser.wait('Sign in')
@@ -713,7 +717,13 @@ test(
         async () => {
           expired = true
           await browser.navigate('/organizer')
-          await browser.wait('Sign in')
+          await eventually(
+            () =>
+              browser.evaluate(
+                `location.pathname === '/login' && document.querySelector('h1')?.textContent === 'Sign in'`,
+              ),
+            'expired-session redirect to sign-in page',
+          )
           assert.equal(
             await browser.evaluate('localStorage.getItem("biletflow_token")'),
             null,

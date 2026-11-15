@@ -103,12 +103,24 @@ session restoration, completed-event filter, attendee filter query and selected
 value, server rejection, duplicate-submit protection, successful refund, used
 ticket restrictions, free cancellation, wrong event/order context, retry after
 API error, empty list, mobile overflow, role restriction and expired session.
-These browser checks verify the frontend with API fixtures. Backend analytics
-and authorization were also verified against an isolated real PostgreSQL 16
-container: the full 186-case backend suite passed before the final free-ticket
-regression was added; all 11 analytics cases, including that regression, pass.
-These checks cover refunds, date boundaries, filter consistency, access control,
-price changes and a checkout committed midway through an analytics request.
+On November 16, the branch was synchronized with `origin/main` (`3de9464`) and
+reviewed migration/checkout fixes (`64fe04a`). The combined version passed:
+
+- Web production build and lint.
+- Mobile TypeScript, lint and 3 headless attendee regression tests.
+- All 194 backend tests against an isolated PostgreSQL 16 database, including
+  legacy-schema migration, concurrent checkout and analytics consistency.
+- All 27 fixture-browser checks for organizer and attendee checkout behavior.
+- A live browser scenario against the real API/database: campaign discount,
+  paid/free purchases, real QR images, duplicate-admission prevention, organizer
+  analytics reflecting those purchases and organizer replies visible to the
+  attendee through the shared support conversation.
+
+The live scenario is opt-in: point `LIVE_API_URL` at a disposable database's API
+and `TEST_BASE_URL` at a Vite server configured with the matching `VITE_API_URL`,
+then run `node --test tests/live-integration.browser.test.mjs` from `web/`.
+It creates synthetic accounts/events/orders only; never point it at production.
+Physical camera, native device layout and app-store builds remain device checks.
 
 Run the backend regressions against a disposable database initialized from
 `docs/schema.sql` (set `DB_HOST`, `DB_PORT`, `DB_NAME` and `DB_PASSWORD` first):
@@ -134,10 +146,18 @@ Manual integration walkthrough:
 
 - Staff assignment, initial-account setup and access revocation.
 - Read-only event history with action/date filters.
-- Organizer support inbox, replies, statuses and escalation.
-- Final live browser walkthrough with the shared attendee checkout after branch integration.
+- Organizer support filters, status changes and escalation; reuse the shared
+  `/support` list, conversation and reply pages already integrated from main.
 - Backend walkthrough with Daut (a team activity, not completed by this code).
 
 Attendee checkout, event creation/editing, activation and campaign creation remain
 with their respective owners in `TASKS.md`. Integration changes shared with the
 attendee frontend are limited to `App.tsx`, `api.ts`, `auth.tsx` and `LoginPage.tsx`.
+
+## Synchronization workflow
+
+The feature branch contains the analytics commit and both integration merges.
+`main` remains the team's published baseline; this branch is ready for review.
+Before the next module, save local changes as a commit, run `git fetch origin`
+and merge `origin/main` into this branch. Resolve any merge conflicts locally,
+then run relevant checks before pushing. A push itself does not resolve conflicts.
