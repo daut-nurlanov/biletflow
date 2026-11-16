@@ -1,16 +1,7 @@
-import type { VerifyQrResponse } from "../types/checkin";
+import type { AttendanceStats, SearchTicket, VerifyQrResponse } from "../types/checkin";
 import { apiRequest } from "./client";
 
-/**
- * Checks a scanned ticket and, if it is valid, checks the person in.
- *
- * Known backend gap: the endpoint only reads `qr_code_hash` and checks the ticket
- * in to whichever event it belongs to, as long as this account may scan that
- * event. So a staff member assigned to several events can admit a ticket for
- * event B while standing at event A's door. `event_id` is sent so the backend can
- * refuse that case (answering result "wrong_event") once it reads the field;
- * today FastAPI ignores it. Reported to the backend team per docs/TASKS.md.
- */
+/** The server validates permissions, event and ticket status atomically. */
 export function verifyQr(
   token: string,
   qrCode: string,
@@ -23,4 +14,18 @@ export function verifyQr(
     body: { qr_code_hash: qrCode, event_id: eventId },
     signal,
   });
+}
+
+export function getAttendanceStats(token: string, eventId: string, signal?: AbortSignal): Promise<AttendanceStats> {
+  return apiRequest<AttendanceStats>(`/api/events/${encodeURIComponent(eventId)}/checkin-stats`, { token, signal });
+}
+
+export function searchTickets(token: string, eventId: string, name: string, signal?: AbortSignal): Promise<SearchTicket[]> {
+  return apiRequest<SearchTicket[]>("/api/checkin/manual-search", {
+    method: "POST", token, signal, body: { event_id: eventId, name: name.trim() },
+  });
+}
+
+export function undoCheckin(token: string, ticketId: string, signal?: AbortSignal): Promise<{ result: "reversed"; ticket_id: string }> {
+  return apiRequest("/api/checkin/undo", { method: "POST", token, signal, body: { ticket_id: ticketId } });
 }

@@ -1,9 +1,9 @@
-import { useIsFocused } from "@react-navigation/native";
+import { useFocusEffect, useIsFocused } from "@react-navigation/native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { CameraView, useCameraPermissions, type BarcodeScanningResult } from "expo-camera";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator, Linking, Platform, Pressable, StyleSheet, Text, Vibration, View,
+  ActivityIndicator, AppState, Linking, Platform, Pressable, StyleSheet, Text, Vibration, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -33,7 +33,7 @@ const AUTO_DISMISS_MS = 2500;
  */
 const SAME_CODE_COOLDOWN_MS = 3000;
 
-export function ScanScreen({ route }: Props) {
+export function ScanScreen({ route, navigation }: Props) {
   const { eventId } = route.params;
   const { authed } = useSession();
   const isFocused = useIsFocused();
@@ -43,6 +43,7 @@ export function ScanScreen({ route }: Props) {
   const [phase, setPhase] = useState<Phase>({ kind: "scanning" });
   const [torchOn, setTorchOn] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
+  const [appActive, setAppActive] = useState(AppState.currentState === "active");
 
   // onBarcodeScanned fires many times per second while a code is in view, and
   // state updates are not instant, so a ref is the real "busy" lock.
@@ -50,9 +51,36 @@ export function ScanScreen({ route }: Props) {
   const lastCode = useRef<{ code: string; closedAt: number } | null>(null);
   const request = useRef<AbortController | null>(null);
 
-  useEffect(() => () => request.current?.abort(), []);
+  useLayoutEffect(() => {
+    navigation.setOptions({ headerRight: () => (
+      <Pressable accessibilityRole="button" accessibilityLabel="Attendees and attendance"
+        onPress={() => navigation.navigate("StaffTools", route.params)} hitSlop={8}>
+        <Text style={{ color: theme.colors.primary, fontSize: theme.fontSize.body }}>Attendees</Text>
+      </Pressable>
+    ) });
+  }, [navigation, route.params]);
+
+  useFocusEffect(useCallback(() => {
+    busy.current = false;
+    setPhase({ kind: "scanning" });
+    return () => request.current?.abort();
+  }, []));
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (next) => {
+      setAppActive(next === "active");
+      if (next !== "active") {
+        request.current?.abort();
+        busy.current = false;
+        setPhase({ kind: "scanning" });
+        setTorchOn(false);
+      }
+    });
+    return () => subscription.remove();
+  }, []);
 
   const check = useCallback(async (code: string) => {
+    if (request.current && !request.current.signal.aborted) return;
     busy.current = true;
     setPhase({ kind: "checking", code });
     request.current?.abort();
@@ -66,6 +94,8 @@ export function ScanScreen({ route }: Props) {
     } catch (error) {
       outcome = outcomeFromError(error);
     }
+    if (request.current !== controller) return;
+    request.current = null;
     if (controller.signal.aborted) return;
 
     Vibration.vibrate(outcome.tone === "success" ? 80 : [0, 250, 120, 250]);
@@ -74,11 +104,11 @@ export function ScanScreen({ route }: Props) {
 
   const handleScanned = useCallback(({ data }: BarcodeScanningResult) => {
     const code = data.trim();
-    if (busy.current || !code) return;
+    if (!isFocused || !appActive || busy.current || !code) return;
     const recent = lastCode.current;
     if (recent && recent.code === code && Date.now() - recent.closedAt < SAME_CODE_COOLDOWN_MS) return;
     void check(code);
-  }, [check]);
+  }, [appActive, check, isFocused]);
 
   const scanNext = useCallback(() => {
     if (phase.kind === "result") lastCode.current = { code: phase.code, closedAt: Date.now() };
@@ -92,10 +122,10 @@ export function ScanScreen({ route }: Props) {
 
   // Valid tickets clear themselves so a queue keeps moving; problems stay until tapped.
   useEffect(() => {
-    if (phase.kind !== "result" || !phase.outcome.autoDismiss) return;
+    if (!isFocused || !appActive || phase.kind !== "result" || !phase.outcome.autoDismiss) return;
     const timer = setTimeout(scanNext, AUTO_DISMISS_MS);
     return () => clearTimeout(timer);
-  }, [phase, scanNext]);
+  }, [appActive, isFocused, phase, scanNext]);
 
   if (!permission) {
     return <Screen><LoadingState message="Checking camera access…" /></Screen>;
@@ -126,7 +156,7 @@ export function ScanScreen({ route }: Props) {
   return (
     <View style={styles.container}>
       {/* Only one camera preview may run at a time, so unmount it when this screen isn't shown. */}
-      {isFocused && (
+      {isFocused && appActive && (
         <CameraView
           style={StyleSheet.absoluteFill}
           facing="back"

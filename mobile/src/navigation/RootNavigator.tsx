@@ -11,6 +11,7 @@ import { MyTicketsScreen } from "../screens/MyTicketsScreen";
 import { OrganizerEventsScreen } from "../screens/OrganizerEventsScreen";
 import { ScanScreen } from "../screens/ScanScreen";
 import { StaffEventsScreen } from "../screens/StaffEventsScreen";
+import { StaffToolsScreen } from "../screens/StaffToolsScreen";
 import { theme } from "../theme";
 import type {
   EventsStackParamList, OrganizerStackParamList, RootTabParamList, ScannerStackParamList,
@@ -71,6 +72,7 @@ function StaffNavigator() {
     <StaffStack.Navigator screenOptions={{ headerTintColor: theme.colors.primary }}>
       <StaffStack.Screen name="StaffEvents" component={StaffEventsScreen} options={{ title: "Assigned events" }} />
       <StaffStack.Screen name="Scan" component={ScanScreen} options={({ route }) => ({ title: route.params.eventTitle })} />
+      <StaffStack.Screen name="StaffTools" component={StaffToolsScreen} options={{ title: "Attendees" }} />
     </StaffStack.Navigator>
   );
 }

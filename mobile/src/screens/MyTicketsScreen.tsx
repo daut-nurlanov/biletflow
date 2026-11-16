@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { FlatList } from "react-native";
+import { FlatList, Text } from "react-native";
 
 import { getMyTickets, getTicketQrImageUrl } from "../api/tickets";
 import { useSession } from "../auth/SessionContext";
@@ -30,6 +30,7 @@ export function MyTicketsScreen() {
           contentContainerStyle={sharedStyles.listContent}
           refreshing={refreshing}
           onRefresh={refresh}
+          ListHeaderComponent={<Text style={sharedStyles.muted}>Tickets bought on the website appear here for the same account. Pull down to refresh admission status.</Text>}
           renderItem={({ item }) => (
             <TicketCard ticket={item} qrImageSource={{ uri: getTicketQrImageUrl(item.id) }} />
           )}

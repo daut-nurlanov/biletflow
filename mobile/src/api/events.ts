@@ -1,8 +1,12 @@
-import type { Event, EventDetails } from "../types/event";
+import type { Event, EventAnalytics, EventDetails } from "../types/event";
 import { apiRequest } from "./client";
 
-export function getEvents(signal?: AbortSignal): Promise<Event[]> {
-  return apiRequest<Event[]>("/api/events?public=true", { signal });
+export function getEvents(signal?: AbortSignal, token?: string): Promise<Event[]> {
+  return apiRequest<Event[]>("/api/events?public=true", { signal, token });
+}
+
+export function getEventAnalytics(eventId: string, token: string, signal?: AbortSignal): Promise<EventAnalytics> {
+  return apiRequest<EventAnalytics>(`/api/events/${encodeURIComponent(eventId)}/analytics`, { token, signal });
 }
 
 export function getEvent(eventId: string, signal?: AbortSignal, token?: string): Promise<EventDetails> {
