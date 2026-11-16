@@ -28,6 +28,9 @@ export function TicketCard({ ticket, qrImageSource }: TicketCardProps) {
     <View style={sharedStyles.card}>
       <Text style={sharedStyles.title}>{ticket.event_title}</Text>
       <Text style={sharedStyles.muted}>{formatDateTime(ticket.start_time)}</Text>
+      {ticket.venue_name ? <Text style={sharedStyles.body}>{ticket.venue_name}</Text> : null}
+      {ticket.ticket_type_name ? <Text style={sharedStyles.body}>{ticket.ticket_type_name}</Text> : null}
+      {ticket.section ? <Text style={sharedStyles.body}>Section {ticket.section}, row {ticket.row_label}, seat {ticket.seat_number}</Text> : null}
       <Text style={sharedStyles.body}>Attendee: {ticket.attendee_name}</Text>
       <StatusBadge status={ticket.status} />
       {eventBlocked ? (

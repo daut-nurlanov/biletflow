@@ -15,6 +15,7 @@ export type ScannerStackParamList = {
   Register: undefined;
   StaffEvents: undefined;
   Scan: { eventId: string; eventTitle: string };
+  StaffTools: { eventId: string; eventTitle: string };
 };
 
 export type RootTabParamList = {

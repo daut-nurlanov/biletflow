@@ -1,5 +1,10 @@
 # BiletFlow mobile
 
+Current mobile behavior, feature parity and iPhone acceptance checks are documented
+in [Mobile synchronization](../docs/MOBILE_SYNCHRONIZATION.md) (November 16, 2026).
+The historical milestone notes below include demo-ID scaffolding and scanner gaps
+that no longer describe the current role-based application.
+
 ## Door scanner (current app)
 
 The app now opens as the **door scanner** for event staff (the one mobile app the SRS

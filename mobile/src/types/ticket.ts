@@ -31,4 +31,10 @@ export interface Ticket {
   start_time: string;
   // Returned by the join; event cancellation/suspension does not change ticket.status.
   event_status: EventStatus;
+  venue_name: string;
+  venue_address: string | null;
+  ticket_type_name: string;
+  section: string | null;
+  row_label: string | null;
+  seat_number: string | null;
 }

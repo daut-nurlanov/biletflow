@@ -7,6 +7,7 @@ import { LoginScreen } from "../screens/LoginScreen";
 import { RegisterScreen } from "../screens/RegisterScreen";
 import { ScanScreen } from "../screens/ScanScreen";
 import { StaffEventsScreen } from "../screens/StaffEventsScreen";
+import { StaffToolsScreen } from "../screens/StaffToolsScreen";
 import { theme } from "../theme";
 import type { ScannerStackParamList } from "./types";
 
@@ -46,6 +47,7 @@ export function ScannerNavigator() {
               component={ScanScreen}
               options={({ route }) => ({ title: route.params.eventTitle })}
             />
+            <Stack.Screen name="StaffTools" component={StaffToolsScreen} options={{ title: "Attendees" }} />
           </>
         ) : (
           <>

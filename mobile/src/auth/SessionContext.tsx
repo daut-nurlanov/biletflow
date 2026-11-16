@@ -59,8 +59,9 @@ async function readSession(): Promise<{ token: string; user: User } | null> {
 
 // 401 always means the token is no longer accepted. 403 usually means "not allowed
 // for this event" and must not sign anyone out, except for a suspended account.
-function isSessionEnded(error: ApiError) {
-  return error.status === 401 || (error.status === 403 && /suspended/i.test(error.message));
+export function isSessionEnded(error: ApiError) {
+  return error.status === 401 ||
+    (error.status === 403 && /\baccount (?:has been |is )?suspended\b/i.test(error.message));
 }
 
 export function SessionProvider({ children }: PropsWithChildren) {

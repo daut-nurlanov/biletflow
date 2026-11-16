@@ -2,7 +2,7 @@ import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useCallback } from "react";
 import { FlatList, StyleSheet, Text, View } from "react-native";
 
-import { getEvent } from "../api/events";
+import { getEvent, getEventAnalytics } from "../api/events";
 import { useSession } from "../auth/SessionContext";
 import { EmptyState } from "../components/EmptyState";
 import { ErrorState } from "../components/ErrorState";
@@ -15,12 +15,11 @@ import { useApiResource } from "../hooks/useApiResource";
 import type { OrganizerStackParamList } from "../navigation/types";
 import { sharedStyles, theme } from "../theme";
 import type { TicketType } from "../types/ticket";
-import { formatDateTime, formatPrice } from "../utils/formatting";
+import { formatDateTime, formatMoney, formatPrice } from "../utils/formatting";
 import {
   describeSalesWindow,
   formatPercentSold,
   summarizeInventory,
-  summarizeTicketSales,
 } from "../utils/ticketSales";
 
 type Props = NativeStackScreenProps<OrganizerStackParamList, "EventDashboard">;
@@ -29,7 +28,12 @@ export function EventDashboardScreen({ route }: Props) {
   const { eventId } = route.params;
   const { authed } = useSession();
   const loadEvent = useCallback(
-    (signal: AbortSignal) => authed((token) => getEvent(eventId, signal, token)),
+    (signal: AbortSignal) => authed(async (token) => {
+      const [event, analytics] = await Promise.all([
+        getEvent(eventId, signal, token), getEventAnalytics(eventId, token, signal),
+      ]);
+      return { ...event, analytics };
+    }),
     [authed, eventId],
   );
   const { data: event, loading, refreshing, error, retry, refresh } = useApiResource(loadEvent);
@@ -43,7 +47,9 @@ export function EventDashboardScreen({ route }: Props) {
     );
   }
 
-  const sales = summarizeTicketSales(event.ticket_types);
+  const sales = {
+    sold: event.analytics.inventory.sold, remaining: event.analytics.inventory.remaining,
+    total: event.analytics.inventory.total, percentSold: event.analytics.inventory.percent_sold };
   const soldText = `${sales.sold.toLocaleString()} of ${sales.total.toLocaleString()} tickets sold`;
   const seating = event.has_assigned_seating ? "Assigned seating" : "General admission";
 
@@ -77,12 +83,22 @@ export function EventDashboardScreen({ route }: Props) {
               <Text style={sharedStyles.muted}>{soldText}, across all ticket types</Text>
             </View>
 
+            <View style={sharedStyles.card}>
+              <Text accessibilityRole="header" style={sharedStyles.title}>Sales and attendance</Text>
+              <Text style={sharedStyles.body}>Revenue after discounts and refunds: {formatMoney(event.analytics.money.net_revenue)}</Text>
+              <Text style={sharedStyles.body}>Refunds: {formatMoney(event.analytics.money.refunds)}</Text>
+              <Text style={sharedStyles.body}>Estimated payout: {formatMoney(event.analytics.money.estimated_payout)}</Text>
+              <Text style={sharedStyles.body}>{event.analytics.attendance.checked_in} checked in of {event.analytics.attendance.registered} registered</Text>
+              <Text style={sharedStyles.muted}>Demo payments. Revenue is before processing fees; estimated payout subtracts simulated fees.</Text>
+            </View>
+
             <Text style={sharedStyles.muted}>
               {`Capacity: ${event.capacity.toLocaleString()} people · ${seating}`}
             </Text>
             <Text style={sharedStyles.muted}>
-              {`Paid sales: ${event.is_paid_sales_active ? "Activated" : "Not activated yet"}`}
+              {`Paid sales: ${event.paid_sales_suspended ? "Suspended by platform" : event.is_paid_sales_active ? "Activated" : "Not activated yet"}`}
             </Text>
+            <Text style={sharedStyles.muted}>Manage event setup, staff and detailed analytics on the BiletFlow website.</Text>
             <Text accessibilityRole="header" style={[sharedStyles.title, styles.sectionTitle]}>
               Sales by ticket type
             </Text>

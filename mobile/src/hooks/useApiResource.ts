@@ -1,5 +1,6 @@
 import { useFocusEffect } from "@react-navigation/native";
 import { useCallback, useRef, useState } from "react";
+import { AppState } from "react-native";
 
 interface ResourceState<T> {
   data: T | null;
@@ -9,7 +10,7 @@ interface ResourceState<T> {
 }
 
 /** Pass a stable loader (a module function or useCallback). Refresh on focus. */
-export function useApiResource<T>(load: (signal: AbortSignal) => Promise<T>) {
+export function useApiResource<T>(load: (signal: AbortSignal) => Promise<T>, refreshIntervalMs?: number) {
   const [state, setState] = useState<ResourceState<T>>({
     data: null,
     loading: true,
@@ -41,13 +42,28 @@ export function useApiResource<T>(load: (signal: AbortSignal) => Promise<T>) {
           error: error instanceof Error ? error.message : "Something went wrong. Please try again.",
         }));
       }
+    } finally {
+      if (activeRequest.current === controller) activeRequest.current = null;
     }
   }, [load]);
 
   useFocusEffect(useCallback(() => {
     void reload();
-    return () => activeRequest.current?.abort();
-  }, [reload]));
+    let previous = AppState.currentState;
+    const subscription = AppState.addEventListener("change", (next) => {
+      if (next === "active" && previous !== "active") void reload();
+      if (next !== "active") activeRequest.current?.abort();
+      previous = next;
+    });
+    const timer = refreshIntervalMs ? setInterval(() => {
+      if (AppState.currentState === "active" && !activeRequest.current) void reload(true);
+    }, refreshIntervalMs) : undefined;
+    return () => {
+      clearInterval(timer);
+      subscription.remove();
+      activeRequest.current?.abort();
+    };
+  }, [reload, refreshIntervalMs]));
 
   return {
     ...state,

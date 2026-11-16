@@ -1,7 +1,9 @@
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
+import { useCallback } from "react";
 import { FlatList } from "react-native";
 
 import { getEvents } from "../api/events";
+import { useSession } from "../auth/SessionContext";
 import { EmptyState } from "../components/EmptyState";
 import { ErrorState } from "../components/ErrorState";
 import { EventCard } from "../components/EventCard";
@@ -14,7 +16,11 @@ import { sharedStyles } from "../theme";
 type Props = NativeStackScreenProps<EventsStackParamList, "Events">;
 
 export function EventsScreen({ navigation }: Props) {
-  const { data, loading, refreshing, error, retry, refresh } = useApiResource(getEvents);
+  const { authed } = useSession();
+  const loadEvents = useCallback(
+    (signal: AbortSignal) => authed((token) => getEvents(signal, token)), [authed],
+  );
+  const { data, loading, refreshing, error, retry, refresh } = useApiResource(loadEvents);
 
   return (
     <Screen>
