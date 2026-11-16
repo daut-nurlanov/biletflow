@@ -6,7 +6,8 @@ Self-service event ticketing platform for Kazakhstan. CSCI 361 course project.
 
 | Folder | What it is |
 |---|---|
-| `backend-python/` | The API (FastAPI + PostgreSQL). 88 endpoints, 176 automated tests. |
+| `backend-python/` | The API (FastAPI + PostgreSQL). 88 endpoints, 194 automated test cases. |
+| `web/` | React + TypeScript website for attendees and organizers. |
 | `mobile/` | The one mobile app (React Native, Expo). Attendees, organizers and door staff log in to the same app; the role decides which screens they see. |
 | `docs/` | Setup guide, API reference, database schema, demo data, tasks, the SRS. |
 
@@ -20,7 +21,10 @@ docker compose up -d --build
 
 Then open http://localhost:8000/docs to see and try every endpoint. The database comes preloaded with demo events, tickets and promo codes.
 
-To wipe the database and reload the demo data: `reset-demo.bat` (Windows) or `./reset-demo.sh` (Mac/Linux).
+After pulling updates, run `docker compose up -d --build`. The backend applies
+versioned schema upgrades before starting, preserving the existing database and
+demo records. Do not reset volumes to fix missing columns. See
+`docs/FINAL_INTEGRATION_AUDIT.md` for the verified state and remaining demo work.
 
 ## Where to read next
 

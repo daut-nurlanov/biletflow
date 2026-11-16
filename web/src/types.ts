@@ -50,6 +50,7 @@ export interface MyTicket {
   id: string
   attendee_name?: string
   status?: string
+  event_status?: string
   event_title?: string
   title?: string
   event?: { title?: string; start_time?: string; venue_name?: string }

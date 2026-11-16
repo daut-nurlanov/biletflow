@@ -1,9 +1,7 @@
 # One command to run BiletFlow's database and API:
 #   docker compose up -d --build
-# To wipe everything and reload the demo data (use before every rehearsal):
-#   docker compose down -v
-#   docker compose up -d --build
-# See docs/SETUP.md for the full explanation.
+# The backend applies versioned schema upgrades without resetting the volume.
+# See docs/SETUP.md for upgrades and backups.
 
 services:
   db:

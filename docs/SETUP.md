@@ -40,14 +40,25 @@ There are two ways to do this. **Option A is much shorter and is what we recomme
 
 Everyday use: open Docker Desktop, then `docker compose up -d`. To stop: `docker compose down`.
 
-**To wipe everything and start from fresh demo data** (do this before every rehearsal): run `reset-demo.bat` on Windows or `./reset-demo.sh` on Mac/Linux. It deletes the database and rebuilds it. Note: this deletes anything you created while testing.
+**Updating an existing installation:** Docker's initialization SQL runs only when
+the volume is empty. Rebuilding the API alone used to leave older databases
+missing new checkout columns. The backend now runs `python migrate.py` before
+Uvicorn. Run `docker compose up -d --build`; no volume reset or demo reload is needed.
+Schema upgrades are transactional and recorded in `schema_migrations`. If a
+constraint cannot be applied to existing data, startup stops and rolls back the
+upgrade; inspect the error instead of deleting data.
 
-**If you already ran `docker compose up` before Oct 28:** the database only loads the demo files the very first time, when it is empty. Your old copy does not have the demo logins or the new tables. Wipe and rebuild it once:
-```bash
-docker compose down -v
-docker compose up -d --build
-```
-(`-v` deletes the stored database. That is what you want here.) After this, `reset-demo.bat` / `reset-demo.sh` does the same thing in one click.
+Before an upgrade, optionally keep a database backup inside the database container:
+`docker compose exec db pg_dump -U postgres -d biletflow -Fc -f /tmp/biletflow-backup.dump`.
+Copy it to a private location outside the repository if needed. This file remains
+inside that container until copied; it is not an off-machine backup.
+
+For a locally run Python API, set the same `DB_*` variables for both commands,
+then run `python migrate.py` before `python -m uvicorn main:app ...` from
+`backend-python`. Compose exposes its database on `127.0.0.1:5433`, so local Python
+needs `DB_PORT=5433`. A new empty database still needs `docs/schema.sql` first.
+The upgrade supports the existing base schema; installations older than the base
+tables need a reviewed schema comparison, not a destructive reset.
 
 *Heads up: the Dockerfile changed on Oct 28 (the backend is now several files, not one). `--build` is needed so Docker picks that up. If it fails, tell Daut what it printed and use Option B in the meantime.*
 
@@ -173,7 +184,7 @@ Try to break things: buy the last ticket twice, take a seat someone else holds, 
 
 ## Part 4: What is actually finished, and what is not
 
-This section is checked against `docs/DATA_MODELS_AND_APIS.md`, which lists every endpoint (a script, `docs/check_docs.py`, confirms the list matches the code). The backend has **88 endpoints** and **176 automated tests**.
+This section is checked against `docs/DATA_MODELS_AND_APIS.md`, which lists every endpoint (a script, `docs/check_docs.py`, confirms the list matches the code). The backend has **88 endpoints** and **194 automated test cases**.
 
 ### Built and tested
 

@@ -101,8 +101,8 @@ def test_analytics_numbers_add_up(kit):
 
     data = kit.client.get(f"/api/events/{event['id']}/analytics", headers=org.h).json()
     assert data["currency"] == "KZT"
-    assert data["capacity"] == {"total": 14, "sold": 4, "remaining": 9 + 3, "percent_sold": round(100 * 4 / 14, 1)} or data["capacity"]["sold"] == 4
-    assert data["capacity"]["total"] == 14 and data["capacity"]["remaining"] == 10 - 3 + 4 - 1 + 0 + 2 - 0 - 2 + 0 or True
+    assert data["capacity"] == {"total": 14, "sold": 4, "remaining": 10,
+                                "percent_sold": round(100 * 4 / 14, 1)}
     counts = data["ticket_counts"]
     assert counts["sold"] == 4 and counts["refunded"] == 2 and counts["checked_in"] == 1 and counts["available"] == data["capacity"]["remaining"]
     money = data["money"]
