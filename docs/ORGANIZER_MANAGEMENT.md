@@ -1,7 +1,8 @@
-# Organizer management: modules 1 and 2
+# Organizer management: modules 1–3
 
 Implemented in `feature/organizer-management`. This module covers the organizer
-home, event overview, attendee lists, order management and analytics from Aldiyar's tasks.
+home, event overview, attendee lists, order management, analytics and event staff.
+Modules 1–2 are merged into main; module 3 is implemented in `feature/staff-management`.
 
 ## Run locally
 
@@ -77,6 +78,32 @@ invalid date ranges and unrelated ticket types are rejected. Reports use one
 read-only database snapshot so concurrent checkout cannot mix old/new totals.
 Full details: [API contract](DATA_MODELS_AND_APIS.md#organizer-analytics-contract).
 
+## Staff (module 3)
+
+Open `/organizer/events/:eventId/staff` from the event's Staff tab.
+
+- Assign an existing door-staff account by email, without entering or changing
+  its password. Attendee/organizer accounts cannot be promoted through this form.
+- Create and assign a new account with full name, email, initial password and
+  password confirmation. Existing emails are rejected, not silently assigned.
+  Passwords are not stored in browser storage and fields clear after success.
+- Review active/revoked assignments and suspended-account indicators. Suspended
+  accounts cannot be assigned or restored. Their access can still be revoked.
+- Revoke with a confirmation naming both the person and event. Restore access
+  without creating a second assignment or changing credentials. Other event
+  assignments remain intact.
+- Pending requests block duplicate actions; list errors disable mutations and
+  offer retry. A lost response prompts refreshing the list before retrying.
+
+The UI uses explicit `mode: "assign"` / `"create"`; older clients may omit it.
+Repeated assignments/revocations do not duplicate audit or notification records.
+The API validates ownership and roles independently of the organizer route guard.
+No database schema changes are needed. Rebuild the API with the web changes.
+Backend and browser tests cover validation, request payloads, credential handling,
+revocation, restoration, suspension and event-level authorization. The live browser
+scenario additionally creates a real staff account through the UI, assigns a second
+event and proves revoking/restoring the first event preserves the second assignment.
+
 ## Validation
 
 ```sh
@@ -90,7 +117,7 @@ intercept API requests with deterministic fixtures. They do not touch PostgreSQL
 or a user's Chrome profile. With the Vite server running on port 3000:
 
 ```sh
-node --test tests/organizer.browser.test.mjs
+node --test tests/organizer.browser.test.mjs tests/staff.browser.test.mjs
 ```
 
 Requires Node 22+ and Chrome/Chromium. Set `CHROME_BIN` if Chrome is installed in
@@ -144,7 +171,6 @@ Manual integration walkthrough:
 
 ## Remaining modules
 
-- Staff assignment, initial-account setup and access revocation.
 - Read-only event history with action/date filters.
 - Organizer support filters, status changes and escalation; reuse the shared
   `/support` list, conversation and reply pages already integrated from main.
@@ -154,10 +180,19 @@ Attendee checkout, event creation/editing, activation and campaign creation rema
 with their respective owners in `TASKS.md`. Integration changes shared with the
 attendee frontend are limited to `App.tsx`, `api.ts`, `auth.tsx` and `LoginPage.tsx`.
 
+## Staff verification (November 16)
+
+Module 3 passed 206 backend cases on isolated PostgreSQL 16, 37 fixture-browser
+checks across staff/organizer/checkout, web build and lint. A real browser/API test
+created a staff account through this page, authenticated it, revoked and restored
+one event assignment while verifying the other assignment stayed available.
+The focused Staff/check-in backend subset contains 24 passing cases.
+No demo data or production records were modified; the temporary test DB was removed.
+
 ## Synchronization workflow
 
-The feature branch contains the analytics commit and both integration merges.
-`main` remains the team's published baseline; this branch is ready for review.
+Modules 1–2 and the integration fixes are merged into `main`. Staff development
+starts from that baseline in `feature/staff-management` and is ready for review.
 Before the next module, save local changes as a commit, run `git fetch origin`
 and merge `origin/main` into this branch. Resolve any merge conflicts locally,
 then run relevant checks before pushing. A push itself does not resolve conflicts.

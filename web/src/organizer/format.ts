@@ -19,6 +19,7 @@ export const statusLabels: Record<string, string> = {
   valid: 'Valid',
   checked_in: 'Checked in',
   pending: 'Pending payment',
+  revoked: 'Access revoked',
 }
 export const money = (value: number | string) =>
   new Intl.NumberFormat('en-GB', {

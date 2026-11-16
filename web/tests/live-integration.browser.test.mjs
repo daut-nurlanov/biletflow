@@ -15,7 +15,7 @@ const chrome = process.env.CHROME_BIN || [
   '/usr/bin/chromium', '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
 ].find(existsSync)
 
-test('live Docker: attendee purchase, admission, organizer analytics and support',
+test('live Docker: attendee purchase, analytics, support and staff access',
   { skip: !apiBase || !chrome, timeout: 120_000 }, async () => {
     async function request(path, { token, body, method = body ? 'POST' : 'GET' } = {}) {
       const response = await fetch(apiBase + path, { method,
@@ -125,7 +125,42 @@ test('live Docker: attendee purchase, admission, organizer analytics and support
       await browser.wait('Organizer reply verified in live integration')
       const conversation = await request(`/api/support/cases/${support.id}`, { token: attendee.token })
       assert.ok(conversation.messages.some((message) => message.message === 'Organizer reply verified in live integration'))
-      console.log('Live purchase, QR, admission, organizer analytics and cross-role support verified on the isolated database.')
+      await browser.navigate(`/organizer/events/${event.id}/staff`)
+      await browser.wait('Audit Staff')
+      await browser.evaluate('document.querySelector("input[value=create]").click()')
+      await browser.wait('Initial password')
+      const staffEmail = `audit-ui-staff-${suffix}@test.invalid`
+      await browser.evaluate(`(() => {
+        const values = ${JSON.stringify({ email: staffEmail, full_name: 'UI Door Staff', password: 'audit-staff-pass-123', confirm_password: 'audit-staff-pass-123' })};
+        for (const [name, value] of Object.entries(values)) {
+          const input = document.querySelector('input[name="' + name + '"]');
+          Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, value);
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+      })()`)
+      await browser.click('Create and assign')
+      await browser.wait('Staff account created and assigned')
+      await browser.wait(staffEmail)
+      const uiStaff = await request('/api/auth/login', { body: { email: staffEmail, password: 'audit-staff-pass-123' } })
+      const anotherEvent = await request('/api/events', { token: org, body: {
+        title: `Another live event ${suffix}`, venue_name: 'Other Hall', start_time: '2030-11-21T18:00:00+05:00', capacity: 10,
+      } })
+      await request(`/api/events/${anotherEvent.id}/staff`, { token: org, body: { mode: 'assign', email: staffEmail } })
+      const clickStaffAction = () => browser.evaluate(`(() => {
+        const row = [...document.querySelectorAll('tbody tr')].find(row => row.textContent.includes(${JSON.stringify(staffEmail)}));
+        row.querySelector('button').click();
+      })()`)
+      await clickStaffAction()
+      await browser.wait('Revoke event access?')
+      await browser.click('Confirm revoke')
+      await browser.wait('Restore access')
+      const afterRevoke = await request('/api/staff/events', { token: uiStaff.token })
+      assert.deepEqual(afterRevoke.map((item) => item.id), [anotherEvent.id])
+      await clickStaffAction()
+      await browser.wait('Access to this event restored')
+      const afterRestore = await request('/api/staff/events', { token: uiStaff.token })
+      assert.deepEqual(new Set(afterRestore.map((item) => item.id)), new Set([event.id, anotherEvent.id]))
+      console.log('Live purchase, QR, admission, analytics, support and Staff UI create/revoke/restore verified on the isolated database.')
     } finally {
       browser.socket?.close()
       child.kill()
