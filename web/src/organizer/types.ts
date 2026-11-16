@@ -131,3 +131,11 @@ export interface Analytics {
     percent_checked_in: number
   }
 }
+
+export interface StaffMember {
+  id: string
+  email: string
+  full_name: string
+  status: 'active' | 'revoked'
+  is_suspended: boolean
+}

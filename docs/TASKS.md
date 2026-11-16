@@ -28,7 +28,7 @@ Nobody on the front end needs to touch the kitchen. Your job is to build screens
 
 **What is already done**
 - The database with all its tables, and demo data (3 events, users, promo codes).
-- The backend with 88 endpoints and 194 automated test cases. It runs with one command.
+- The backend with 88 endpoints and 206 automated test cases. It runs with one command.
 - Login, tickets with QR codes and PDFs, promo codes with QR codes, refunds, door check-in, organizer numbers, support chat, admin tools.
 - Documentation: how to set up (`SETUP.md`), what you can ask the backend (`DATA_MODELS_AND_APIS.md`), and this plan.
 - A start on the mobile app (`mobile/`): Events list, Event details and My Tickets screens, an API client and shared components (Insar). Organizer screens, My events and Event dashboard (Farzad, PR #1, merged on Nov 1).
@@ -74,7 +74,7 @@ create event, make a promo campaign QR, open the QR link and land on the event w
 
 ## 2. What the backend already does
 
-Everything the web, the app and the admin portal need exists as endpoints: **88 endpoints, 194 automated test cases** (`backend-python/`). Full list with who may call each: `docs/DATA_MODELS_AND_APIS.md`. Live, clickable version: http://localhost:8000/docs.
+Everything the web, the app and the admin portal need exists as endpoints: **88 endpoints, 206 automated test cases** (`backend-python/`). Full list with who may call each: `docs/DATA_MODELS_AND_APIS.md`. Live, clickable version: http://localhost:8000/docs.
 
 | Area | Ready |
 |---|---|
@@ -170,14 +170,14 @@ Each person has a short plain-words description and a checklist.
 
 ### Aldiyar: organizer web, the watch and manage side
 
-Implementation update (November 16, 2026): modules 1 and 2 in `feature/organizer-management` now include current `main` (`3de9464`) and reviewed `fix/final-demo-integration` (`64fe04a`). Organizer home, attendees, orders, refunds/cancellation and analytics are implemented. The attendee registration, checkout, My Tickets and shared support list/thread/reply pages are included. All 194 backend tests pass on isolated PostgreSQL; web and mobile lint/type checks, 27 fixture-browser tests, 3 mobile regressions and a live purchase/check-in/analytics/support browser scenario pass. Organizer staff, history and support status/escalation controls remain. See [ORGANIZER_MANAGEMENT.md](ORGANIZER_MANAGEMENT.md). The meeting with Daut is not marked complete.
+Implementation update (November 16, 2026): modules 1–2 are merged in main (`c633de3`). Staff management (module 3) is implemented in `feature/staff-management`: explicit existing/new-account flows, assignment list, suspension indicators, revoke confirmation and restore. The backend remains compatible with older callers, validates creation separately from assignment and makes repeated assignment/revocation safe. All 206 backend tests, web build/lint, 37 fixture-browser checks and a live Staff UI create/revoke/restore workflow pass against an isolated PostgreSQL/API. History and organizer support status/escalation controls remain. See [ORGANIZER_MANAGEMENT.md](ORGANIZER_MANAGEMENT.md). The meeting with Daut is not marked complete.
 
 **In plain words:** you build the pages where an organizer sees what is happening with an event: who bought tickets, how much money, what happened when, and support messages. You know the backend best, so you are also the person everyone asks when an endpoint answers something strange.
 - [ ] 30-minute backend walkthrough with Daut.
 - [x] Organizer home: events grouped by phase (`GET /api/organizer/events`).
 - [x] Attendee list and orders with filters, refund button.
 - [x] Analytics page with numbers and a sales-over-time chart (`/api/events/{id}/analytics`, filters `date_from`, `date_to`, `ticket_type_id`).
-- [ ] Staff: invite by email, list, revoke (`/api/events/{id}/staff`).
+- [x] Staff: assign/create by email, list, revoke and restore (`/api/events/{id}/staff`).
 - [ ] Event history page (`/api/events/{id}/timeline`).
 - [ ] Organizer support controls: shared `/support` already lists accessible cases and supports replies; event-specific filters, status changes and escalation remain.
 - [ ] Bug fixes on the backend, and keep the tests green (`python -m pytest`) whenever something changes.

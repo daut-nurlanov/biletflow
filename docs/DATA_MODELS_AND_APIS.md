@@ -424,9 +424,24 @@ Checkout enforces: event is upcoming or active, paid sales are active (and not f
 
 | Method and path | Who | What it does |
 |---|---|---|
-| `POST /api/events/{id}/staff` | Organizer | Body: `email` (optional `full_name`, `password`). Creates an `event_admin` account if needed and assigns it to the event. |
-| `GET /api/events/{id}/staff` | Organizer | Who is assigned. |
-| `DELETE /api/events/{id}/staff/{staff_id}` | Organizer | Revokes the assignment. |
+| `POST /api/events/{id}/staff` | Organizer | Body: `email`, optional `mode` (`assign` or `create`); creation also needs `full_name` and `password`. Explicit modes prevent accidentally creating an account or treating an existing account as new. Returns `assignment`, safe `staff` details and `already_assigned`. |
+| `GET /api/events/{id}/staff` | Organizer | Rows contain the staff user `id`, `email`, `full_name`, assignment `status` and account `is_suspended`. |
+| `DELETE /api/events/{id}/staff/{staff_id}` | Organizer | Revokes only this event assignment. `staff_id` is the user ID, not the assignment ID. Repeated revocation is safe; a missing assignment is 404. |
+
+Staff management is authorized for the event owner or a Platform Admin.
+`mode: "assign"` requires an existing, non-suspended `event_admin`; it never
+creates an account or changes its password. An absent account returns 404 and
+an incompatible role or suspended account returns 409. `mode: "create"` rejects
+any existing email with 409 and validates the new name (trimmed, 1–120
+characters) and password (8+ characters, at most 72 UTF-8 bytes). New accounts
+are assigned immediately; initial sign-in details are passed on manually.
+
+Omitting `mode` retains the legacy API behavior for existing clients. Duplicate
+assignment of active staff returns `already_assigned: true` without duplicate
+audit/notification entries. Restoring revoked access reuses the same assignment.
+Revocation never deletes a user or affects assignments at other events; subsequent
+scanner calls for this event are denied. Passwords/hashes never appear in these
+responses or activity records. No invitation email is sent by the demo.
 
 ### 🏷️ Promo Codes & Campaign QR
 
