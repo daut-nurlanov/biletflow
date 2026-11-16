@@ -62,6 +62,7 @@ test('admission QR visibility covers all ticket and event status combinations', 
     'react-native': { Text: 'Text', View: 'View' }, '../theme': { sharedStyles: {} },
     '../utils/formatting': { formatDateTime: () => 'Date' },
     './StatusBadge': { StatusBadge: 'StatusBadge' }, './TicketQrCode': { TicketQrCode: qr },
+    './AppButton': { AppButton: 'AppButton' },
   });
   function nodes(value) {
     if (Array.isArray(value)) return value.flatMap(nodes);

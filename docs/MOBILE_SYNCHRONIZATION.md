@@ -1,5 +1,9 @@
 # Mobile synchronization with main
 
+Historical synchronization milestone: the website-only purchasing decision below
+was superseded by [Native mobile purchasing and support](MOBILE_PURCHASING_SUPPORT.md).
+Use that report for the current attendee checkout/support scope and tests.
+
 November 16, 2026. Base: `origin/main` at `3a7de06` (staff-management merge).
 Fetched and confirmed current before creating `feature/mobile-final-sync` from
 a clean checkout. No other working trees were changed. No commits, pushes,
