@@ -86,6 +86,7 @@ export function EventLayout() {
         <NavLink to={`${base}/analytics`}>Analytics</NavLink>
         <NavLink to={`${base}/staff`}>Staff</NavLink>
         <NavLink to={`${base}/history`}>History</NavLink>
+        <NavLink to={`${base}/support`}>Support</NavLink>
       </nav>
       <Outlet context={event} />
     </>

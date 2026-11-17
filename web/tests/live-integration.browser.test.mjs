@@ -15,7 +15,7 @@ const chrome = process.env.CHROME_BIN || [
   '/usr/bin/chromium', '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
 ].find(existsSync)
 
-test('live Docker: attendee purchase, analytics, support and staff access',
+test('live Docker: attendee purchase, organizer support, staff and history',
   { skip: !apiBase || !chrome, timeout: 120_000 }, async () => {
     async function request(path, { token, body, method = body ? 'POST' : 'GET' } = {}) {
       const response = await fetch(apiBase + path, { method,
@@ -160,7 +160,46 @@ test('live Docker: attendee purchase, analytics, support and staff access',
       await browser.wait('Access to this event restored')
       const afterRestore = await request('/api/staff/events', { token: uiStaff.token })
       assert.deepEqual(new Set(afterRestore.map((item) => item.id)), new Set([event.id, anotherEvent.id]))
-      await request(`/api/support/cases/${support.id}`, { token: org, method: 'PUT', body: { status: 'in_progress' } })
+      await browser.navigate(`/support/${support.id}`)
+      await browser.wait('Manage request')
+      await browser.click('Assign to me')
+      await browser.wait('Request assigned to you.')
+      assert.equal((await request(`/api/support/cases/${support.id}`, { token: org })).assigned_to, organizer.user?.id ?? organizer.id)
+      await browser.evaluate(`(() => {
+        const input = document.querySelector('#support-status');
+        Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(input, 'waiting_customer');
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+      })()`)
+      await browser.click('Save status')
+      await browser.wait('Status updated.')
+      assert.equal((await request(`/api/support/cases/${support.id}`, { token: attendee.token })).status, 'waiting_customer')
+      await request(`/api/support/cases/${support.id}/messages`, { token: attendee.token, body: { message: 'Additional payment details from attendee' } })
+      await browser.click('Refresh request')
+      await eventually(() => browser.evaluate(`document.querySelector('[data-support-status]').textContent === 'In progress'`), 'customer reply reopens waiting case')
+      await browser.click('Escalate to platform support')
+      await browser.wait('The platform team will receive')
+      await browser.click('Confirm escalation')
+      await browser.wait('Request escalated to platform support.')
+      assert.equal((await request(`/api/support/cases/${support.id}`, { token: org })).escalated, true)
+      await browser.navigate(`/organizer/events/${event.id}/support?status=in_progress&escalated=true`)
+      await browser.wait('Attendee: Audit Attendee')
+      assert.equal(await browser.evaluate('document.querySelectorAll(".support-case-card").length'), 1)
+      await browser.navigate(`/support/new?event_id=${event.id}`)
+      await browser.wait('An order is not required')
+      await browser.evaluate(`(() => {
+        const category = document.querySelector('#support-category');
+        Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(category, 'activation');
+        category.dispatchEvent(new Event('change', { bubbles: true }));
+        const message = document.querySelector('#support-message');
+        Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(message, 'Organizer activation inquiry from live UI');
+        message.dispatchEvent(new Event('input', { bubbles: true }));
+      })()`)
+      await browser.click('Send request')
+      await browser.wait('Platform support request')
+      await browser.wait('Organizer activation inquiry from live UI')
+      assert.equal(await browser.has('Manage request'), false)
+      const platformCases = await request('/api/support/cases?kind=organizer', { token: org })
+      assert.ok(platformCases.some(item => item.category === 'activation' && item.event_id === event.id))
       const firstHistory = await request(`/api/events/${event.id}/timeline?limit=2`, { token: org })
       assert.equal(firstHistory.length, 2)
       const lastHistory = firstHistory.at(-1)
@@ -172,6 +211,7 @@ test('live Docker: attendee purchase, analytics, support and staff access',
       assert.ok(await browser.has('Staff access revoked'))
       assert.ok(await browser.has('Order confirmed'))
       assert.ok(await browser.has('Support status changed'))
+      assert.ok(await browser.has('Support case escalated'))
       await browser.evaluate(`(() => {
         const input = document.querySelector('select[name="action"]');
         Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(input, 'staff_revoked');

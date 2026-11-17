@@ -1,0 +1,80 @@
+.support-heading,
+.support-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.support-heading h3 {
+  margin: 0;
+}
+.support-actions {
+  justify-content: flex-start;
+}
+.support-filters {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 24px 0;
+}
+.support-filters label {
+  display: grid;
+  gap: 6px;
+  flex: 1 1 160px;
+  min-width: 0;
+}
+.support-filters select,
+.support-controls select {
+  padding: 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font: inherit;
+  width: 100%;
+  min-width: 0;
+}
+.support-case-card,
+.support-context,
+.support-controls {
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.support-escalated {
+  color: #92400e;
+  font-weight: 600;
+}
+.support-context,
+.support-controls {
+  margin: 20px 0;
+  padding: 20px;
+  border: 1px solid #d1d5db;
+  border-radius: 12px;
+  background: #f8fafc;
+}
+.support-controls form {
+  margin-bottom: 16px;
+}
+.support-controls h2 {
+  margin-top: 0;
+}
+.support-confirm {
+  border-left: 4px solid #d97706;
+  padding: 12px;
+  margin: 16px 0;
+}
+.support-message-meta {
+  flex-wrap: wrap;
+}
+.support-message p {
+  overflow-wrap: anywhere;
+}
+@media (max-width: 600px) {
+  .support-filters label {
+    flex-basis: 100%;
+  }
+  .support-heading > div,
+  .support-context a {
+    max-width: 100%;
+  }
+}

@@ -1,3 +1,6 @@
+from typing import Literal
+from uuid import UUID
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
@@ -47,8 +50,14 @@ def access_level(cur, user, case):
     return None
 
 
-def load_case(cur, case_id, user):
-    cur.execute("SELECT * FROM support_cases WHERE id = %s", (case_id,))
+def load_case(cur, case_id, user, lock=False):
+    cur.execute("""SELECT c.*, e.title AS event_title, u.full_name AS opened_by_name,
+                          a.full_name AS assigned_to_name
+                   FROM support_cases c
+                   JOIN users u ON u.id = c.opened_by
+                   LEFT JOIN events e ON e.id = c.event_id
+                   LEFT JOIN users a ON a.id = c.assigned_to
+                   WHERE c.id = %s""" + (" FOR UPDATE OF c" if lock else ""), (case_id,))
     case = cur.fetchone()
     level = access_level(cur, user, case) if case else None
     if not case or not level:
@@ -137,7 +146,9 @@ def open_case(payload: CaseCreate, user=Depends(require_roles("attendee", "organ
 
 
 @router.get("/api/support/cases")
-def list_cases(status: str | None = None, escalated: bool | None = None, user=Depends(current_user)):
+def list_cases(status: str | None = None, escalated: bool | None = None,
+               event_id: UUID | None = None, kind: Literal["attendee", "organizer"] | None = None,
+               user=Depends(current_user)):
     with tx() as cur:
         cur.execute(
             """SELECT c.*, e.title AS event_title, u.full_name AS opened_by_name
@@ -149,8 +160,11 @@ def list_cases(status: str | None = None, escalated: bool | None = None, user=De
                       OR (%(admin)s AND (c.kind = 'organizer' OR c.escalated)))
                  AND (%(status)s IS NULL OR c.status = %(status)s)
                  AND (%(escalated)s IS NULL OR c.escalated = %(escalated)s)
-               ORDER BY c.updated_at DESC""",
-            {"me": str(user["id"]), "admin": user["role"] == "platform_admin", "status": status, "escalated": escalated})
+                 AND (%(event)s::uuid IS NULL OR c.event_id = %(event)s::uuid)
+                 AND (%(kind)s IS NULL OR c.kind = %(kind)s)
+               ORDER BY c.updated_at DESC, c.id DESC""",
+            {"me": str(user["id"]), "admin": user["role"] == "platform_admin", "status": status,
+             "escalated": escalated, "event": str(event_id) if event_id else None, "kind": kind})
         return cur.fetchall()
 
 
@@ -169,7 +183,7 @@ def add_message(case_id: str, payload: MessageCreate, user=Depends(current_user)
     if not payload.message.strip() or len(payload.message) > MAX_MESSAGE:
         raise HTTPException(status_code=400, detail=f"Message cannot be empty or longer than {MAX_MESSAGE} characters")
     with tx() as cur:
-        case, level = load_case(cur, case_id, user)
+        case, level = load_case(cur, case_id, user, lock=True)
         cur.execute("INSERT INTO support_messages (case_id, sender_id, message) VALUES (%s, %s, %s) RETURNING *",
                     (case_id, user["id"], payload.message.strip()))
         message = cur.fetchone()
@@ -181,6 +195,9 @@ def add_message(case_id: str, payload: MessageCreate, user=Depends(current_user)
         elif level == "owner" and case["status"] == "resolved":
             new_status = "open"
         cur.execute("UPDATE support_cases SET updated_at = now(), status = %s WHERE id = %s", (new_status, case_id))
+        if new_status != case["status"]:
+            audit(cur, user["id"], case["event_id"], "support_case_status_changed",
+                  f"Support case {case['category']}: {case['status']} to {new_status} after customer reply", "support_case", case_id)
         notify_other_side(cur, case, user, "New reply on your support case", payload.message.strip()[:200])
         return message
 
@@ -188,16 +205,16 @@ def add_message(case_id: str, payload: MessageCreate, user=Depends(current_user)
 @router.put("/api/support/cases/{case_id}")
 def update_case(case_id: str, payload: CaseUpdate, user=Depends(current_user)):
     with tx() as cur:
-        case, level = load_case(cur, case_id, user)
+        case, level = load_case(cur, case_id, user, lock=True)
         if level == "owner":
             raise HTTPException(status_code=403, detail="Only the support side can change a case's status or assignee")
         if payload.status is not None and payload.status not in STATUSES:
             raise HTTPException(status_code=400, detail="status must be one of: " + ", ".join(STATUSES))
         if payload.assigned_to:
             #only somebody who can actually open the case: the event's organizer, or platform staff
-            cur.execute("SELECT id, role FROM users WHERE id = %s", (payload.assigned_to,))
+            cur.execute("SELECT id, role, is_suspended FROM users WHERE id = %s", (payload.assigned_to,))
             assignee = cur.fetchone()
-            allowed = bool(assignee) and not assignee_blocked(cur, assignee, case)
+            allowed = bool(assignee) and not assignee["is_suspended"] and not assignee_blocked(cur, assignee, case)
             if not allowed:
                 raise HTTPException(status_code=400, detail="A case can only be assigned to the event's organizer or a platform admin")
         cur.execute(
@@ -209,6 +226,8 @@ def update_case(case_id: str, payload: CaseUpdate, user=Depends(current_user)):
             audit(cur, user["id"], case["event_id"], "support_case_status_changed",
                   f"Support case {case['category']}: {case['status']} to {payload.status}", "support_case", case_id)
             notify(cur, case["opened_by"], "support", "Your support case changed status", f"New status: {payload.status}")
+        if payload.assigned_to and str(payload.assigned_to) != str(case["assigned_to"]):
+            notify(cur, payload.assigned_to, "support", "Support case assigned to you", f"Case {case_id} ({case['category']})")
         return updated
 
 
@@ -216,9 +235,11 @@ def update_case(case_id: str, payload: CaseUpdate, user=Depends(current_user)):
 def escalate_case(case_id: str, user=Depends(require_roles("organizer"))):
     #an organizer who can't resolve an attendee's problem hands it to the platform team
     with tx() as cur:
-        case, level = load_case(cur, case_id, user)
+        case, level = load_case(cur, case_id, user, lock=True)
         if level != "handler":
             raise HTTPException(status_code=403, detail="Only the event's organizer can escalate an attendee case")
+        if case["escalated"]:
+            return case
         cur.execute("UPDATE support_cases SET escalated = true, updated_at = now() WHERE id = %s RETURNING *", (case_id,))
         updated = cur.fetchone()
         audit(cur, user["id"], case["event_id"], "support_case_escalated", "Case escalated to platform admins", "support_case", case_id)

@@ -84,7 +84,7 @@ def test_status_changes_by_support_side_only(kit):
     assert kit.client.get(url, headers=buyer.h).json()["status"] == "in_progress"
     kit.client.put(url, json={"status": "resolved"}, headers=org.h)
     actions = [r["action"] for r in kit.client.get(f"/api/events/{event['id']}/timeline", headers=org.h).json()]
-    assert actions.count("support_case_status_changed") == 2
+    assert actions.count("support_case_status_changed") == 3
 
 
 def test_escalation_hands_the_case_to_platform_admins(kit):
