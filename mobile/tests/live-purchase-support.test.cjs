@@ -47,6 +47,21 @@ test('native purchase controller -> real quote/checkout -> My Tickets/QR -> staf
     assert.equal(Number(paidFlow.view.reviewed.value.total), 3200);
     assert.equal(paidFlow.view.form.promo, campaign.code);
     assert.equal(paidFlow.view.canBuy, true);
+    // Real server validation after a successful quote, then correct the field
+    // without an Apply tap. The generated fixture code comes from the API.
+    await paidFlow.view.applyPromo('INVALID-' + suffix);
+    await ready(paidFlow, (view) => !!view.promoError);
+    assert.equal(paidFlow.view.canBuy, false);
+    await paidFlow.view.purchase();
+    assert.equal(paidFlow.calls.filter((c) => c.method === 'checkoutOrder').length, 0);
+    paidFlow.view.changePromo(campaign.code); await paidFlow.settle();
+    assert.equal(paidFlow.view.canBuy, false);
+    for (const [callback, delay] of [...paidFlow.timers]) if (delay === 350) {
+      paidFlow.timers.delete(callback); callback();
+    }
+    await ready(paidFlow);
+    assert.equal(paidFlow.view.promoError, null);
+    assert.equal(Number(paidFlow.view.reviewed.value.total), 3200);
     await paidFlow.view.purchase(); await paidFlow.settle();
     assert.equal(paidFlow.view.confirmation.tickets.length, 2);
     assert.equal(Number(paidFlow.view.confirmation.order.total_amount), 3200);
@@ -67,7 +82,12 @@ test('native purchase controller -> real quote/checkout -> My Tickets/QR -> staf
     nodes(confirmation).find((n) => n.type === 'AppButton' && n.props.title === 'Open My Tickets').props.onPress();
     assert.equal(destination, 'MyTickets'); ui.cleanup();
     const freeFlow = checkoutHarness({ event: details, initialTypeId: free.id, session, api: orders, promotions, ApiError: client.ApiError });
-    await ready(freeFlow); await freeFlow.view.purchase(); await freeFlow.settle();
+    await ready(freeFlow);
+    await freeFlow.view.applyPromo('INVALID-' + suffix);
+    await ready(freeFlow, (view) => !!view.promoError);
+    await freeFlow.view.applyPromo(''); await ready(freeFlow);
+    assert.equal(freeFlow.view.reviewed.value.promo_code, null);
+    await freeFlow.view.purchase(); await freeFlow.settle();
     assert.equal(Number(freeFlow.view.confirmation.order.total_amount), 0);
     const mine = await tickets.getMyTickets(attendee.token); assert.equal(mine.length, 3);
     const ticket = mine.find((t) => t.ticket_type_id === paid.id);

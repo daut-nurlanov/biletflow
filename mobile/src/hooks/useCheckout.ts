@@ -23,11 +23,21 @@ export function useCheckout(event: EventDetails, initialTypeId?: string, initial
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [applying, setApplying] = useState(false);
-  const [promoNote, setPromoNote] = useState<string | null>(null);
+  const [promoInput, setPromoInput] = useState("");
+  const [promoPending, setPromoPending] = useState(false);
+  const [campaignError, setCampaignError] = useState<string | null>(null);
   const [initializingPromo, setInitializingPromo] = useState(!!initialCampaignToken);
   const openedCampaign = useRef(false);
   const [confirmation, setConfirmation] = useState<CheckoutResponse | null>(null);
-  const [expiredAt, setExpiredAt] = useState<number | null>(null);
+  const [expiredQuote, setExpiredQuote] = useState<object | null>(null);
+  const [quoteVersion, setQuoteVersion] = useState(0);
+  const quoteRevision = useRef(0);
+  // Invalidate synchronously as well as on render: an old button handler must
+  // not submit between an input edit and React's next render.
+  const invalidateQuote = useCallback(() => {
+    quoteRevision.current += 1;
+    setQuoteVersion(quoteRevision.current);
+  }, []);
   const lock = useRef(false);
   const promoRequest = useRef<AbortController | null>(null);
   const mounted = useRef(true);
@@ -40,8 +50,11 @@ export function useCheckout(event: EventDetails, initialTypeId?: string, initial
     void readPurchaseAttempt(userId, event.id).then((saved) => {
       if (active) {
         setAttempt(saved);
-        if (saved) setForm({ typeId: saved.body.ticket_type_id, quantity: saved.body.quantity,
-          name: saved.body.attendee_name, promo: saved.body.promo_code ?? "" });
+        if (saved) {
+          setForm({ typeId: saved.body.ticket_type_id, quantity: saved.body.quantity,
+            name: saved.body.attendee_name, promo: saved.body.promo_code ?? "" });
+          setPromoInput(saved.body.promo_code ?? "");
+        }
         setRestoreError(null); setReady(true);
       }
     }).catch(() => {
@@ -55,31 +68,59 @@ export function useCheckout(event: EventDetails, initialTypeId?: string, initial
   const choice = JSON.stringify(input);
   const invalid = selectionError(event, input);
   const loadQuote = useCallback(async (signal: AbortSignal) => {
-    if (invalid || attempt) return null;
-    const value = await authed((token) => quoteOrder(token, input, signal));
-    return { choice, value, receivedAt: Date.now() };
-  }, [attempt, authed, choice, input, invalid]);
-  const quotes = useApiResource(loadQuote);
-  const reviewed = quotes.data?.choice === choice ? quotes.data : null;
-  const expired = !!reviewed && expiredAt === reviewed.receivedAt;
+    if (invalid || attempt || promoPending || applying || campaignError) return null;
+    try {
+      const value = await authed((token) => quoteOrder(token, input, signal));
+      return { ok: true as const, choice, version: quoteVersion, value, receivedAt: Date.now(), error: null, promoError: null };
+    } catch (caught) {
+      const message = caught instanceof Error ? caught.message : "Couldn't calculate a quote. Please retry.";
+      // A quote can also fail for inventory, auth or network reasons. Only
+      // backend promo validation errors belong beside the promotion field.
+      const promoError = caught instanceof ApiError && caught.status >= 400 && caught.status < 500 &&
+        caught.status !== 401 && /promo code/i.test(message)
+        ? `${message}. Please correct or remove the promo code.` : null;
+      return { ok: false as const, choice, version: quoteVersion, value: null, receivedAt: Date.now(), error: message, promoError };
+    }
+  }, [attempt, authed, choice, input, invalid, promoPending, applying, campaignError, quoteVersion]);
+  const resource = useApiResource(loadQuote);
+  const currentQuote = resource.data?.choice === choice && resource.data.version === quoteVersion &&
+    !promoPending && !applying && !campaignError ? resource.data : null;
+  const reviewed = currentQuote?.ok ? currentQuote : null;
+  const quoteError = currentQuote?.error ?? resource.error;
+  const promoError = campaignError ?? currentQuote?.promoError ?? null;
+  const promoNote = reviewed && !resource.loading && !resource.refreshing && !quoteError && form.promo
+    ? `Applied code: ${form.promo}. The discount is included in the quote.` : null;
+  const expired = !!reviewed && expiredQuote === currentQuote;
   useEffect(() => {
-    if (!reviewed) return;
-    const timer = setTimeout(() => setExpiredAt(reviewed.receivedAt), Math.max(0, QUOTE_LIFETIME_MS - (Date.now() - reviewed.receivedAt)));
+    if (!currentQuote?.value) return;
+    const timer = setTimeout(() => setExpiredQuote(currentQuote), Math.max(0, QUOTE_LIFETIME_MS - (Date.now() - currentQuote.receivedAt)));
     return () => clearTimeout(timer);
-  }, [reviewed]);
+  }, [currentQuote]);
 
   const change = useCallback((patch: Partial<typeof form>) => {
     if (attempt || lock.current || confirmation) return;
+    if ("typeId" in patch || "quantity" in patch || "promo" in patch) invalidateQuote();
     setForm((previous) => ({ ...previous, ...patch }));
     setError(null);
-  }, [attempt, confirmation]);
+  }, [attempt, confirmation, invalidateQuote]);
+
+  const changePromo = useCallback((text: string) => {
+    if (attempt || lock.current || confirmation) return;
+    promoRequest.current?.abort();
+    promoRequest.current = null;
+    invalidateQuote();
+    setPromoInput(text); setPromoPending(true); setApplying(false);
+    setCampaignError(null); setError(null); setInitializingPromo(false);
+  }, [attempt, confirmation, invalidateQuote]);
 
   const applyPromo = useCallback(async (text: string) => {
     if (attempt || lock.current || confirmation) return;
     promoRequest.current?.abort();
     const controller = new AbortController();
     promoRequest.current = controller;
-    setApplying(true); setError(null);
+    invalidateQuote();
+    setPromoInput(text); setPromoPending(false); setApplying(true);
+    setCampaignError(null); setError(null); setInitializingPromo(false);
     try {
       const token = campaignTokenFromInput(text);
       let code = text.trim().toUpperCase();
@@ -89,15 +130,27 @@ export function useCheckout(event: EventDetails, initialTypeId?: string, initial
         code = campaign.promo_code;
       }
       if (!controller.signal.aborted && mounted.current) {
-        change({ promo: code });
-        setPromoNote(code ? `Applied code: ${code}. The server quote determines the discount.` : "Promo code removed.");
+        setForm((previous) => ({ ...previous, promo: code }));
       }
     } catch (caught) {
-      if (!controller.signal.aborted && mounted.current) setError(caught instanceof Error ? caught.message : "Couldn't apply this promotion.");
+      if (!controller.signal.aborted && mounted.current) {
+        setCampaignError(`${caught instanceof Error ? caught.message : "Couldn't apply this promotion."} Please correct or remove the promo code.`);
+      }
     } finally {
-      if (promoRequest.current === controller && mounted.current) setApplying(false);
+      if (promoRequest.current === controller && mounted.current) {
+        promoRequest.current = null;
+        setApplying(false);
+      }
     }
-  }, [attempt, change, confirmation, event.id]);
+  }, [attempt, confirmation, event.id, invalidateQuote]);
+
+  useEffect(() => {
+    if (!promoPending) return;
+    const timer = setTimeout(() => {
+      if (quoteVersion === quoteRevision.current) void applyPromo(promoInput);
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [applyPromo, promoInput, promoPending, quoteVersion]);
 
   useEffect(() => {
     if (!ready || openedCampaign.current || !initialCampaignToken) return;
@@ -107,10 +160,10 @@ export function useCheckout(event: EventDetails, initialTypeId?: string, initial
 
   const nameValid = form.name.trim().length > 0 && Array.from(form.name.trim()).length <= 120;
   const canBuy = ready && !restoreError && !busy && !applying && !initializingPromo && !confirmation &&
-    (!!attempt || (!invalid && !!reviewed && !expired && !quotes.loading && !quotes.refreshing && !quotes.error && nameValid));
+    (!!attempt || (!promoPending && !promoError && !invalid && !!reviewed && !expired && !resource.loading && !resource.refreshing && !quoteError && nameValid));
 
   async function purchase() {
-    if (lock.current || !canBuy) return;
+    if (lock.current || !canBuy || quoteVersion !== quoteRevision.current) return;
     const release = acquirePurchaseLock(userId, event.id);
     if (!release) { setError("A purchase for this event is still processing. Check My Tickets and retry after it finishes."); return; }
     lock.current = true; setBusy(true); setError(null);
@@ -132,8 +185,8 @@ export function useCheckout(event: EventDetails, initialTypeId?: string, initial
         // Quotes do not reserve inventory or price. Revalidate immediately before submitting.
         const latest = await authed((token) => quoteOrder(token, input));
         if (!mounted.current) return;
+        if (quoteVersion !== quoteRevision.current) return;
         if (!sameQuote(reviewed.value, latest)) {
-          quotes.retry();
           throw new Error("The price changed. Review the new quote and tap Buy again.");
         }
         pending = { key: randomUUID(), body: { ...input, attendee_name: form.name.trim(), simulate_payment: "success" } };
@@ -164,7 +217,7 @@ export function useCheckout(event: EventDetails, initialTypeId?: string, initial
       }
       if (mounted.current) {
         setError(caught instanceof Error ? caught.message : "Purchase could not be confirmed. Retry safely or check My Tickets.");
-        if (definitive) quotes.retry();
+        if (!pending || definitive) invalidateQuote();
       }
     } finally {
       release();
@@ -173,7 +226,11 @@ export function useCheckout(event: EventDetails, initialTypeId?: string, initial
     }
   }
 
-  return { form, change, applyPromo, promoNote, applying, invalid, reviewed, expired, quotes,
+  const retryQuote = useCallback(() => {
+    if (!lock.current && !attempt && !confirmation) invalidateQuote();
+  }, [attempt, confirmation, invalidateQuote]);
+  const quotes = { ...resource, error: quoteError, retry: retryQuote, refresh: retryQuote };
+  return { form, change, promoInput, changePromo, applyPromo, promoNote, promoError, promoPending, applying, invalid, reviewed, expired, quotes,
     attempt, ready, restoreError, retryRestore: () => setRestoreVersion((n) => n + 1),
     error, busy, confirmation, canBuy, purchase };
 }
