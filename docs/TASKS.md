@@ -1,8 +1,8 @@
 # BiletFlow: Status and Tasks
 
-Last updated: November 16, 2026. Final presentation: second half of November.
+Last updated: November 18, 2026. Final presentation: second half of November.
 
-The earlier planning sections are retained for reference. See the November 16 implementation update under Aldiyar in section 4 for the verified integrated state.
+The earlier planning sections are retained for reference. See the November 18 implementation update under Aldiyar in section 4 for the verified integrated state.
 
 Key dates (our own, because the SRS schedule says features stop after week 9 and we are behind it):
 - **Nov 2:** team meeting. Confirm the split in section 4.
@@ -28,7 +28,7 @@ Nobody on the front end needs to touch the kitchen. Your job is to build screens
 
 **What is already done**
 - The database with all its tables, and demo data (3 events, users, promo codes).
-- The backend with 88 endpoints and 206 automated test cases. It runs with one command.
+- The backend with 88 endpoints and 223 automated test cases. It runs with one command.
 - Login, tickets with QR codes and PDFs, promo codes with QR codes, refunds, door check-in, organizer numbers, support chat, admin tools.
 - Documentation: how to set up (`SETUP.md`), what you can ask the backend (`DATA_MODELS_AND_APIS.md`), and this plan.
 - A start on the mobile app (`mobile/`): Events list, Event details and My Tickets screens, an API client and shared components (Insar). Organizer screens, My events and Event dashboard (Farzad, PR #1, merged on Nov 1).
@@ -74,7 +74,7 @@ create event, make a promo campaign QR, open the QR link and land on the event w
 
 ## 2. What the backend already does
 
-Everything the web, the app and the admin portal need exists as endpoints: **88 endpoints, 206 automated test cases** (`backend-python/`). Full list with who may call each: `docs/DATA_MODELS_AND_APIS.md`. Live, clickable version: http://localhost:8000/docs.
+Everything the web, the app and the admin portal need exists as endpoints: **88 endpoints, 223 automated test cases** (`backend-python/`). Full list with who may call each: `docs/DATA_MODELS_AND_APIS.md`. Live, clickable version: http://localhost:8000/docs.
 
 | Area | Ready |
 |---|---|
@@ -170,7 +170,7 @@ Each person has a short plain-words description and a checklist.
 
 ### Aldiyar: organizer web, the watch and manage side
 
-Implementation update (November 16, 2026): modules 1–2 are merged in main (`c633de3`). Staff management (module 3) is implemented in `feature/staff-management`: explicit existing/new-account flows, assignment list, suspension indicators, revoke confirmation and restore. The backend remains compatible with older callers, validates creation separately from assignment and makes repeated assignment/revocation safe. All 206 backend tests, web build/lint, 37 fixture-browser checks and a live Staff UI create/revoke/restore workflow pass against an isolated PostgreSQL/API. History and organizer support status/escalation controls remain. See [ORGANIZER_MANAGEMENT.md](ORGANIZER_MANAGEMENT.md). The meeting with Daut is not marked complete.
+Implementation update (November 18, 2026): modules 1–2 are merged in main (`c633de3`), and Staff (module 3) is merged through PR #11 (`3a7de06`). History (module 4) is implemented in `feature/event-history`, synchronized with main (`d6b9ee3`, including mobile PRs #12–14), with no Git conflicts. It includes a read-only timeline, activity/date filters, stable pagination, actor/entity details and retained history after event cancellation. The API stays compatible with existing callers, and ticket-quantity changes now produce audit entries. History passed 223 backend tests, 46 fixture-browser checks, a live API/browser workflow and web build/lint; publication is authorized. Verification details are in [ORGANIZER_MANAGEMENT.md](ORGANIZER_MANAGEMENT.md). Organizer support status/escalation controls and the meeting with Daut remain.
 
 **In plain words:** you build the pages where an organizer sees what is happening with an event: who bought tickets, how much money, what happened when, and support messages. You know the backend best, so you are also the person everyone asks when an endpoint answers something strange.
 - [ ] 30-minute backend walkthrough with Daut.
@@ -178,7 +178,7 @@ Implementation update (November 16, 2026): modules 1–2 are merged in main (`c6
 - [x] Attendee list and orders with filters, refund button.
 - [x] Analytics page with numbers and a sales-over-time chart (`/api/events/{id}/analytics`, filters `date_from`, `date_to`, `ticket_type_id`).
 - [x] Staff: assign/create by email, list, revoke and restore (`/api/events/{id}/staff`).
-- [ ] Event history page (`/api/events/{id}/timeline`).
+- [x] Event history page (`/api/events/{id}/timeline`).
 - [ ] Organizer support controls: shared `/support` already lists accessible cases and supports replies; event-specific filters, status changes and escalation remain.
 - [ ] Bug fixes on the backend, and keep the tests green (`python -m pytest`) whenever something changes.
 

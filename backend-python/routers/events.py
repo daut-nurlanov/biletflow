@@ -451,6 +451,9 @@ def update_ticket_type(ticket_type_id: str, payload: TicketTypeUpdate, user=Depe
         if "price" in changes and float(changes["price"]) != float(old["price"]):
             audit(cur, user["id"], old["event_id"], "ticket_price_changed",
                   f"'{old['name']}' price changed from {old['price']} to {new['price']} KZT", "ticket_type", ticket_type_id)
+        if "total_quantity" in changes and changes["total_quantity"] != old["total_quantity"]:
+            audit(cur, user["id"], old["event_id"], "ticket_quantity_changed",
+                  f"'{old['name']}' quantity changed from {old['total_quantity']} to {new['total_quantity']}", "ticket_type", ticket_type_id)
         if "is_hidden" in changes and changes["is_hidden"] != old["is_hidden"]:
             audit(cur, user["id"], old["event_id"], "ticket_type_hidden" if changes["is_hidden"] else "ticket_type_shown",
                   f"'{old['name']}' " + ("hidden" if changes["is_hidden"] else "shown again"), "ticket_type", ticket_type_id)

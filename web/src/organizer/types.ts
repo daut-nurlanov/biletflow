@@ -139,3 +139,14 @@ export interface StaffMember {
   status: 'active' | 'revoked'
   is_suspended: boolean
 }
+
+export interface HistoryEntry {
+  id: string
+  timestamp: string
+  actor: string | null
+  actor_id: string | null
+  action: string
+  entity_type: string | null
+  entity_id: string | null
+  details: string | null
+}
