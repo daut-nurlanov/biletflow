@@ -546,12 +546,40 @@ Malformed or reversed date ranges are 400.
 
 | Method and path | Who | What it does |
 |---|---|---|
-| `POST /api/support/cases` | Attendee or organizer | Body: `category`, `message`, and one of `event_id` / `order_id` / `ticket_id`. Attendee cases go to the event's organizer; organizer cases go to the platform team. |
-| `GET /api/support/cases` | Token | Cases you can see. Filters `?status=`, `?escalated=`. |
-| `GET /api/support/cases/{id}` | Token | One case with its messages and your `access_level` (`owner`, `handler` or `admin`). |
+| `POST /api/support/cases` | Attendee or organizer | Body: `category`, `message`, and optional `event_id` / `order_id` / `ticket_id` (context is required for attendees). Attendee cases go to the event's organizer; organizer cases go to the platform team. |
+| `GET /api/support/cases` | Token | Cases you can see. Filters `?status=`, `?escalated=`, `?event_id=` (UUID), `?kind=attendee|organizer`. |
+| `GET /api/support/cases/{id}` | Token | One case with its messages, context names and `your_role_in_case` (`owner`, `handler` or `admin`). |
 | `POST /api/support/cases/{id}/messages` | Token | Reply. The other side gets a simulated email. |
 | `PUT /api/support/cases/{id}` | Token | Body: `status` and/or `assigned_to`. Only the support side (handler or admin), not the person who opened it. |
 | `POST /api/support/cases/{id}/escalate` | Organizer | Pass an attendee case up to the platform team. |
+
+### Organizer support contract
+
+- The list still returns an array and all old query parameters remain optional.
+  `event_id` and `kind` restrict the authorized result; neither grants access.
+  Invalid UUID/kind filters return 422. Ordering is `updated_at DESC, id DESC`.
+- Case details add `event_title`, `opened_by_name` and nullable
+  `assigned_to_name`. Existing IDs, messages and `your_role_in_case` remain.
+- An attendee owns their request; the event's organizer handles attendee cases.
+  Organizer requests belong to their requester and platform support. Platform
+  admins may also handle escalated attendee cases. A scanner assignment does
+  not grant case access. Inaccessible/missing case IDs both return 404.
+- Only a handler/admin can change status or assign an accessible case. Assignees
+  must have access, cannot be the requester and cannot be suspended. A changed
+  assignment notifies the new assignee; repeating it does not send another notice.
+- Only the event organizer can escalate an attendee case. Escalation grants
+  platform admins access while retaining access for the requester and organizer.
+  Repeated/concurrent escalation returns success without duplicate audit entries
+  or administrator notifications; escalation does not silently change status.
+- Mutations lock the case row inside their transaction so concurrent identical
+  status updates create one actual transition, audit entry and status notice.
+  Only actual status changes enter the event history, including automatic
+  customer-reply transitions: `waiting_customer` → `in_progress`, `resolved` →
+  `open`. Messages remain asynchronous and are never edited/deleted by this UI.
+- Organizers may open a platform request about account, activation, payment or
+  technical problems with no order/event. The attendee context requirement stays
+  unchanged. All existing mobile support calls remain compatible. No migration
+  or new endpoint is needed.
 
 ### 🛠️ Admin Portal (platform admin only)
 

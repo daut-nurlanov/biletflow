@@ -33,7 +33,7 @@ export default function SupportNewPage() {
   const location = useLocation()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const [category, setCategory] = useState<SupportCategory>('ticket_delivery')
+  const [selectedCategory, setCategory] = useState<SupportCategory | null>(null)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
   const [sending, setSending] = useState(false)
@@ -45,10 +45,21 @@ export default function SupportNewPage() {
   const linkedOrderId = searchParams.get('order_id') || undefined
   const eventId = searchParams.get('event_id') || undefined
   const hasContext = Boolean(ticketId || linkedOrderId || eventId)
+  const organizer = user?.role === 'organizer'
+  const category =
+    selectedCategory ?? (organizer ? 'technical' : 'ticket_delivery')
+  const availableCategories = organizer
+    ? [
+        { value: 'account', label: 'Account' },
+        { value: 'activation', label: 'Paid-sales activation' },
+        { value: 'payment', label: 'Payment' },
+        { value: 'technical', label: 'Technical problem' },
+      ]
+    : categories
 
   // no ticket/order/event in the link: let the person pick one of their orders
   useEffect(() => {
-    if (!user || hasContext) return
+    if (!user || hasContext || organizer) return
     const controller = new AbortController()
     api<OrderOption[]>('/api/orders/my-orders', { signal: controller.signal })
       .then(setOrders)
@@ -61,16 +72,13 @@ export default function SupportNewPage() {
         }
       })
     return () => controller.abort()
-  }, [user, hasContext])
+  }, [user, hasContext, organizer])
 
   if (loading) return <p>Loading…</p>
   if (!user) {
     return (
       <p>
-        <Link
-          to="/login"
-          state={{ from: location.pathname + location.search }}
-        >
+        <Link to="/login" state={{ from: location.pathname + location.search }}>
           Sign in
         </Link>{' '}
         to open a support request.
@@ -86,7 +94,7 @@ export default function SupportNewPage() {
       setError('Please describe how we can help.')
       return
     }
-    if (!hasContext && !orderId) {
+    if (!hasContext && !orderId && !organizer) {
       setError('Please choose the order this request is about.')
       return
     }
@@ -114,12 +122,22 @@ export default function SupportNewPage() {
     }
   }
 
-    const noOrders =
-    !hasContext && orders !== null && orders.length === 0 && !ordersError
+  const noOrders =
+    !organizer &&
+    !hasContext &&
+    orders !== null &&
+    orders.length === 0 &&
+    !ordersError
 
   return (
     <>
       <h1>New support request</h1>
+      {organizer && (
+        <p className="muted">
+          Contact the platform team about your account, paid-sales activation,
+          payments or a technical issue. An order is not required.
+        </p>
+      )}
       {hasContext && (
         <p className="muted">
           This request will be linked to your ticket, order or event
@@ -137,7 +155,7 @@ export default function SupportNewPage() {
         </p>
       )}
       <form className="form wide" onSubmit={submit}>
-        {!hasContext && !noOrders && (
+        {!organizer && !hasContext && !noOrders && (
           <>
             <label htmlFor="support-order">Which order is it about?</label>
             <select
@@ -167,7 +185,7 @@ export default function SupportNewPage() {
           disabled={sending}
           onChange={(e) => setCategory(e.target.value as SupportCategory)}
         >
-          {categories.map((item) => (
+          {availableCategories.map((item) => (
             <option value={item.value} key={item.value}>
               {item.label}
             </option>

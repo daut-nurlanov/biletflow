@@ -1,9 +1,10 @@
-# Organizer management: modules 1–4
+# Organizer management: modules 1–5
 
 Implemented in `feature/organizer-management`. This module covers the organizer
 home, event overview, attendee lists, order management, analytics, event staff and
-read-only event history. Modules 1–3 are merged into main; History is implemented
-in `feature/event-history`, synchronized with main `d6b9ee3`.
+read-only event history and organizer support controls. Modules 1–4 are merged
+into main through PR #15 (`667d8dc`). Support (module 5) is implemented locally
+in `feature/organizer-support` from that baseline.
 
 ## Run locally
 
@@ -132,6 +133,43 @@ Implementation is based on SRS 4.16 and Aldiyar's event-history task. The latest
 mobile changes from PRs #12–14 are included through main; no Git conflicts occurred.
 The user authorized commit, push and PR merge on November 18.
 
+## Support (module 5)
+
+Open the event's Support tab at `/organizer/events/:eventId/support` to manage
+attendee requests for that event, or `/support` for the shared inbox. The latter
+separates attendee requests and the organizer's own platform requests. Filter by
+event, request type, status and escalation; applied filters persist in the URL.
+Event tabs enforce their event and attendee scope. Completed/cancelled event
+requests remain available. Cards link to the existing shared conversation.
+
+The conversation shows requester, event, order/ticket context, assignee and
+escalation state. Handlers can assign the request to themselves and change its
+status among Open, In progress, Waiting for customer and Resolved. Escalation to
+platform support asks for confirmation; both sides can continue replying after
+escalation. Customer/organizer-request owners get reply controls without handler
+buttons. API authorization remains authoritative for all operations.
+
+Reads poll sequentially ten seconds after completion, pause during mutations and
+ignore superseded/unmounted responses. Reply drafts survive polling, refreshes,
+status updates and recoverable errors. A synchronous write lock prevents duplicate
+submissions; failed actions keep the draft/selection and show an error. A failed
+read disables mutations until a successful refresh, avoiding edits on stale data.
+The layout works on mobile and user messages render as escaped text.
+
+The organizer's Contact platform support flow now works without requiring a
+personal attendee order, and offers account/activation/payment/technical issues.
+Attendees retain the existing ticket/order/event context and reply workflow.
+Shared support pages are deliberately reused; no second conversation system or
+new API endpoint was introduced. UI labels are English.
+
+Backend additions are optional event/kind list filters and context names, row
+locks for case mutations, idempotent escalation, assignment notifications and
+audit entries when a customer reply automatically changes status. Existing
+mobile clients remain compatible, and no database migration is needed. This
+implements SRS 4.10, 4.13 and support activity retention under 4.16.
+
+The user authorized commit, push and PR merge for module 5 on November 18.
+
 ## Validation
 
 ```sh
@@ -145,7 +183,7 @@ intercept API requests with deterministic fixtures. They do not touch PostgreSQL
 or a user's Chrome profile. With the Vite server running on port 3000:
 
 ```sh
-node --test tests/organizer.browser.test.mjs tests/staff.browser.test.mjs tests/history.browser.test.mjs
+node --test tests/organizer.browser.test.mjs tests/staff.browser.test.mjs tests/history.browser.test.mjs tests/support.browser.test.mjs
 ```
 
 Requires Node 22+ and Chrome/Chromium. Set `CHROME_BIN` if Chrome is installed in
@@ -182,7 +220,7 @@ Run the backend regressions against a disposable database initialized from
 
 ```sh
 cd backend-python
-python -m pytest tests/test_analytics.py tests/test_organizer.py tests/test_history.py
+python -m pytest tests/test_analytics.py tests/test_organizer.py tests/test_history.py tests/test_support.py tests/test_support_management.py
 ```
 
 Manual integration walkthrough:
@@ -199,13 +237,11 @@ Manual integration walkthrough:
 
 ## Remaining modules
 
-- Organizer support filters, status changes and escalation; reuse the shared
-  `/support` list, conversation and reply pages already integrated from main.
 - Backend walkthrough with Daut (a team activity, not completed by this code).
 
 Attendee checkout, event creation/editing, activation and campaign creation remain
-with their respective owners in `TASKS.md`. Integration changes shared with the
-attendee frontend are limited to `App.tsx`, `api.ts`, `auth.tsx` and `LoginPage.tsx`.
+with their respective owners in `TASKS.md`. Integration also updates shared Support pages and types, preserving attendee
+creation/reply behavior and reusing the existing conversation routes.
 
 ## Staff verification (November 16)
 
@@ -230,11 +266,31 @@ records after cancellation. Documentation checks confirm all 88 API endpoints
 match the code. No seeded/demo or production data was modified. Temporary test
 servers and the disposable database were stopped after validation.
 
+## Support verification (November 18)
+
+The final full backend suite passed 231 cases against disposable PostgreSQL 16.
+The focused support/history subset passed 32 cases, including real concurrent
+status/escalation requests and exact audit/notification counts. Web production
+build and lint passed; all 88 documented endpoints match the code.
+
+All 59 fixture-browser checks passed: 13 Support checks plus the existing 46
+organizer, Staff, History and attendee checkout regressions. Support checks cover scoped
+filters and URL restoration, role boundaries, failed writes, confirmation,
+double submission, escaped messages, draft preservation, sequential polling,
+superseded reads, errors/retry, mobile overflow and organizer platform requests.
+
+The live browser/API test passed real assignment, status updates, reopening after
+a customer reply, escalation, the event inbox and organizer activation inquiries,
+alongside attendee checkout, QR admission, Staff and cancelled-event History.
+An initial live attempt timed out in Chrome setup before app interaction; the
+retry passed. Only synthetic accounts/events and two disposable databases were
+used. No demo or production data was modified. Temporary API/web servers and
+the disposable databases were stopped after validation.
+
 ## Synchronization workflow
 
-Modules 1–3 and the integration fixes are merged into `main`. History development
-is in `feature/event-history`. On November 18, main `d6b9ee3` was integrated
-by fast-forward, including mobile PRs #13–14. No conflicts occurred. Before publishing,
-save the reviewed changes as a commit, fetch main again and integrate any new
-changes locally. Resolve conflicts and rerun relevant checks before pushing.
-A push itself does not resolve conflicts.
+Modules 1–4 and integration fixes are merged into `main` (`667d8dc`). Module 5
+is local in `feature/organizer-support`, based on that main. No Git conflicts
+occurred. Publication is authorized. Before publishing,
+fetch main again, integrate new changes locally and rerun relevant checks if
+anything overlaps. A push itself does not resolve conflicts.

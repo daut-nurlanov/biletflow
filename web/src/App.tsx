@@ -15,6 +15,7 @@ import { OrderPage, OrdersPage } from './organizer/OrdersPage'
 import AnalyticsPage from './organizer/AnalyticsPage'
 import StaffPage from './organizer/StaffPage'
 import HistoryPage from './organizer/HistoryPage'
+import EventSupportPage from './organizer/SupportPage'
 
 export default function App() {
   const { user, logout } = useAuth()
@@ -68,6 +69,7 @@ export default function App() {
               <Route path="analytics" element={<AnalyticsPage />} />
               <Route path="staff" element={<StaffPage />} />
               <Route path="history" element={<HistoryPage />} />
+              <Route path="support" element={<EventSupportPage />} />
             </Route>
             <Route
               path="*"

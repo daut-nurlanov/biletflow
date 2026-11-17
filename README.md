@@ -6,7 +6,7 @@ Self-service event ticketing platform for Kazakhstan. CSCI 361 course project.
 
 | Folder | What it is |
 |---|---|
-| `backend-python/` | The API (FastAPI + PostgreSQL). 88 endpoints, 223 automated test cases. |
+| `backend-python/` | The API (FastAPI + PostgreSQL). 88 endpoints, 231 automated test cases. |
 | `web/` | React + TypeScript website for attendees and organizers. |
 | `mobile/` | The one mobile app (React Native, Expo). Attendees, organizers and door staff log in to the same app; the role decides which screens they see. |
 | `docs/` | Setup guide, API reference, database schema, demo data, tasks, the SRS. |

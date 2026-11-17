@@ -28,7 +28,7 @@ Nobody on the front end needs to touch the kitchen. Your job is to build screens
 
 **What is already done**
 - The database with all its tables, and demo data (3 events, users, promo codes).
-- The backend with 88 endpoints and 223 automated test cases. It runs with one command.
+- The backend with 88 endpoints and 231 automated test cases. It runs with one command.
 - Login, tickets with QR codes and PDFs, promo codes with QR codes, refunds, door check-in, organizer numbers, support chat, admin tools.
 - Documentation: how to set up (`SETUP.md`), what you can ask the backend (`DATA_MODELS_AND_APIS.md`), and this plan.
 - A start on the mobile app (`mobile/`): Events list, Event details and My Tickets screens, an API client and shared components (Insar). Organizer screens, My events and Event dashboard (Farzad, PR #1, merged on Nov 1).
@@ -74,7 +74,7 @@ create event, make a promo campaign QR, open the QR link and land on the event w
 
 ## 2. What the backend already does
 
-Everything the web, the app and the admin portal need exists as endpoints: **88 endpoints, 223 automated test cases** (`backend-python/`). Full list with who may call each: `docs/DATA_MODELS_AND_APIS.md`. Live, clickable version: http://localhost:8000/docs.
+Everything the web, the app and the admin portal need exists as endpoints: **88 endpoints, 231 automated test cases** (`backend-python/`). Full list with who may call each: `docs/DATA_MODELS_AND_APIS.md`. Live, clickable version: http://localhost:8000/docs.
 
 | Area | Ready |
 |---|---|
@@ -170,7 +170,7 @@ Each person has a short plain-words description and a checklist.
 
 ### Aldiyar: organizer web, the watch and manage side
 
-Implementation update (November 18, 2026): modules 1–2 are merged in main (`c633de3`), and Staff (module 3) is merged through PR #11 (`3a7de06`). History (module 4) is implemented in `feature/event-history`, synchronized with main (`d6b9ee3`, including mobile PRs #12–14), with no Git conflicts. It includes a read-only timeline, activity/date filters, stable pagination, actor/entity details and retained history after event cancellation. The API stays compatible with existing callers, and ticket-quantity changes now produce audit entries. History passed 223 backend tests, 46 fixture-browser checks, a live API/browser workflow and web build/lint; publication is authorized. Verification details are in [ORGANIZER_MANAGEMENT.md](ORGANIZER_MANAGEMENT.md). Organizer support status/escalation controls and the meeting with Daut remain.
+Implementation update (November 18, 2026): modules 1–4 are merged in main through PR #15 (`667d8dc`). Organizer support (module 5) is implemented locally in `feature/organizer-support` from current main, without Git conflicts. It adds event/status/escalation/request-type filters, handler status/assignment/escalation controls in the shared conversation, and organizer platform requests without a personal order. The backend keeps existing mobile calls compatible, adds optional list filters/context names, prevents duplicate escalation/status side effects and records automatic customer-reply status changes in History. All 231 backend tests, 59 fixture-browser checks, web build/lint and a real browser/API workflow pass. The user authorized commit, push and PR merge for module 5 on November 18. See [ORGANIZER_MANAGEMENT.md](ORGANIZER_MANAGEMENT.md) for validation and scope. The meeting with Daut and ongoing integration/bug fixes remain.
 
 **In plain words:** you build the pages where an organizer sees what is happening with an event: who bought tickets, how much money, what happened when, and support messages. You know the backend best, so you are also the person everyone asks when an endpoint answers something strange.
 - [ ] 30-minute backend walkthrough with Daut.
@@ -179,7 +179,7 @@ Implementation update (November 18, 2026): modules 1–2 are merged in main (`c6
 - [x] Analytics page with numbers and a sales-over-time chart (`/api/events/{id}/analytics`, filters `date_from`, `date_to`, `ticket_type_id`).
 - [x] Staff: assign/create by email, list, revoke and restore (`/api/events/{id}/staff`).
 - [x] Event history page (`/api/events/{id}/timeline`).
-- [ ] Organizer support controls: shared `/support` already lists accessible cases and supports replies; event-specific filters, status changes and escalation remain.
+- [x] Organizer support controls: event/request-type/status/escalation filters, assignment, status changes and escalation in the shared conversation; implemented and validated.
 - [ ] Bug fixes on the backend, and keep the tests green (`python -m pytest`) whenever something changes.
 
 ### Everyone, every week

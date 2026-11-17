@@ -70,6 +70,7 @@ export type SupportCategory =
   | 'event_information'
   | 'check_in'
   | 'account'
+  | 'activation'
   | 'technical'
 
 export type SupportStatus =
@@ -102,6 +103,7 @@ export interface SupportCase {
   updated_at: string
   event_title?: string | null
   opened_by_name?: string
+  assigned_to_name?: string | null
   your_role_in_case?: 'owner' | 'handler' | 'admin'
   messages?: SupportMessage[]
 }
