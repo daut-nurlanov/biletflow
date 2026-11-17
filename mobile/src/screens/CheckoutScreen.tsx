@@ -1,7 +1,7 @@
 import type { CompositeScreenProps } from "@react-navigation/native";
 import type { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { useCallback, useState } from "react";
+import { useCallback } from "react";
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 
 import { getEvent } from "../api/events";
@@ -36,7 +36,6 @@ function CheckoutForm({ event, initialTypeId, initialCampaignToken, onTickets, o
   event: EventDetails; initialTypeId?: string; initialCampaignToken?: string; onTickets: () => void; onRefreshAvailability: () => void;
 }) {
   const checkout = useCheckout(event, initialTypeId, initialCampaignToken);
-  const [promoInput, setPromoInput] = useState("");
   const { form, change, attempt, busy, confirmation } = checkout;
   if (confirmation) return (
     <Screen><View style={styles.content}>
@@ -83,14 +82,19 @@ function CheckoutForm({ event, initialTypeId, initialCampaignToken, onTickets, o
         <TextInput accessibilityLabel="Name on tickets" style={styles.input} value={form.name} editable={!locked}
           maxLength={120} onChangeText={(name) => change({ name })} autoComplete="name" />
         <Text style={sharedStyles.body}>Promo code or campaign link</Text>
-        <TextInput accessibilityLabel="Promo code or campaign link" style={styles.input} value={promoInput} editable={!locked && !checkout.applying}
-          autoCapitalize="none" autoCorrect={false} onChangeText={setPromoInput} />
+        <TextInput accessibilityLabel="Promo code or campaign link" style={styles.input} value={checkout.promoInput} editable={!locked}
+          autoCapitalize="none" autoCorrect={false} onChangeText={checkout.changePromo} />
+        <Text style={sharedStyles.muted}>Changes automatically recalculate your quote. Clear the field or remove the promotion to pay the regular price.</Text>
         <AppButton title={checkout.applying ? "Applying promotion…" : "Apply promotion"} loading={checkout.applying} disabled={locked}
-          onPress={() => { void checkout.applyPromo(promoInput); }} />
+          onPress={() => { void checkout.applyPromo(checkout.promoInput); }} />
+        {checkout.promoInput || form.promo || checkout.promoError || checkout.applying ? <AppButton title="Remove promotion" disabled={locked}
+          onPress={() => { void checkout.applyPromo(""); }} /> : null}
+        {checkout.promoPending ? <Text style={sharedStyles.muted}>Waiting for your promotion edit…</Text> : null}
+        {checkout.promoError ? <Text accessibilityRole="alert" style={styles.error}>{checkout.promoError}</Text> : null}
         {checkout.promoNote ? <Text style={sharedStyles.body}>{checkout.promoNote}</Text> : null}
         {checkout.invalid && !attempt ? <Text accessibilityRole="alert" style={styles.error}>{checkout.invalid}</Text> : null}
         {!attempt && checkout.quotes.loading && !checkout.invalid ? <LoadingState message="Calculating quote…" /> : null}
-        {checkout.quotes.error && !attempt ? <Text accessibilityRole="alert" style={styles.error}>{checkout.quotes.error}</Text> : null}
+        {checkout.quotes.error && !checkout.promoError && !attempt ? <Text accessibilityRole="alert" style={styles.error}>{checkout.quotes.error}</Text> : null}
         {checkout.reviewed && !checkout.quotes.loading && !checkout.quotes.error && !attempt ? <View style={sharedStyles.card}>
           <Text style={sharedStyles.body}>Subtotal: {formatMoney(checkout.reviewed.value.subtotal)}</Text>
           <Text style={sharedStyles.body}>Discount: {formatMoney(checkout.reviewed.value.discount)}</Text>
@@ -98,7 +102,7 @@ function CheckoutForm({ event, initialTypeId, initialCampaignToken, onTickets, o
           <Text style={sharedStyles.muted}>Processing fee: {formatMoney(checkout.reviewed.value.processing_fee)} — paid by the organizer, not added to your total.</Text>
         </View> : null}
         {checkout.expired && !attempt ? <Text accessibilityRole="alert" style={styles.error}>Quote expired. Refresh it to review current availability and price.</Text> : null}
-        {!attempt ? <AppButton title="Refresh quote and availability" disabled={busy || checkout.applying}
+        {!attempt ? <AppButton title="Refresh quote and availability" disabled={busy || checkout.applying || checkout.promoPending}
           onPress={() => { checkout.quotes.retry(); onRefreshAvailability(); }} /> : null}
         {checkout.error ? <Text accessibilityRole="alert" style={styles.error}>{checkout.error}</Text> : null}
         <AppButton title={busy ? "Confirming purchase…" : attempt ? "Retry saved purchase safely" : "Buy tickets (simulated)"}

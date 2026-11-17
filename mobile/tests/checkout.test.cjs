@@ -35,7 +35,7 @@ test('promo code and campaign link resolve on the server, reject another event a
   const wrong = checkoutHarness({ promotions: { campaignTokenFromInput: () => 'token',
     resolveCampaign: async () => ({ event_id: 'foreign', promo_code: 'WRONG' }) } });
   await wrong.settle(); await wrong.view.applyPromo('link'); await wrong.settle();
-  assert.match(wrong.view.error, /different event/); assert.equal(wrong.view.form.promo, '');
+  assert.match(wrong.view.promoError, /different event/); assert.equal(wrong.view.form.promo, '');
   h.hooks.cleanup(); wrong.hooks.cleanup();
 });
 
