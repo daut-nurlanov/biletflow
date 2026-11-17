@@ -14,6 +14,8 @@ export interface TicketType {
   seat_category: string | null;
   sales_start_time: string | null;
   sales_end_time: string | null;
+  max_per_order: number;
+  is_hidden: boolean;
 }
 
 /** The joined response from GET /api/tickets/my-tickets. */

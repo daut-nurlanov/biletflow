@@ -6,10 +6,13 @@ import type { Ticket } from "../types/ticket";
 import { formatDateTime } from "../utils/formatting";
 import { StatusBadge } from "./StatusBadge";
 import { TicketQrCode } from "./TicketQrCode";
+import { AppButton } from "./AppButton";
 
 interface TicketCardProps {
   ticket: Ticket;
   qrImageSource: ImageURISource;
+  onSupport?: () => void;
+  onPdf?: () => void;
 }
 
 const admissionMessages = {
@@ -19,7 +22,7 @@ const admissionMessages = {
   refunded: "This ticket was refunded and cannot be used for admission.",
 };
 
-export function TicketCard({ ticket, qrImageSource }: TicketCardProps) {
+export function TicketCard({ ticket, qrImageSource, onSupport, onPdf }: TicketCardProps) {
   // The scanner rejects these events even when the ticket itself is still valid.
   const eventBlocked = ticket.event_status === "cancelled" || ticket.event_status === "suspended";
   const showQr = ticket.status === "valid" && !eventBlocked;
@@ -29,6 +32,7 @@ export function TicketCard({ ticket, qrImageSource }: TicketCardProps) {
       <Text style={sharedStyles.title}>{ticket.event_title}</Text>
       <Text style={sharedStyles.muted}>{formatDateTime(ticket.start_time)}</Text>
       {ticket.venue_name ? <Text style={sharedStyles.body}>{ticket.venue_name}</Text> : null}
+      {ticket.venue_address ? <Text style={sharedStyles.body}>{ticket.venue_address}</Text> : null}
       {ticket.ticket_type_name ? <Text style={sharedStyles.body}>{ticket.ticket_type_name}</Text> : null}
       {ticket.section ? <Text style={sharedStyles.body}>Section {ticket.section}, row {ticket.row_label}, seat {ticket.seat_number}</Text> : null}
       <Text style={sharedStyles.body}>Attendee: {ticket.attendee_name}</Text>
@@ -40,6 +44,8 @@ export function TicketCard({ ticket, qrImageSource }: TicketCardProps) {
             : "Event suspended. Admission is currently unavailable."}
         </Text>
       ) : null}
+      {onSupport ? <AppButton title="Get help with this ticket" onPress={onSupport} /> : null}
+      {onPdf ? <AppButton title="Open ticket PDF" onPress={onPdf} /> : null}
       <Text style={sharedStyles.body}>
         {ticket.status === "valid" && eventBlocked
           ? "The admission QR is unavailable for this event."

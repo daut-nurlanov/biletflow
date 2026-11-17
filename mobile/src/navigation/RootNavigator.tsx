@@ -4,6 +4,7 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { Alert, Pressable, Text } from "react-native";
 
 import { useSession } from "../auth/SessionContext";
+import { CheckoutScreen } from "../screens/CheckoutScreen";
 import { EventDashboardScreen } from "../screens/EventDashboardScreen";
 import { EventDetailsScreen } from "../screens/EventDetailsScreen";
 import { EventsScreen } from "../screens/EventsScreen";
@@ -12,15 +13,19 @@ import { OrganizerEventsScreen } from "../screens/OrganizerEventsScreen";
 import { ScanScreen } from "../screens/ScanScreen";
 import { StaffEventsScreen } from "../screens/StaffEventsScreen";
 import { StaffToolsScreen } from "../screens/StaffToolsScreen";
+import { SupportListScreen } from "../screens/SupportListScreen";
+import { SupportNewScreen } from "../screens/SupportNewScreen";
+import { SupportThreadScreen } from "../screens/SupportThreadScreen";
 import { theme } from "../theme";
 import type {
-  EventsStackParamList, OrganizerStackParamList, RootTabParamList, ScannerStackParamList,
+  EventsStackParamList, OrganizerStackParamList, RootTabParamList, ScannerStackParamList, SupportStackParamList,
 } from "./types";
 
 const Tabs = createBottomTabNavigator<RootTabParamList>();
 const EventsStack = createNativeStackNavigator<EventsStackParamList>();
 const OrganizerStack = createNativeStackNavigator<OrganizerStackParamList>();
 const StaffStack = createNativeStackNavigator<ScannerStackParamList>();
+const SupportStack = createNativeStackNavigator<SupportStackParamList>();
 
 const navigationTheme = {
   ...DefaultTheme,
@@ -54,7 +59,21 @@ function EventsNavigator() {
     <EventsStack.Navigator screenOptions={{ headerTintColor: theme.colors.primary, headerRight: () => <SignOutButton /> }}>
       <EventsStack.Screen name="Events" component={EventsScreen} />
       <EventsStack.Screen name="EventDetails" component={EventDetailsScreen} options={{ title: "Event details" }} />
+      <EventsStack.Screen name="Checkout" component={CheckoutScreen} options={{ title: "Checkout" }} />
     </EventsStack.Navigator>
+  );
+}
+
+function SupportNavigator() {
+  return (
+    <SupportStack.Navigator screenOptions={{ headerTintColor: theme.colors.primary, headerRight: () => <SignOutButton /> }}>
+      <SupportStack.Screen name="SupportList" component={SupportListScreen} options={{ title: "Support" }} />
+      <SupportStack.Screen name="SupportNew" component={SupportNewScreen}
+        getId={({ params }) => params.ticketId ? `ticket:${params.ticketId}` : params.orderId ? `order:${params.orderId}` : params.eventId ? `event:${params.eventId}` : "general"}
+        options={{ title: "New request" }} />
+      <SupportStack.Screen name="SupportThread" component={SupportThreadScreen}
+        getId={({ params }) => params.caseId} options={{ title: "Conversation" }} />
+    </SupportStack.Navigator>
   );
 }
 
@@ -103,6 +122,7 @@ export function RootNavigator({ role }: { role: "attendee" | "organizer" }) {
             <Tabs.Screen name="StaffTab" component={StaffNavigator} options={{ title: "Scanner", headerShown: false }} />
           </>
         )}
+        <Tabs.Screen name="SupportTab" component={SupportNavigator} options={{ title: "Support", headerShown: false }} />
       </Tabs.Navigator>
     </NavigationContainer>
   );

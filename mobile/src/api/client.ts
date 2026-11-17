@@ -50,6 +50,7 @@ export interface RequestOptions {
   body?: unknown;
   /** Added as `Authorization: Bearer <token>`. */
   token?: string | null;
+  headers?: Record<string, string>;
   signal?: AbortSignal;
 }
 
@@ -69,6 +70,7 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   }, REQUEST_TIMEOUT_MS);
 
   const headers: Record<string, string> = { Accept: "application/json" };
+  Object.assign(headers, options.headers);
   if (body !== undefined) headers["Content-Type"] = "application/json";
   if (token) headers.Authorization = `Bearer ${token}`;
 

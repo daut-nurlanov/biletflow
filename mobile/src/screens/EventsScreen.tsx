@@ -5,6 +5,7 @@ import { FlatList } from "react-native";
 import { getEvents } from "../api/events";
 import { useSession } from "../auth/SessionContext";
 import { EmptyState } from "../components/EmptyState";
+import { CampaignEntry } from "../components/CampaignEntry";
 import { ErrorState } from "../components/ErrorState";
 import { EventCard } from "../components/EventCard";
 import { LoadingState } from "../components/LoadingState";
@@ -33,6 +34,7 @@ export function EventsScreen({ navigation }: Props) {
           contentContainerStyle={sharedStyles.listContent}
           refreshing={refreshing}
           onRefresh={refresh}
+          ListHeaderComponent={<CampaignEntry onOpen={(eventId, campaignToken) => navigation.navigate("Checkout", { eventId, campaignToken })} />}
           renderItem={({ item }) => (
             <EventCard
               event={item}

@@ -1,0 +1,179 @@
+import { randomUUID } from "expo-crypto";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+
+import { ApiError } from "../api/client";
+import { checkoutOrder, quoteOrder } from "../api/orders";
+import { campaignTokenFromInput, resolveCampaign } from "../api/promotions";
+import { acquirePurchaseLock, clearPurchaseAttempt, readPurchaseAttempt, savePurchaseAttempt, type PurchaseAttempt } from "../auth/PurchaseAttempt";
+import { useSession } from "../auth/SessionContext";
+import type { EventDetails } from "../types/event";
+import type { CheckoutResponse } from "../types/order";
+import { QUOTE_LIFETIME_MS, sameQuote, selectionError } from "../utils/checkout";
+import { useApiResource } from "./useApiResource";
+
+export function useCheckout(event: EventDetails, initialTypeId?: string, initialCampaignToken?: string) {
+  const { state, authed } = useSession();
+  const userId = state.status === "signedIn" ? state.user.id : "";
+  const [form, setForm] = useState({ typeId: initialTypeId ?? "", quantity: 1,
+    name: state.status === "signedIn" ? state.user.full_name ?? "" : "", promo: "" });
+  const [attempt, setAttempt] = useState<PurchaseAttempt | null>(null);
+  const [ready, setReady] = useState(false);
+  const [restoreVersion, setRestoreVersion] = useState(0);
+  const [restoreError, setRestoreError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [applying, setApplying] = useState(false);
+  const [promoNote, setPromoNote] = useState<string | null>(null);
+  const [initializingPromo, setInitializingPromo] = useState(!!initialCampaignToken);
+  const openedCampaign = useRef(false);
+  const [confirmation, setConfirmation] = useState<CheckoutResponse | null>(null);
+  const [expiredAt, setExpiredAt] = useState<number | null>(null);
+  const lock = useRef(false);
+  const promoRequest = useRef<AbortController | null>(null);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; promoRequest.current?.abort(); };
+  }, []);
+  useEffect(() => {
+    let active = true;
+    void readPurchaseAttempt(userId, event.id).then((saved) => {
+      if (active) {
+        setAttempt(saved);
+        if (saved) setForm({ typeId: saved.body.ticket_type_id, quantity: saved.body.quantity,
+          name: saved.body.attendee_name, promo: saved.body.promo_code ?? "" });
+        setRestoreError(null); setReady(true);
+      }
+    }).catch(() => {
+      if (active) setRestoreError("Couldn't check for an interrupted purchase. Retry before buying, or check My Tickets.");
+    });
+    return () => { active = false; };
+  }, [userId, event.id, restoreVersion]);
+
+  const input = useMemo(() => ({ event_id: event.id, ticket_type_id: form.typeId,
+    quantity: form.quantity, promo_code: form.promo || undefined }), [event.id, form.typeId, form.quantity, form.promo]);
+  const choice = JSON.stringify(input);
+  const invalid = selectionError(event, input);
+  const loadQuote = useCallback(async (signal: AbortSignal) => {
+    if (invalid || attempt) return null;
+    const value = await authed((token) => quoteOrder(token, input, signal));
+    return { choice, value, receivedAt: Date.now() };
+  }, [attempt, authed, choice, input, invalid]);
+  const quotes = useApiResource(loadQuote);
+  const reviewed = quotes.data?.choice === choice ? quotes.data : null;
+  const expired = !!reviewed && expiredAt === reviewed.receivedAt;
+  useEffect(() => {
+    if (!reviewed) return;
+    const timer = setTimeout(() => setExpiredAt(reviewed.receivedAt), Math.max(0, QUOTE_LIFETIME_MS - (Date.now() - reviewed.receivedAt)));
+    return () => clearTimeout(timer);
+  }, [reviewed]);
+
+  const change = useCallback((patch: Partial<typeof form>) => {
+    if (attempt || lock.current || confirmation) return;
+    setForm((previous) => ({ ...previous, ...patch }));
+    setError(null);
+  }, [attempt, confirmation]);
+
+  const applyPromo = useCallback(async (text: string) => {
+    if (attempt || lock.current || confirmation) return;
+    promoRequest.current?.abort();
+    const controller = new AbortController();
+    promoRequest.current = controller;
+    setApplying(true); setError(null);
+    try {
+      const token = campaignTokenFromInput(text);
+      let code = text.trim().toUpperCase();
+      if (token) {
+        const campaign = await resolveCampaign(token, controller.signal);
+        if (campaign.event_id !== event.id) throw new Error("This campaign belongs to a different event.");
+        code = campaign.promo_code;
+      }
+      if (!controller.signal.aborted && mounted.current) {
+        change({ promo: code });
+        setPromoNote(code ? `Applied code: ${code}. The server quote determines the discount.` : "Promo code removed.");
+      }
+    } catch (caught) {
+      if (!controller.signal.aborted && mounted.current) setError(caught instanceof Error ? caught.message : "Couldn't apply this promotion.");
+    } finally {
+      if (promoRequest.current === controller && mounted.current) setApplying(false);
+    }
+  }, [attempt, change, confirmation, event.id]);
+
+  useEffect(() => {
+    if (!ready || openedCampaign.current || !initialCampaignToken) return;
+    openedCampaign.current = true;
+    void applyPromo(initialCampaignToken).finally(() => { if (mounted.current) setInitializingPromo(false); });
+  }, [applyPromo, initialCampaignToken, ready]);
+
+  const nameValid = form.name.trim().length > 0 && Array.from(form.name.trim()).length <= 120;
+  const canBuy = ready && !restoreError && !busy && !applying && !initializingPromo && !confirmation &&
+    (!!attempt || (!invalid && !!reviewed && !expired && !quotes.loading && !quotes.refreshing && !quotes.error && nameValid));
+
+  async function purchase() {
+    if (lock.current || !canBuy) return;
+    const release = acquirePurchaseLock(userId, event.id);
+    if (!release) { setError("A purchase for this event is still processing. Check My Tickets and retry after it finishes."); return; }
+    lock.current = true; setBusy(true); setError(null);
+    let pending = attempt;
+    try {
+      const saved = await readPurchaseAttempt(userId, event.id);
+      if (!mounted.current) return;
+      if (!pending && saved) {
+        setAttempt(saved);
+        setForm({ typeId: saved.body.ticket_type_id, quantity: saved.body.quantity,
+          name: saved.body.attendee_name, promo: saved.body.promo_code ?? "" });
+        setError("An interrupted purchase was found. Review its saved details and retry it safely.");
+        return;
+      }
+      if (!pending) {
+        if (!reviewed || Date.now() - reviewed.receivedAt >= QUOTE_LIFETIME_MS) {
+          throw new Error("This quote expired. Refresh the quote before purchasing.");
+        }
+        // Quotes do not reserve inventory or price. Revalidate immediately before submitting.
+        const latest = await authed((token) => quoteOrder(token, input));
+        if (!mounted.current) return;
+        if (!sameQuote(reviewed.value, latest)) {
+          quotes.retry();
+          throw new Error("The price changed. Review the new quote and tap Buy again.");
+        }
+        pending = { key: randomUUID(), body: { ...input, attendee_name: form.name.trim(), simulate_payment: "success" } };
+        // Persist BEFORE sending a mutation, so navigation/relaunch cannot lose a retry key.
+        await savePurchaseAttempt(userId, pending);
+        if (!mounted.current) return;
+        setAttempt(pending);
+      }
+      const result = await authed((token) => checkoutOrder(token, pending!.body, pending!.key));
+      if (result.order?.id && ["refunded", "cancelled", "failed"].includes(result.order.status)) {
+        throw new ApiError(`The saved order is ${result.order.status}. No new purchase was made. Review My Tickets before starting another purchase.`, 409);
+      }
+      if (result.order?.status !== "paid" || !result.order.id || !result.tickets?.length || result.tickets.some((t) => !t.id)) {
+        throw new Error("The server did not confirm a paid order with tickets. Check My Tickets or retry this saved attempt safely.");
+      }
+      if (mounted.current) setConfirmation(result);
+      // If storage cleanup fails, a later retry still returns the same order, never a new purchase.
+      await clearPurchaseAttempt(userId, event.id).catch(() => undefined);
+      if (mounted.current) setAttempt(null);
+    } catch (caught) {
+      const definitive = caught instanceof ApiError && caught.status >= 400 && caught.status < 500 &&
+        caught.status !== 401 && !/busy|try again/i.test(caught.message);
+      if (pending && definitive) {
+        try {
+          await clearPurchaseAttempt(userId, event.id);
+          if (mounted.current) setAttempt(null);
+        } catch { /* Keep the retry key when storage cannot be updated. */ }
+      }
+      if (mounted.current) {
+        setError(caught instanceof Error ? caught.message : "Purchase could not be confirmed. Retry safely or check My Tickets.");
+        if (definitive) quotes.retry();
+      }
+    } finally {
+      release();
+      lock.current = false;
+      if (mounted.current) setBusy(false);
+    }
+  }
+
+  return { form, change, applyPromo, promoNote, applying, invalid, reviewed, expired, quotes,
+    attempt, ready, restoreError, retryRestore: () => setRestoreVersion((n) => n + 1),
+    error, busy, confirmation, canBuy, purchase };
+}

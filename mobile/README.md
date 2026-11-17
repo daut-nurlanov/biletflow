@@ -1,5 +1,9 @@
 # BiletFlow mobile
 
+Native general-admission purchasing, promotions and support are now implemented.
+See [Mobile purchasing and support](../docs/MOBILE_PURCHASING_SUPPORT.md) for the
+current feature matrix, recovery behavior, tests and iPhone acceptance plan.
+
 Current mobile behavior, feature parity and iPhone acceptance checks are documented
 in [Mobile synchronization](../docs/MOBILE_SYNCHRONIZATION.md) (November 16, 2026).
 The historical milestone notes below include demo-ID scaffolding and scanner gaps

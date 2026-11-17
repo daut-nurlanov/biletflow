@@ -1,8 +1,11 @@
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
+import type { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
+import type { CompositeScreenProps } from "@react-navigation/native";
 import { useCallback } from "react";
 import { FlatList, StyleSheet, Text, View } from "react-native";
 
 import { getEvent } from "../api/events";
+import { AppButton } from "../components/AppButton";
 import { useSession } from "../auth/SessionContext";
 import { EmptyState } from "../components/EmptyState";
 import { EventImage } from "../components/EventImage";
@@ -11,14 +14,14 @@ import { LoadingState } from "../components/LoadingState";
 import { Screen } from "../components/Screen";
 import { StatusBadge } from "../components/StatusBadge";
 import { useApiResource } from "../hooks/useApiResource";
-import type { EventsStackParamList } from "../navigation/types";
+import type { EventsStackParamList, RootTabParamList } from "../navigation/types";
 import { sharedStyles, theme } from "../theme";
 import { formatDateTime, formatPrice } from "../utils/formatting";
 import { describeSalesWindow } from "../utils/ticketSales";
 
-type Props = NativeStackScreenProps<EventsStackParamList, "EventDetails">;
+type Props = CompositeScreenProps<NativeStackScreenProps<EventsStackParamList, "EventDetails">, BottomTabScreenProps<RootTabParamList>>;
 
-export function EventDetailsScreen({ route }: Props) {
+export function EventDetailsScreen({ route, navigation }: Props) {
   const { eventId } = route.params;
   const { authed } = useSession();
   const loadEvent = useCallback(
@@ -56,7 +59,9 @@ export function EventDetailsScreen({ route }: Props) {
             {event.refund_policy ? <Text style={sharedStyles.body}>Refund policy: {event.refund_policy}</Text> : null}
             {event.registration_opens_at ? <Text style={sharedStyles.muted}>Registration opens: {formatDateTime(event.registration_opens_at)}</Text> : null}
             {event.registration_closes_at ? <Text style={sharedStyles.muted}>Registration closes: {formatDateTime(event.registration_closes_at)}</Text> : null}
-            <Text style={sharedStyles.muted}>Buy tickets on the BiletFlow website using the same account. Your tickets will appear in My Tickets.</Text>
+            <Text style={sharedStyles.muted}>Buy tickets here or on the website using the same account. Your tickets appear in My Tickets.</Text>
+            {event.has_assigned_seating ? <Text style={sharedStyles.body}>This mobile checkout supports general admission. Assigned-seat checkout is not available in this app.</Text> : null}
+            <AppButton title="Get help with this event" onPress={() => navigation.navigate("SupportTab", { screen: "SupportNew", params: { eventId } })} />
             <Text style={sharedStyles.muted}>Capacity: {event.capacity.toLocaleString()} people</Text>
             <Text style={sharedStyles.muted}>
               {event.has_assigned_seating ? "Assigned seating" : "General admission seating"}
@@ -80,6 +85,11 @@ export function EventDetailsScreen({ route }: Props) {
               ? <Text style={sharedStyles.muted}>Paid sales unavailable.</Text> : null}
             {item.sales_start_time || item.sales_end_time
               ? <Text style={sharedStyles.muted}>{describeSalesWindow(item.sales_start_time, item.sales_end_time)}</Text> : null}
+            <AppButton title={item.quantity_available <= 0 ? "Sold out" : "Choose tickets"}
+              disabled={event.has_assigned_seating || item.quantity_available <= 0 ||
+                (event.status !== "upcoming" && event.status !== "active") ||
+                (Number(item.price) > 0 && (!event.is_paid_sales_active || event.paid_sales_suspended))}
+              onPress={() => navigation.navigate("Checkout", { eventId, ticketTypeId: item.id })} />
           </View>
         )}
         ListEmptyComponent={

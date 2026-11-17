@@ -11,3 +11,7 @@ export function getMyTickets(token: string, signal?: AbortSignal): Promise<Ticke
 export function getTicketQrImageUrl(ticketId: string): string {
   return `${environment.apiBaseUrl}/api/tickets/${encodeURIComponent(ticketId)}/qr.png`;
 }
+
+export function getTicketPdfUrl(ticketId: string): string {
+  return `${environment.apiBaseUrl}/api/tickets/${encodeURIComponent(ticketId)}/pdf`;
+}
