@@ -1,8 +1,9 @@
-# Organizer management: modules 1–3
+# Organizer management: modules 1–4
 
 Implemented in `feature/organizer-management`. This module covers the organizer
-home, event overview, attendee lists, order management, analytics and event staff.
-Modules 1–2 are merged into main; module 3 is implemented in `feature/staff-management`.
+home, event overview, attendee lists, order management, analytics, event staff and
+read-only event history. Modules 1–3 are merged into main; History is implemented
+in `feature/event-history`, synchronized with main `d6b9ee3`.
 
 ## Run locally
 
@@ -104,6 +105,33 @@ revocation, restoration, suspension and event-level authorization. The live brow
 scenario additionally creates a real staff account through the UI, assigns a second
 event and proves revoking/restoring the first event preserves the second assignment.
 
+## History (module 4)
+
+Open `/organizer/events/:eventId/history` using the event's History tab.
+The page shows newest activity first, including Almaty time down to seconds,
+actor, action, affected entity and a description. Optional identifiers are tucked
+under Record identifiers. Links open existing organizer orders, Staff, event
+summary and shared support cases where appropriate. No editing/deletion controls
+are provided. System/legacy rows and unknown future action types remain readable.
+
+Date and activity filters persist in the URL. Invalid ranges avoid unnecessary
+requests. The page loads 50 entries at a time; Load older activity preserves
+already loaded records and offers retry without losing them if the next page
+fails. Changing filters or refreshing starts from the newest page. The API's
+existing array response/default limit remain compatible with older clients,
+while stable timestamp/ID cursors make records beyond the first 500 reachable.
+Newer records appear on refresh; the list does not poll automatically.
+
+History uses actual activity dates; this differs from Analytics purchase-date
+selection. Plain end dates include the full day in Almaty. Completed/cancelled
+events retain their records; event ownership is checked on every API page.
+The module also adds the missing audit entry for ticket-quantity changes without
+logging rejected or identical changes. No schema migration is needed.
+
+Implementation is based on SRS 4.16 and Aldiyar's event-history task. The latest
+mobile changes from PRs #12–14 are included through main; no Git conflicts occurred.
+The user authorized commit, push and PR merge on November 18.
+
 ## Validation
 
 ```sh
@@ -117,7 +145,7 @@ intercept API requests with deterministic fixtures. They do not touch PostgreSQL
 or a user's Chrome profile. With the Vite server running on port 3000:
 
 ```sh
-node --test tests/organizer.browser.test.mjs tests/staff.browser.test.mjs
+node --test tests/organizer.browser.test.mjs tests/staff.browser.test.mjs tests/history.browser.test.mjs
 ```
 
 Requires Node 22+ and Chrome/Chromium. Set `CHROME_BIN` if Chrome is installed in
@@ -154,7 +182,7 @@ Run the backend regressions against a disposable database initialized from
 
 ```sh
 cd backend-python
-python -m pytest tests/test_analytics.py tests/test_organizer.py
+python -m pytest tests/test_analytics.py tests/test_organizer.py tests/test_history.py
 ```
 
 Manual integration walkthrough:
@@ -171,7 +199,6 @@ Manual integration walkthrough:
 
 ## Remaining modules
 
-- Read-only event history with action/date filters.
 - Organizer support filters, status changes and escalation; reuse the shared
   `/support` list, conversation and reply pages already integrated from main.
 - Backend walkthrough with Daut (a team activity, not completed by this code).
@@ -189,10 +216,25 @@ one event assignment while verifying the other assignment stayed available.
 The focused Staff/check-in backend subset contains 24 passing cases.
 No demo data or production records were modified; the temporary test DB was removed.
 
+## History verification (November 17)
+
+Module 4 passed the final full suite of 223 backend cases on isolated PostgreSQL
+16, web production build and lint, and 46 fixture-browser checks across History,
+Staff, organizer pages and attendee checkout. History regressions cover Almaty
+date boundaries, equal-timestamp pagination, more than 500 records, authorization,
+read-only endpoints and successful/failed ticket-quantity updates.
+
+The live browser/API scenario passed with actual purchases, staff changes and
+support status changes visible in History, a working activity filter and retained
+records after cancellation. Documentation checks confirm all 88 API endpoints
+match the code. No seeded/demo or production data was modified. Temporary test
+servers and the disposable database were stopped after validation.
+
 ## Synchronization workflow
 
-Modules 1–2 and the integration fixes are merged into `main`. Staff development
-starts from that baseline in `feature/staff-management` and is ready for review.
-Before the next module, save local changes as a commit, run `git fetch origin`
-and merge `origin/main` into this branch. Resolve any merge conflicts locally,
-then run relevant checks before pushing. A push itself does not resolve conflicts.
+Modules 1–3 and the integration fixes are merged into `main`. History development
+is in `feature/event-history`. On November 18, main `d6b9ee3` was integrated
+by fast-forward, including mobile PRs #13–14. No conflicts occurred. Before publishing,
+save the reviewed changes as a commit, fetch main again and integrate any new
+changes locally. Resolve conflicts and rerun relevant checks before pushing.
+A push itself does not resolve conflicts.

@@ -160,7 +160,32 @@ test('live Docker: attendee purchase, analytics, support and staff access',
       await browser.wait('Access to this event restored')
       const afterRestore = await request('/api/staff/events', { token: uiStaff.token })
       assert.deepEqual(new Set(afterRestore.map((item) => item.id)), new Set([event.id, anotherEvent.id]))
-      console.log('Live purchase, QR, admission, analytics, support and Staff UI create/revoke/restore verified on the isolated database.')
+      await request(`/api/support/cases/${support.id}`, { token: org, method: 'PUT', body: { status: 'in_progress' } })
+      const firstHistory = await request(`/api/events/${event.id}/timeline?limit=2`, { token: org })
+      assert.equal(firstHistory.length, 2)
+      const lastHistory = firstHistory.at(-1)
+      const historyQuery = new URLSearchParams({ limit: '2', before: `${lastHistory.timestamp}|${lastHistory.id}` })
+      const nextHistory = await request(`/api/events/${event.id}/timeline?${historyQuery}`, { token: org })
+      assert.equal(new Set([...firstHistory, ...nextHistory].map((record) => record.id)).size, 4)
+      await browser.navigate(`/organizer/events/${event.id}/history`)
+      await browser.wait('activity records loaded')
+      assert.ok(await browser.has('Staff access revoked'))
+      assert.ok(await browser.has('Order confirmed'))
+      assert.ok(await browser.has('Support status changed'))
+      await browser.evaluate(`(() => {
+        const input = document.querySelector('select[name="action"]');
+        Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(input, 'staff_revoked');
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+      })()`)
+      await browser.click('Apply filters')
+      await eventually(() => browser.evaluate(`document.querySelectorAll('.org-history-entry').length === 1 && document.querySelector('.org-history h3').textContent === 'Staff access revoked'`), 'filtered staff history')
+      await request(`/api/events/${event.id}/cancel`, { token: org, method: 'POST' })
+      await browser.navigate(`/organizer/events/${event.id}/history`)
+      await browser.wait('Event cancelled')
+      assert.ok(await browser.has('Staff access revoked'))
+      assert.ok(await browser.has('Order confirmed'))
+      assert.equal(await browser.evaluate(`document.querySelectorAll('.org-history button, .org-history input, .org-history textarea').length`), 0)
+      console.log('Live purchase, staff access and read-only cancelled-event history verified on the isolated database.')
     } finally {
       browser.socket?.close()
       child.kill()

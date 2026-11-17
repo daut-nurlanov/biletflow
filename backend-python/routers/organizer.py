@@ -1,7 +1,8 @@
 import uuid
+from datetime import datetime
 from decimal import Decimal
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 from db import audit, get_setting, notify, tx
@@ -294,17 +295,33 @@ def analytics(event_id: str, date_from: str | None = None, date_to: str | None =
 
 @router.get("/api/events/{event_id}/timeline")
 def timeline(event_id: str, date_from: str | None = None, date_to: str | None = None, action: str | None = None,
+             before: str | None = None, limit: int = Query(default=500, ge=1, le=500),
              user=Depends(require_roles("organizer", "platform_admin"))):
     with tx() as cur:
         assert_manager(cur, user, event_id)
         range_start, range_end = day_range(date_from, date_to)
+        if range_start and range_end and range_start >= range_end:
+            raise HTTPException(status_code=400, detail="date_from must not be after date_to")
+        before_time, before_id = None, None
+        if before is not None:
+            try:
+                timestamp, record_id = before.rsplit("|", 1)
+                before_time = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+                if before_time.tzinfo is None:
+                    raise ValueError("Cursor timestamp needs a timezone")
+                before_id = str(uuid.UUID(record_id))
+            except (ValueError, OverflowError):
+                raise HTTPException(status_code=400, detail="Invalid history cursor; use the last record's timestamp and id")
         cur.execute(
-            """SELECT a.created_at AS timestamp, u.full_name AS actor, a.action, a.entity_type, a.entity_id, a.details
+            """SELECT a.id, a.created_at AS timestamp, u.full_name AS actor, a.actor_id,
+                      a.action, a.entity_type, a.entity_id, a.details
                FROM audit_log a LEFT JOIN users u ON a.actor_id = u.id
                WHERE a.event_id = %(e)s
                  AND (%(f)s::timestamptz IS NULL OR a.created_at >= %(f)s::timestamptz)
                  AND (%(t)s::timestamptz IS NULL OR a.created_at < %(t)s::timestamptz)
                  AND (%(a)s IS NULL OR a.action = %(a)s)
-               ORDER BY a.created_at DESC, a.id LIMIT 500""",
-            {"e": event_id, "f": range_start, "t": range_end, "a": action})
+                 AND (%(b)s::timestamptz IS NULL OR (a.created_at, a.id) < (%(b)s::timestamptz, %(i)s::uuid))
+               ORDER BY a.created_at DESC, a.id DESC LIMIT %(limit)s""",
+            {"e": event_id, "f": range_start, "t": range_end, "a": action,
+             "b": before_time, "i": before_id, "limit": limit})
         return cur.fetchall()

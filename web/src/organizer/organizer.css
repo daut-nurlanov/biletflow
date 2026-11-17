@@ -359,3 +359,41 @@
 .org-staff-form .btn {
   justify-self: start;
 }
+.org-history {
+  list-style: none;
+  padding: 0;
+  margin: 24px 0;
+}
+.org-history-entry {
+  border-left: 4px solid #2563eb;
+}
+.org-history-entry .org-heading {
+  margin: 0 0 12px;
+}
+.org-history-entry h3 {
+  margin: 0;
+}
+.org-history-entry time {
+  color: #526174;
+  font-size: 0.85rem;
+}
+.org-history-details {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.org-history-record summary {
+  color: #526174;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+.org-history-record dl {
+  display: grid;
+  gap: 12px;
+}
+.org-history-record dt {
+  font-size: 0.8rem;
+  color: #526174;
+}
+.org-history-record dd {
+  margin: 4px 0 0;
+}

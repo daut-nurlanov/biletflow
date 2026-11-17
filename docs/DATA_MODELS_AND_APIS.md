@@ -467,7 +467,36 @@ responses or activity records. No invitation email is sent by the demo.
 | `GET /api/events/{id}/attendees` | Organizer | Attendee list. Filters: `?q=` (name/email), `?status=`, `?ticket_type_id=`. |
 | `GET /api/events/{id}/orders` | Organizer | Orders. Filter `?status=`. |
 | `GET /api/events/{id}/analytics` | Organizer | Capacity (total, sold, remaining), ticket counts (sold, reserved, available, refunded, checked in), money (gross, discounts, refunds, net, simulated processing fee as charged on each paid order, estimated payout, payout status), per ticket type, sales over time, campaign performance, attendance. Filters: `date_from`, `date_to`, `ticket_type_id`. |
-| `GET /api/events/{id}/timeline` | Organizer | History of important actions: who, what, when. Newest first. Filters: `date_from`, `date_to`, `action`. Read only; nothing in the API can edit or delete it. |
+| `GET /api/events/{id}/timeline` | Organizer | Read-only event activity, newest first. Filters: `date_from`, `date_to`, `action`; pagination: `limit` (1–500, default 500), `before` cursor. Rows add `id` and `actor_id` to the existing timestamp/actor/action/entity/description fields. No editing or deletion endpoint. |
+
+### Organizer history contract
+
+`GET /api/events/{id}/timeline` is available to the owning organizer and Platform
+Admins; a scanner assignment alone does not grant history access. Completed and
+cancelled events retain the same authorization and their audit entries.
+
+- The response remains an array for existing clients. Each entry contains `id`,
+  `timestamp`, `actor`, `actor_id`, `action`, `entity_type`, `entity_id`, `details`.
+  Actor name/ID and entity/description fields can be null in legacy/system rows.
+- Date filters use activity timestamps, not purchase dates. Plain end dates
+  include the entire day in `Asia/Almaty`. Invalid or reversed dates return 400.
+- `action` is an exact code; unknown codes are allowed and can return an empty
+  array. New action types do not require a database migration.
+- Ordering is `timestamp DESC, id DESC`. Pass `limit` from 1 to 500 and use the
+  last record's unmodified `timestamp + "|" + id` as the URL-encoded `before`
+  parameter for the next page. A cursor needs a timezone and valid UUID; malformed
+  cursors return 400. Limits outside the allowed range return 422.
+- Each page reapplies event/date/action authorization and filters. Cursor
+  pagination handles equal timestamps and new entries without offset-based
+  duplicates or skipped older records. Refresh to see newer activity. Retained
+  history beyond the legacy 500-entry limit remains accessible through pages.
+- Required activity includes publication/cancellation, event capacity changes,
+  ticket price and quantity changes, refunds, campaign updates, support status,
+  staff assignment/revocation, check-ins and reversals. Ticket quantity changes
+  are now recorded only after a successful update; identical/rejected updates
+  do not create a quantity-change entry.
+- These are retained activity records, not full field-by-field versioning or a
+  rollback mechanism. Normal organizer interfaces cannot edit/delete them.
 
 ### Organizer analytics contract
 
