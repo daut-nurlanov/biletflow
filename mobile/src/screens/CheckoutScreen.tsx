@@ -25,15 +25,19 @@ export function CheckoutScreen({ route, navigation }: Props) {
   const { eventId } = route.params;
   const load = useCallback((signal: AbortSignal) => authed((token) => getEvent(eventId, signal, token)), [authed, eventId]);
   const resource = useApiResource(load);
-  if (resource.loading) return <Screen><LoadingState message="Loading ticket availability…" /></Screen>;
-  if (resource.error || !resource.data) return <Screen><ErrorState message={resource.error ?? "Event not found."} onRetry={resource.retry} /></Screen>;
+  // Keep the form mounted during focus/foreground refreshes. Replacing it with
+  // a loading/error screen discards its selection, receipt and recovery state.
+  if (resource.loading && !resource.data) return <Screen><LoadingState message="Loading ticket availability…" /></Screen>;
+  if (!resource.data) return <Screen><ErrorState message={resource.error ?? "Event not found."} onRetry={resource.retry} /></Screen>;
   return <CheckoutForm key={`${state.status === "signedIn" ? state.user.id : ""}:${eventId}`}
     event={resource.data} initialTypeId={route.params.ticketTypeId} initialCampaignToken={route.params.campaignToken}
+    availabilityError={resource.error} refreshingAvailability={resource.loading || resource.refreshing}
     onTickets={() => navigation.navigate("MyTickets")} onRefreshAvailability={resource.refresh} />;
 }
 
-function CheckoutForm({ event, initialTypeId, initialCampaignToken, onTickets, onRefreshAvailability }: {
+function CheckoutForm({ event, initialTypeId, initialCampaignToken, onTickets, onRefreshAvailability, availabilityError, refreshingAvailability }: {
   event: EventDetails; initialTypeId?: string; initialCampaignToken?: string; onTickets: () => void; onRefreshAvailability: () => void;
+  availabilityError?: string | null; refreshingAvailability?: boolean;
 }) {
   const checkout = useCheckout(event, initialTypeId, initialCampaignToken);
   const { form, change, attempt, busy, confirmation } = checkout;
@@ -54,6 +58,9 @@ function CheckoutForm({ event, initialTypeId, initialCampaignToken, onTickets, o
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <Text accessibilityRole="header" style={sharedStyles.title}>{event.title}</Text>
         <Text style={sharedStyles.muted}>Demo checkout. Payment is simulated; no card or real payment is collected.</Text>
+        {refreshingAvailability ? <LoadingState message="Refreshing availability…" /> : null}
+        {availabilityError ? <ErrorState message={availabilityError}
+          onRetry={() => { checkout.quotes.retry(); onRefreshAvailability(); }} /> : null}
         {!checkout.ready && !checkout.restoreError ? <LoadingState message="Checking interrupted purchases…" /> : null}
         {checkout.restoreError ? <ErrorState message={checkout.restoreError} onRetry={checkout.retryRestore} /> : null}
         {attempt ? <View style={sharedStyles.card}>

@@ -4,7 +4,7 @@ import { theme } from "../theme";
 import type { EventStatus } from "../types/event";
 import type { TicketStatus } from "../types/ticket";
 
-type Status = EventStatus | TicketStatus;
+type Status = EventStatus | TicketStatus | "past";
 type Tone = "neutral" | "positive" | "info" | "negative";
 
 const statuses: Record<Status, { label: string; tone: Tone }> = {
@@ -12,6 +12,7 @@ const statuses: Record<Status, { label: string; tone: Tone }> = {
   upcoming: { label: "Upcoming", tone: "info" },
   active: { label: "Active", tone: "positive" },
   completed: { label: "Completed", tone: "neutral" },
+  past: { label: "Past", tone: "neutral" },
   cancelled: { label: "Cancelled", tone: "negative" },
   suspended: { label: "Suspended", tone: "negative" },
   valid: { label: "Valid", tone: "positive" },

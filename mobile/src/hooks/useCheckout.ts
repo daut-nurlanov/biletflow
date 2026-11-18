@@ -1,4 +1,3 @@
-import { randomUUID } from "expo-crypto";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ApiError } from "../api/client";
@@ -189,7 +188,17 @@ export function useCheckout(event: EventDetails, initialTypeId?: string, initial
         if (!sameQuote(reviewed.value, latest)) {
           throw new Error("The price changed. Review the new quote and tap Buy again.");
         }
-        pending = { key: randomUUID(), body: { ...input, attendee_name: form.name.trim(), simulate_payment: "success" } };
+        // Checkout's native dependency must not prevent login, tickets or staff
+        // tools from starting when an older host app lacks the crypto module.
+        let key: string;
+        try {
+          const { randomUUID } = await import("expo-crypto");
+          key = randomUUID();
+        } catch {
+          throw new Error("Purchasing isn't available in this app build. Update the app or use a development build, then retry.");
+        }
+        if (!mounted.current || quoteVersion !== quoteRevision.current) return;
+        pending = { key, body: { ...input, attendee_name: form.name.trim(), simulate_payment: "success" } };
         // Persist BEFORE sending a mutation, so navigation/relaunch cannot lose a retry key.
         await savePurchaseAttempt(userId, pending);
         if (!mounted.current) return;

@@ -15,6 +15,9 @@ interface StaffEventCardProps {
 export function StaffEventCard({ event, timing, onPress }: StaffEventCardProps) {
   const closed = event.status === "cancelled" || event.status === "suspended";
   const dimmed = closed || timing === "past";
+  // Demo and live records can retain an open status after their scheduled end.
+  const displayStatus = timing === "past" && (event.status === "upcoming" || event.status === "active")
+    ? "past" : event.status;
 
   return (
     <Pressable
@@ -33,7 +36,7 @@ export function StaffEventCard({ event, timing, onPress }: StaffEventCardProps) 
         {timing === "today" && !closed && (
           <View style={styles.todayPill}><Text style={styles.todayText}>Today</Text></View>
         )}
-        <StatusBadge status={event.status} />
+        <StatusBadge status={displayStatus} />
       </View>
       <Text style={sharedStyles.title}>{event.title}</Text>
       <Text style={sharedStyles.body}>{event.venue_name}</Text>
