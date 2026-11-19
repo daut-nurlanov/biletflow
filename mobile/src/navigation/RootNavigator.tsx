@@ -109,6 +109,7 @@ export function RootNavigator({ role }: { role: "attendee" | "organizer" }) {
           tabBarItemStyle: { minHeight: 48 },
           headerTintColor: theme.colors.text,
           headerRight: () => <SignOutButton />,
+          headerRightContainerStyle: { paddingEnd: theme.spacing.md },
         }}
       >
         {role === "attendee" ? (

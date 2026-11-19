@@ -101,6 +101,16 @@ test('idempotency key and authorization are sent through the actual shared fetch
   assert.equal(sent.options.headers['Idempotency-Key'], 'stable-key');
 });
 
+test('an unavailable native crypto module cannot crash startup or submit an unsafe purchase', async () => {
+  const h = checkoutHarness({ cryptoUnavailable: true });
+  await h.settle(); assert.equal(h.view.canBuy, true);
+  await h.view.purchase(); await h.settle();
+  assert.match(h.view.error, /development build/);
+  assert.equal(h.store.size, 0);
+  assert.equal(h.calls.filter((c) => c.method === 'checkoutOrder').length, 0);
+  h.hooks.cleanup();
+});
+
 test('invalid promo quotes block purchase and definitive payment failure allows correction without confirming success', async () => {
   let failPayment = true;
   const h = checkoutHarness({ api: {

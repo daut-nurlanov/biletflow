@@ -43,6 +43,22 @@ test('event browsing, analytics and staff operations use current authenticated c
   assert.equal(calls[5].options.body.ticket_id, 'ticket-1');
 });
 
+test('past staff events do not claim to be upcoming and retain explicit event restrictions', () => {
+  const { StaffEventCard } = load('src/components/StaffEventCard.tsx', {
+    'react-native': native, '../theme': { theme, sharedStyles: {} },
+    '../utils/formatting': { formatDateTime: (date) => date },
+    './StatusBadge': { StatusBadge: 'StatusBadge' },
+  });
+  const event = { title: 'Past meetup', venue_name: 'Hall', start_time: '2026-10-14T14:00:00Z' };
+  for (const status of ['upcoming', 'active', 'cancelled', 'suspended', 'completed', 'draft']) {
+    const tree = StaffEventCard({ event: { ...event, status }, timing: 'past', onPress() {} });
+    const badge = nodes(tree).find((node) => node.type === 'StatusBadge');
+    assert.equal(badge.props.status, ['upcoming', 'active'].includes(status) ? 'past' : status);
+  }
+  const upcoming = StaffEventCard({ event: { ...event, status: 'upcoming' }, timing: 'upcoming', onPress() {} });
+  assert.equal(nodes(upcoming).find((node) => node.type === 'StatusBadge').props.status, 'upcoming');
+});
+
 test('SessionContext preserves sessions on revoked/event permissions but clears expired or suspended accounts', async () => {
   const hooks = runtime();
   const storage = new Map();

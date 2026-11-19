@@ -37,7 +37,11 @@ function checkoutHarness(options = {}) {
     './client': { apiRequest: async () => ({ event_id: event.id, promo_code: 'SAVE20' }) },
   });
   const { useCheckout } = load('src/hooks/useCheckout.ts', {
-    react: hooks.react, 'expo-crypto': { randomUUID: () => 'attempt-' + Math.random() },
+    react: hooks.react,
+    get 'expo-crypto'() {
+      if (options.cryptoUnavailable) throw new Error("Cannot find native module 'ExpoCrypto'");
+      return options.crypto ?? { randomUUID: () => 'attempt-' + Math.random() };
+    },
     '../api/client': { ApiError }, '../api/orders': orders, '../api/promotions': promotions,
     '../auth/SessionContext': { useSession: () => session }, './useApiResource': resource,
     '../utils/checkout': helpers,
