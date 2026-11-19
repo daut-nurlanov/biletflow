@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { moment } from './format'
 import {
   Link,
@@ -51,8 +52,13 @@ export function OrganizerGuard() {
 export function EventLayout() {
   const { eventId } = useParams()
   const resource = useResource<ManagedEvent[]>('/api/organizer/events')
-  const event = resource.data?.find((item) => item.id === eventId)
-  if (!resource.data)
+  // Keep the last list on screen while it refreshes (after publish, cancel,
+  // and so on), so the tab content below is not unmounted and keeps its state.
+  const [kept, setKept] = useState<ManagedEvent[]>()
+  if (resource.data && resource.data !== kept) setKept(resource.data)
+  const events = resource.data ?? kept
+  const event = events?.find((item) => item.id === eventId)
+  if (!events)
     return <ResourceState {...resource} retry={resource.refresh} />
   if (!event)
     return (
@@ -81,6 +87,8 @@ export function EventLayout() {
         <NavLink to={base} end>
           Overview
         </NavLink>
+        <NavLink to={`${base}/setup`}>Set-up</NavLink>
+        <NavLink to={`${base}/promotions`}>Promotions</NavLink>
         <NavLink to={`${base}/attendees`}>Attendees</NavLink>
         <NavLink to={`${base}/orders`}>Orders</NavLink>
         <NavLink to={`${base}/analytics`}>Analytics</NavLink>
@@ -88,11 +96,11 @@ export function EventLayout() {
         <NavLink to={`${base}/history`}>History</NavLink>
         <NavLink to={`${base}/support`}>Support</NavLink>
       </nav>
-      <Outlet context={event} />
+      <Outlet context={{ ...event, refresh: resource.refresh }} />
     </>
   )
 }
 // eslint-disable-next-line react-refresh/only-export-components
 export function useManagedEvent() {
-  return useOutletContext<ManagedEvent>()
+  return useOutletContext<ManagedEvent & { refresh: () => void }>()
 }

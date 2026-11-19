@@ -397,3 +397,46 @@
 .org-history-record dd {
   margin: 4px 0 0;
 }
+
+/* set-up pages */
+.org-form {
+  display: grid;
+  gap: 16px;
+  max-width: 880px;
+}
+.org-form h3 {
+  margin: 0;
+}
+.org-form-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+}
+.org-field input,
+.org-field select,
+.org-field textarea {
+  font: inherit;
+  padding: 8px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  width: 100%;
+  box-sizing: border-box;
+}
+.org-check {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.org-checklist {
+  list-style: none;
+  padding: 0;
+  margin: 12px 0;
+}
+.org-qr {
+  margin: 8px 0 0;
+}
+.org-qr img {
+  width: 180px;
+  height: 180px;
+  display: block;
+}

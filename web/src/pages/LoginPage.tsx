@@ -26,7 +26,7 @@ export default function LoginPage() {
     setBusy(true)
     try {
       const user = await login(email, password)
-      navigate(from ?? (user.role === 'organizer' ? '/organizer' : '/'), {
+      navigate(from ?? (user.role === 'organizer' ? '/organizer' : user.role === 'platform_admin' ? '/admin' : '/'), {
         replace: true,
       })
     } catch (err) {

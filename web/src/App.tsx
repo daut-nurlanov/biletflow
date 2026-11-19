@@ -16,6 +16,16 @@ import AnalyticsPage from './organizer/AnalyticsPage'
 import StaffPage from './organizer/StaffPage'
 import HistoryPage from './organizer/HistoryPage'
 import EventSupportPage from './organizer/SupportPage'
+import { AdminGuard } from './admin/AdminLayout'
+import AdminOverview from './admin/Overview'
+import AdminUsers from './admin/Users'
+import AdminEvents from './admin/Events'
+import AdminOrders from './admin/Orders'
+import { Moderation, Money } from './admin/Moderation'
+import { EditEventPage, NewEventPage } from './organizer/EventFormPage'
+import SetupPage from './organizer/SetupPage'
+import PromoPage from './organizer/PromoPage'
+import ProfilePage from './organizer/ProfilePage'
 
 export default function App() {
   const { user, logout } = useAuth()
@@ -32,6 +42,7 @@ export default function App() {
             <Link to="/support">Support</Link>
             {user ? (
               <>
+                {user.role === 'platform_admin' && <Link to="/admin">Admin portal</Link>}
                 {user.role === 'organizer' && (
                   <Link to="/organizer">Organizer dashboard</Link>
                 )}
@@ -59,10 +70,23 @@ export default function App() {
           <Route path="/support" element={<SupportPage />} />
           <Route path="/support/new" element={<SupportNewPage />} />
           <Route path="/support/:id" element={<SupportCasePage />} />
+          <Route path="/admin" element={<AdminGuard />}>
+            <Route index element={<AdminOverview />} />
+            <Route path="users" element={<AdminUsers />} />
+            <Route path="events" element={<AdminEvents />} />
+            <Route path="orders" element={<AdminOrders />} />
+            <Route path="moderation" element={<Moderation />} />
+            <Route path="money" element={<Money />} />
+          </Route>
           <Route path="/organizer" element={<OrganizerGuard />}>
             <Route index element={<OrganizerEventsPage />} />
+            <Route path="new" element={<NewEventPage />} />
+            <Route path="profile" element={<ProfilePage />} />
+            <Route path="events/:eventId/edit" element={<EditEventPage />} />
             <Route path="events/:eventId" element={<EventLayout />}>
               <Route index element={<EventOverviewPage />} />
+              <Route path="setup" element={<SetupPage />} />
+              <Route path="promotions" element={<PromoPage />} />
               <Route path="attendees" element={<AttendeesPage />} />
               <Route path="orders" element={<OrdersPage />} />
               <Route path="orders/:orderId" element={<OrderPage />} />

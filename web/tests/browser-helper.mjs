@@ -57,7 +57,7 @@ export class Browser {
   }
   async has(text) {
     return this.evaluate(
-      `document.body.innerText.includes(${JSON.stringify(text)})`,
+      `(document.body?.innerText ?? '').includes(${JSON.stringify(text)})`,
     )
   }
   async wait(text) {
@@ -65,7 +65,7 @@ export class Browser {
       await eventually(() => this.has(text), text)
     } catch (error) {
       throw new Error(
-        `${error.message}\n${await this.evaluate('document.body.innerText')}`,
+        `${error.message}\n${await this.evaluate("document.body?.innerText ?? ''")}`,
         { cause: error },
       )
     }
@@ -78,4 +78,4 @@ export class Browser {
     })()`)
   }
 }
-
+

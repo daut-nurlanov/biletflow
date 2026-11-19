@@ -20,9 +20,17 @@ export function OrganizerEventsPage() {
           <h1>My events</h1>
           <p className="muted">Sales, attendees and orders for your events.</p>
         </div>
-        <button className="btn secondary" onClick={resource.refresh}>
-          Refresh
-        </button>
+        <div className="org-actions">
+          <Link className="btn" to="/organizer/new">
+            New event
+          </Link>
+          <Link className="btn secondary" to="/organizer/profile">
+            Profile
+          </Link>
+          <button className="btn secondary" onClick={resource.refresh}>
+            Refresh
+          </button>
+        </div>
       </div>
       <label className="org-field org-filter">
         Event phase

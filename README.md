@@ -7,7 +7,7 @@ Self-service event ticketing platform for Kazakhstan. CSCI 361 course project.
 | Folder | What it is |
 |---|---|
 | `backend-python/` | The API (FastAPI + PostgreSQL). 88 endpoints, 231 automated test cases. |
-| `web/` | React + TypeScript website for attendees and organizers. |
+| `web/` | React + TypeScript website: attendees, organizers (watch, manage and set up events) and the platform admin portal at `/admin`. |
 | `mobile/` | The one mobile app (React Native, Expo). Attendees, organizers and door staff log in to the same app; the role decides which screens they see. |
 | `docs/` | Setup guide, API reference, database schema, demo data, tasks, the SRS. |
 
@@ -27,6 +27,8 @@ demo records. Do not reset volumes to fix missing columns. See
 `docs/FINAL_INTEGRATION_AUDIT.md` for the verified state and remaining demo work.
 
 ## Where to read next
+
+- `docs/DEMO_SCRIPT.md`: the demo walk-through, accounts and the checklist before the room
 
 - `docs/SETUP.md`: full setup guide, what works and what does not, demo IDs and promo codes
 - `docs/DATA_MODELS_AND_APIS.md`: every table and every endpoint
