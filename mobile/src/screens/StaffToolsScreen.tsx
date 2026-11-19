@@ -83,7 +83,7 @@ export function StaffToolsScreen({ route }: Props) {
   }
 
   function confirmUndo(ticket: SearchTicket) {
-    Alert.alert("Undo check-in?", `Reverse the check-in for ${ticket.attendee_name}? They will be able to enter again.`, [
+    Alert.alert("Undo check-in?", `Reverse check-in for ${ticket.attendee_name}'s ticket ending ${ticket.id.slice(-8)}? It can be used to enter again.`, [
       { text: "Cancel", style: "cancel" },
       { text: "Undo check-in", style: "destructive", onPress: () => { void act(ticket, true); } },
     ]);
@@ -117,16 +117,23 @@ export function StaffToolsScreen({ route }: Props) {
         }
         ListEmptyComponent={term && !results.loading && !results.error
           ? <Text style={sharedStyles.muted}>No matching tickets. Try another name or email.</Text> : undefined}
-        renderItem={({ item }) => (
-          <View style={sharedStyles.card}>
-            <Text style={sharedStyles.title}>{item.attendee_name}</Text>
-            <Text style={sharedStyles.body}>{item.ticket_type_name}</Text>
-            {item.section ? <Text style={sharedStyles.body}>Section {item.section}, row {item.row_label}, seat {item.seat_number}</Text> : null}
-            <StatusBadge status={item.status} />
-            {item.status === "valid" ? <AppButton title="Check in" onPress={() => { void act(item, false); }} disabled={!!busyId} loading={busyId === item.id} /> : null}
-            {item.status === "checked_in" ? <AppButton title="Undo check-in" onPress={() => confirmUndo(item)} disabled={!!busyId} loading={busyId === item.id} /> : null}
-          </View>
-        )}
+        renderItem={({ item }) => {
+          const reference = item.id.slice(-8);
+          const ticketLabel = `${item.attendee_name}, ${item.ticket_type_name}, ticket ending ${reference}`;
+          return (
+            <View style={sharedStyles.card}>
+              <Text style={sharedStyles.title}>{item.attendee_name}</Text>
+              <Text style={sharedStyles.body}>{item.ticket_type_name}</Text>
+              <Text style={sharedStyles.muted}>Ticket ending {reference}</Text>
+              {item.section ? <Text style={sharedStyles.body}>Section {item.section}, row {item.row_label}, seat {item.seat_number}</Text> : null}
+              <StatusBadge status={item.status} />
+              {item.status === "valid" ? <AppButton title="Check in" accessibilityLabel={`Check in ${ticketLabel}`}
+                onPress={() => { void act(item, false); }} disabled={!!busyId} loading={busyId === item.id} /> : null}
+              {item.status === "checked_in" ? <AppButton title="Undo check-in" accessibilityLabel={`Undo check-in for ${ticketLabel}`}
+                onPress={() => confirmUndo(item)} disabled={!!busyId} loading={busyId === item.id} /> : null}
+            </View>
+          );
+        }}
       />
     </Screen>
   );

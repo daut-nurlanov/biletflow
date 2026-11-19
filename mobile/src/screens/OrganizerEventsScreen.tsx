@@ -36,7 +36,7 @@ export function OrganizerEventsScreen({ navigation }: Props) {
           onRefresh={refresh}
           renderItem={({ item }) => (
             <EventCard
-              event={item}
+              event={{ ...item, status: item.phase ?? item.status }}
               actionLabel="View dashboard →"
               accessibilityHint="Opens ticket sales for this event"
               onPress={() => navigation.navigate("EventDashboard", { eventId: item.id })}

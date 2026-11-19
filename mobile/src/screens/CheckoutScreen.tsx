@@ -2,7 +2,7 @@ import type { CompositeScreenProps } from "@react-navigation/native";
 import type { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useCallback } from "react";
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 
 import { getEvent } from "../api/events";
 import { useSession } from "../auth/SessionContext";
@@ -32,7 +32,7 @@ export function CheckoutScreen({ route, navigation }: Props) {
   return <CheckoutForm key={`${state.status === "signedIn" ? state.user.id : ""}:${eventId}`}
     event={resource.data} initialTypeId={route.params.ticketTypeId} initialCampaignToken={route.params.campaignToken}
     availabilityError={resource.error} refreshingAvailability={resource.loading || resource.refreshing}
-    onTickets={() => navigation.navigate("MyTickets")} onRefreshAvailability={resource.refresh} />;
+    onTickets={() => navigation.navigate("MyTickets", { screen: "TicketList", pop: true })} onRefreshAvailability={resource.refresh} />;
 }
 
 function CheckoutForm({ event, initialTypeId, initialCampaignToken, onTickets, onRefreshAvailability, availabilityError, refreshingAvailability }: {
@@ -55,7 +55,7 @@ function CheckoutForm({ event, initialTypeId, initialCampaignToken, onTickets, o
   const locked = busy || !!attempt || !checkout.ready;
   return (
     <Screen><KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
         <Text accessibilityRole="header" style={sharedStyles.title}>{event.title}</Text>
         <Text style={sharedStyles.muted}>Demo checkout. Payment is simulated; no card or real payment is collected.</Text>
         {refreshingAvailability ? <LoadingState message="Refreshing availability…" /> : null}
@@ -93,9 +93,9 @@ function CheckoutForm({ event, initialTypeId, initialCampaignToken, onTickets, o
           autoCapitalize="none" autoCorrect={false} onChangeText={checkout.changePromo} />
         <Text style={sharedStyles.muted}>Changes automatically recalculate your quote. Clear the field or remove the promotion to pay the regular price.</Text>
         <AppButton title={checkout.applying ? "Applying promotion…" : "Apply promotion"} loading={checkout.applying} disabled={locked}
-          onPress={() => { void checkout.applyPromo(checkout.promoInput); }} />
+          onPress={() => { Keyboard.dismiss(); void checkout.applyPromo(checkout.promoInput); }} />
         {checkout.promoInput || form.promo || checkout.promoError || checkout.applying ? <AppButton title="Remove promotion" disabled={locked}
-          onPress={() => { void checkout.applyPromo(""); }} /> : null}
+          onPress={() => { Keyboard.dismiss(); void checkout.applyPromo(""); }} /> : null}
         {checkout.promoPending ? <Text style={sharedStyles.muted}>Waiting for your promotion edit…</Text> : null}
         {checkout.promoError ? <Text accessibilityRole="alert" style={styles.error}>{checkout.promoError}</Text> : null}
         {checkout.promoNote ? <Text style={sharedStyles.body}>{checkout.promoNote}</Text> : null}

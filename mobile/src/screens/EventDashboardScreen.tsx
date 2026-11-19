@@ -4,6 +4,7 @@ import { FlatList, StyleSheet, Text, View } from "react-native";
 
 import { getEvent, getEventAnalytics } from "../api/events";
 import { useSession } from "../auth/SessionContext";
+import { AppButton } from "../components/AppButton";
 import { EmptyState } from "../components/EmptyState";
 import { ErrorState } from "../components/ErrorState";
 import { LoadingState } from "../components/LoadingState";
@@ -16,6 +17,7 @@ import type { OrganizerStackParamList } from "../navigation/types";
 import { sharedStyles, theme } from "../theme";
 import type { TicketType } from "../types/ticket";
 import { formatDateTime, formatMoney, formatPrice } from "../utils/formatting";
+import { eventDisplayStatus } from "../utils/eventTiming";
 import {
   describeSalesWindow,
   formatPercentSold,
@@ -24,7 +26,7 @@ import {
 
 type Props = NativeStackScreenProps<OrganizerStackParamList, "EventDashboard">;
 
-export function EventDashboardScreen({ route }: Props) {
+export function EventDashboardScreen({ route, navigation }: Props) {
   const { eventId } = route.params;
   const { authed } = useSession();
   const loadEvent = useCallback(
@@ -64,7 +66,7 @@ export function EventDashboardScreen({ route }: Props) {
         ListHeaderComponent={
           <View style={styles.header}>
             <Text accessibilityRole="header" style={styles.heading}>{event.title}</Text>
-            <StatusBadge status={event.status} />
+            <StatusBadge status={eventDisplayStatus(event)} />
             <Text style={sharedStyles.body}>{event.venue_name}</Text>
             <Text style={sharedStyles.muted}>{formatDateTime(event.start_time)}</Text>
 
@@ -98,7 +100,9 @@ export function EventDashboardScreen({ route }: Props) {
             <Text style={sharedStyles.muted}>
               {`Paid sales: ${event.paid_sales_suspended ? "Suspended by platform" : event.is_paid_sales_active ? "Activated" : "Not activated yet"}`}
             </Text>
-            <Text style={sharedStyles.muted}>Manage event setup, staff and detailed analytics on the BiletFlow website.</Text>
+            <AppButton title="Event activity" onPress={() => navigation.navigate("EventActivity", { eventId, eventTitle: event.title })} />
+            <AppButton title="Door staff" onPress={() => navigation.navigate("EventStaff", { eventId, eventTitle: event.title })} />
+            <Text style={sharedStyles.muted}>Event setup and detailed analytics are available on the BiletFlow website.</Text>
             <Text accessibilityRole="header" style={[sharedStyles.title, styles.sectionTitle]}>
               Sales by ticket type
             </Text>

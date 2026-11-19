@@ -1,4 +1,4 @@
-import type { Event, EventAnalytics, EventDetails } from "../types/event";
+import type { Event, EventActivity, EventAnalytics, EventDetails, OrganizerEvent } from "../types/event";
 import { apiRequest } from "./client";
 
 export function getEvents(signal?: AbortSignal, token?: string): Promise<Event[]> {
@@ -14,6 +14,12 @@ export function getEvent(eventId: string, signal?: AbortSignal, token?: string):
 }
 
 /** The authenticated organizer's own events, including private drafts. */
-export function getOrganizerEvents(token: string, signal?: AbortSignal): Promise<Event[]> {
-  return apiRequest<Event[]>("/api/organizer/events", { token, signal });
+export function getOrganizerEvents(token: string, signal?: AbortSignal): Promise<OrganizerEvent[]> {
+  return apiRequest<OrganizerEvent[]>("/api/organizer/events", { token, signal });
+}
+
+export const EVENT_ACTIVITY_LIMIT = 50;
+
+export function getEventActivity(token: string, eventId: string, signal?: AbortSignal): Promise<EventActivity[]> {
+  return apiRequest(`/api/events/${encodeURIComponent(eventId)}/timeline?limit=${EVENT_ACTIVITY_LIMIT}`, { token, signal });
 }

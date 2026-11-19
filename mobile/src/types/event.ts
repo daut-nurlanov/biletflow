@@ -21,6 +21,26 @@ export interface Event {
   created_at: string;
 }
 
+export interface OrganizerEvent extends Event {
+  phase: EventStatus;
+}
+
+export interface EventActivity {
+  id: string;
+  timestamp: string;
+  actor: string | null;
+  action: string;
+  details: string | null;
+}
+
+export interface EventStaffAssignment {
+  id: string;
+  email: string;
+  full_name: string;
+  is_suspended: boolean;
+  status: "active" | "invited" | "revoked";
+}
+
 /** An event from GET /api/staff/events (full events row). */
 export interface StaffEvent extends Event {
   end_time: string | null;

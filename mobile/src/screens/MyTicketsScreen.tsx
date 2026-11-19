@@ -1,19 +1,24 @@
 import { useCallback } from "react";
-import { Alert, FlatList, Linking, Text } from "react-native";
+import { Alert, FlatList, Linking, Text, View } from "react-native";
 import type { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
+import type { CompositeScreenProps } from "@react-navigation/native";
+import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 
 import { getMyTickets, getTicketPdfUrl, getTicketQrImageUrl } from "../api/tickets";
 import { useSession } from "../auth/SessionContext";
+import { AppButton } from "../components/AppButton";
 import { EmptyState } from "../components/EmptyState";
 import { ErrorState } from "../components/ErrorState";
 import { LoadingState } from "../components/LoadingState";
 import { Screen } from "../components/Screen";
 import { TicketCard } from "../components/TicketCard";
 import { useApiResource } from "../hooks/useApiResource";
-import { sharedStyles } from "../theme";
-import type { RootTabParamList } from "../navigation/types";
+import { sharedStyles, theme } from "../theme";
+import type { RootTabParamList, TicketsStackParamList } from "../navigation/types";
 
-export function MyTicketsScreen({ navigation }: BottomTabScreenProps<RootTabParamList, "MyTickets">) {
+type Props = CompositeScreenProps<NativeStackScreenProps<TicketsStackParamList, "TicketList">, BottomTabScreenProps<RootTabParamList, "MyTickets">>;
+
+export function MyTicketsScreen({ navigation }: Props) {
   const { authed, state } = useSession();
   const loadTickets = useCallback(
     (signal: AbortSignal) => authed((token) => getMyTickets(token, signal)),
@@ -32,7 +37,10 @@ export function MyTicketsScreen({ navigation }: BottomTabScreenProps<RootTabPara
           contentContainerStyle={sharedStyles.listContent}
           refreshing={refreshing}
           onRefresh={refresh}
-          ListHeaderComponent={<Text style={sharedStyles.muted}>Signed in as {state.status === "signedIn" ? state.user.email : ""}. Tickets bought here or on the website appear for this account. Pull down to refresh admission status.</Text>}
+          ListHeaderComponent={<View style={{ gap: theme.spacing.sm }}>
+            <Text style={sharedStyles.muted}>Signed in as {state.status === "signedIn" ? state.user.email : ""}. Pull down to refresh admission status.</Text>
+            <AppButton title="Purchase history" onPress={() => navigation.navigate("OrderHistory")} />
+          </View>}
           renderItem={({ item }) => (
             <TicketCard ticket={item} qrImageSource={{ uri: getTicketQrImageUrl(item.id) }}
               onSupport={() => navigation.navigate("SupportTab", { screen: "SupportNew", params: { ticketId: item.id } })}

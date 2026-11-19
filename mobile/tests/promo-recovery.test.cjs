@@ -23,7 +23,7 @@ function checkoutForm(h) {
   const ui = runtime();
   const { CheckoutScreen } = load('src/screens/CheckoutScreen.tsx', {
     react: { ...ui.react, useCallback: (fn) => fn },
-    'react-native': { ...native, ScrollView: 'ScrollView', KeyboardAvoidingView: 'KeyboardAvoidingView' },
+    'react-native': { ...native, ScrollView: 'ScrollView', KeyboardAvoidingView: 'KeyboardAvoidingView', Keyboard: { dismiss() {} } },
     '../api/events': {}, '../auth/SessionContext': { useSession: () => ({ state: { status: 'signedIn', user: { id: 'buyer-1' } } }) },
     '../components/AppButton': { AppButton: 'AppButton' }, '../components/ErrorState': { ErrorState: 'ErrorState' },
     '../components/LoadingState': { LoadingState: 'LoadingState' }, '../components/Screen': { Screen: 'Screen' },

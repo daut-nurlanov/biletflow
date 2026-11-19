@@ -16,6 +16,13 @@ export type SupportStackParamList = {
 export type OrganizerStackParamList = {
   OrganizerEvents: undefined;
   EventDashboard: { eventId: string };
+  EventActivity: { eventId: string; eventTitle: string };
+  EventStaff: { eventId: string; eventTitle: string };
+};
+
+export type TicketsStackParamList = {
+  TicketList: undefined;
+  OrderHistory: undefined;
 };
 
 export type ScannerStackParamList = {
@@ -28,7 +35,7 @@ export type ScannerStackParamList = {
 
 export type RootTabParamList = {
   EventsTab: NavigatorScreenParams<EventsStackParamList> | undefined;
-  MyTickets: undefined;
+  MyTickets: NavigatorScreenParams<TicketsStackParamList> | undefined;
   OrganizerTab: NavigatorScreenParams<OrganizerStackParamList> | undefined;
   StaffTab: NavigatorScreenParams<ScannerStackParamList> | undefined;
   SupportTab: NavigatorScreenParams<SupportStackParamList> | undefined;

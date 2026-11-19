@@ -192,7 +192,10 @@ export function useCheckout(event: EventDetails, initialTypeId?: string, initial
         // tools from starting when an older host app lacks the crypto module.
         let key: string;
         try {
-          const { randomUUID } = await import("expo-crypto");
+          // Keep the module in the dev bundle. A split import can hang while
+          // loading a Metro chunk and leave checkout locked before it submits.
+          // eslint-disable-next-line @typescript-eslint/no-require-imports
+          const { randomUUID } = require("expo-crypto") as typeof import("expo-crypto");
           key = randomUUID();
         } catch {
           throw new Error("Purchasing isn't available in this app build. Update the app or use a development build, then retry.");

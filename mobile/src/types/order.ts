@@ -38,3 +38,10 @@ export interface CheckoutResponse {
   tickets: Ticket[];
   repeated?: boolean;
 }
+
+export interface OrderHistoryEntry extends Order {
+  event_title: string;
+  start_time: string;
+  ticket_count: number;
+  promo_code_applied: string | null;
+}
