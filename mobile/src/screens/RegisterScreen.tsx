@@ -72,7 +72,7 @@ export function RegisterScreen({ navigation }: Props) {
         style={styles.flex}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
           <View style={styles.header}>
             <Text style={styles.brand}>BiletFlow</Text>
             <Text accessibilityRole="header" style={styles.heading}>Create an account</Text>

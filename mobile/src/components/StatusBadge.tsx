@@ -2,9 +2,10 @@ import { StyleSheet, Text, View } from "react-native";
 
 import { theme } from "../theme";
 import type { EventStatus } from "../types/event";
+import type { Order } from "../types/order";
 import type { TicketStatus } from "../types/ticket";
 
-type Status = EventStatus | TicketStatus | "past";
+type Status = EventStatus | TicketStatus | Order["status"] | "past";
 type Tone = "neutral" | "positive" | "info" | "negative";
 
 const statuses: Record<Status, { label: string; tone: Tone }> = {
@@ -18,6 +19,9 @@ const statuses: Record<Status, { label: string; tone: Tone }> = {
   valid: { label: "Valid", tone: "positive" },
   checked_in: { label: "Checked in", tone: "info" },
   refunded: { label: "Refunded", tone: "neutral" },
+  paid: { label: "Confirmed", tone: "positive" },
+  pending: { label: "Pending", tone: "info" },
+  failed: { label: "Failed", tone: "negative" },
 };
 
 const tones = {

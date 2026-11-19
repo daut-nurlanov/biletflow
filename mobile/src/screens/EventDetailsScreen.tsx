@@ -17,6 +17,7 @@ import { useApiResource } from "../hooks/useApiResource";
 import type { EventsStackParamList, RootTabParamList } from "../navigation/types";
 import { sharedStyles, theme } from "../theme";
 import { formatDateTime, formatPrice } from "../utils/formatting";
+import { eventDisplayStatus } from "../utils/eventTiming";
 import { describeSalesWindow } from "../utils/ticketSales";
 
 type Props = CompositeScreenProps<NativeStackScreenProps<EventsStackParamList, "EventDetails">, BottomTabScreenProps<RootTabParamList>>;
@@ -38,6 +39,8 @@ export function EventDetailsScreen({ route, navigation }: Props) {
     );
   }
 
+  const status = eventDisplayStatus(event);
+
   return (
     <Screen>
       <FlatList
@@ -49,7 +52,7 @@ export function EventDetailsScreen({ route, navigation }: Props) {
         ListHeaderComponent={
           <View style={styles.header}>
             <Text accessibilityRole="header" style={styles.heading}>{event.title}</Text>
-            <StatusBadge status={event.status} />
+            <StatusBadge status={status} />
             <Text style={sharedStyles.body}>{event.venue_name}</Text>
             {event.venue_address ? <Text style={sharedStyles.body}>{event.venue_address}</Text> : null}
             <Text style={sharedStyles.body}>{formatDateTime(event.start_time)}</Text>
@@ -86,8 +89,9 @@ export function EventDetailsScreen({ route, navigation }: Props) {
             {item.sales_start_time || item.sales_end_time
               ? <Text style={sharedStyles.muted}>{describeSalesWindow(item.sales_start_time, item.sales_end_time)}</Text> : null}
             <AppButton title={item.quantity_available <= 0 ? "Sold out" : "Choose tickets"}
+              accessibilityLabel={item.quantity_available <= 0 ? `${item.name}: Sold out` : `Choose ${item.name} tickets`}
               disabled={event.has_assigned_seating || item.quantity_available <= 0 ||
-                (event.status !== "upcoming" && event.status !== "active") ||
+                (status !== "upcoming" && status !== "active") ||
                 (Number(item.price) > 0 && (!event.is_paid_sales_active || event.paid_sales_suspended))}
               onPress={() => navigation.navigate("Checkout", { eventId, ticketTypeId: item.id })} />
           </View>

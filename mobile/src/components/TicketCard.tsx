@@ -36,6 +36,7 @@ export function TicketCard({ ticket, qrImageSource, onSupport, onPdf }: TicketCa
       {ticket.ticket_type_name ? <Text style={sharedStyles.body}>{ticket.ticket_type_name}</Text> : null}
       {ticket.section ? <Text style={sharedStyles.body}>Section {ticket.section}, row {ticket.row_label}, seat {ticket.seat_number}</Text> : null}
       <Text style={sharedStyles.body}>Attendee: {ticket.attendee_name}</Text>
+      <Text style={sharedStyles.muted}>Ticket ending {ticket.id.slice(-8)}</Text>
       <StatusBadge status={ticket.status} />
       {eventBlocked ? (
         <Text style={sharedStyles.body}>

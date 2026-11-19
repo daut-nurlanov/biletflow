@@ -1,4 +1,4 @@
-import type { CheckoutInput, CheckoutResponse, Order, OrderQuote, QuoteInput } from "../types/order";
+import type { CheckoutInput, CheckoutResponse, OrderHistoryEntry, OrderQuote, QuoteInput } from "../types/order";
 import { apiRequest } from "./client";
 
 export function quoteOrder(token: string, body: QuoteInput, signal?: AbortSignal): Promise<OrderQuote> {
@@ -11,6 +11,6 @@ export function checkoutOrder(token: string, body: CheckoutInput, key: string, s
   });
 }
 
-export function getMyOrders(token: string, signal?: AbortSignal): Promise<Order[]> {
+export function getMyOrders(token: string, signal?: AbortSignal): Promise<OrderHistoryEntry[]> {
   return apiRequest("/api/orders/my-orders", { token, signal });
 }

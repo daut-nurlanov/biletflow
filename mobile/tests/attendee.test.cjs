@@ -71,7 +71,7 @@ test('admission QR visibility covers all ticket and event status combinations', 
   }
   for (const status of ['valid', 'checked_in', 'cancelled', 'refunded']) {
     for (const event_status of ['draft', 'upcoming', 'active', 'completed', 'cancelled', 'suspended']) {
-      const tree = TicketCard({ ticket: { status, event_status, event_title: 'Event', attendee_name: 'Attendee' },
+      const tree = TicketCard({ ticket: { id: 'ticket-id', status, event_status, event_title: 'Event', attendee_name: 'Attendee' },
         qrImageSource: { uri: 'https://test.invalid/qr.png' } });
       assert.equal(nodes(tree).filter((node) => node.type === qr).length,
         status === 'valid' && !['cancelled', 'suspended'].includes(event_status) ? 1 : 0,

@@ -13,8 +13,13 @@ test('background availability refresh preserves the mounted checkout and its con
     '../hooks/useApiResource': { useApiResource: () => resource }, '../hooks/useCheckout': {},
     '../theme': { sharedStyles: {} }, '../theme/forms': { formStyles: {} }, '../utils/formatting': {},
   });
-  const props = { route: { params: { eventId: eventFixture.id } }, navigation: { navigate() {} } };
+  let destination;
+  const props = { route: { params: { eventId: eventFixture.id } }, navigation: { navigate: (...args) => { destination = args; } } };
   const original = CheckoutScreen(props);
+  original.props.onTickets();
+  assert.equal(destination[0], 'MyTickets');
+  assert.equal(destination[1].screen, 'TicketList');
+  assert.equal(destination[1].pop, true, 'return to the existing ticket list instead of pushing another one');
   // React retains the child's selection, receipt and in-flight recovery state
   // only when its component type and key survive the parent's refresh renders.
   for (const error of [null, 'Availability refresh failed']) {

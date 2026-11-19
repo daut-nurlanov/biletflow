@@ -4,17 +4,18 @@ import { theme } from "../theme";
 
 interface AppButtonProps {
   title: string;
+  accessibilityLabel?: string;
   onPress: () => void;
   disabled?: boolean;
   loading?: boolean;
 }
 
-export function AppButton({ title, onPress, disabled = false, loading = false }: AppButtonProps) {
+export function AppButton({ title, accessibilityLabel = title, onPress, disabled = false, loading = false }: AppButtonProps) {
   const unavailable = disabled || loading;
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={title}
+      accessibilityLabel={accessibilityLabel}
       accessibilityState={{ disabled: unavailable, busy: loading }}
       disabled={unavailable}
       onPress={onPress}

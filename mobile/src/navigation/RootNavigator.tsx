@@ -6,9 +6,12 @@ import { Alert, Pressable, Text } from "react-native";
 import { useSession } from "../auth/SessionContext";
 import { CheckoutScreen } from "../screens/CheckoutScreen";
 import { EventDashboardScreen } from "../screens/EventDashboardScreen";
+import { EventActivityScreen } from "../screens/EventActivityScreen";
 import { EventDetailsScreen } from "../screens/EventDetailsScreen";
+import { EventStaffScreen } from "../screens/EventStaffScreen";
 import { EventsScreen } from "../screens/EventsScreen";
 import { MyTicketsScreen } from "../screens/MyTicketsScreen";
+import { OrderHistoryScreen } from "../screens/OrderHistoryScreen";
 import { OrganizerEventsScreen } from "../screens/OrganizerEventsScreen";
 import { ScanScreen } from "../screens/ScanScreen";
 import { StaffEventsScreen } from "../screens/StaffEventsScreen";
@@ -18,7 +21,7 @@ import { SupportNewScreen } from "../screens/SupportNewScreen";
 import { SupportThreadScreen } from "../screens/SupportThreadScreen";
 import { theme } from "../theme";
 import type {
-  EventsStackParamList, OrganizerStackParamList, RootTabParamList, ScannerStackParamList, SupportStackParamList,
+  EventsStackParamList, OrganizerStackParamList, RootTabParamList, ScannerStackParamList, SupportStackParamList, TicketsStackParamList,
 } from "./types";
 
 const Tabs = createBottomTabNavigator<RootTabParamList>();
@@ -26,6 +29,7 @@ const EventsStack = createNativeStackNavigator<EventsStackParamList>();
 const OrganizerStack = createNativeStackNavigator<OrganizerStackParamList>();
 const StaffStack = createNativeStackNavigator<ScannerStackParamList>();
 const SupportStack = createNativeStackNavigator<SupportStackParamList>();
+const TicketsStack = createNativeStackNavigator<TicketsStackParamList>();
 
 const navigationTheme = {
   ...DefaultTheme,
@@ -77,11 +81,22 @@ function SupportNavigator() {
   );
 }
 
+function TicketsNavigator() {
+  return (
+    <TicketsStack.Navigator screenOptions={{ headerTintColor: theme.colors.primary, headerRight: () => <SignOutButton /> }}>
+      <TicketsStack.Screen name="TicketList" component={MyTicketsScreen} options={{ title: "My Tickets" }} />
+      <TicketsStack.Screen name="OrderHistory" component={OrderHistoryScreen} options={{ title: "Purchase history" }} />
+    </TicketsStack.Navigator>
+  );
+}
+
 function OrganizerNavigator() {
   return (
     <OrganizerStack.Navigator screenOptions={{ headerTintColor: theme.colors.primary, headerRight: () => <SignOutButton /> }}>
       <OrganizerStack.Screen name="OrganizerEvents" component={OrganizerEventsScreen} options={{ title: "My events" }} />
       <OrganizerStack.Screen name="EventDashboard" component={EventDashboardScreen} options={{ title: "Event dashboard" }} />
+      <OrganizerStack.Screen name="EventActivity" component={EventActivityScreen} options={{ title: "Event activity" }} />
+      <OrganizerStack.Screen name="EventStaff" component={EventStaffScreen} options={{ title: "Door staff" }} />
     </OrganizerStack.Navigator>
   );
 }
@@ -115,7 +130,7 @@ export function RootNavigator({ role }: { role: "attendee" | "organizer" }) {
         {role === "attendee" ? (
           <>
             <Tabs.Screen name="EventsTab" component={EventsNavigator} options={{ title: "Events", headerShown: false }} />
-            <Tabs.Screen name="MyTickets" component={MyTicketsScreen} options={{ title: "My Tickets" }} />
+            <Tabs.Screen name="MyTickets" component={TicketsNavigator} options={{ title: "My Tickets", headerShown: false }} />
           </>
         ) : (
           <>
