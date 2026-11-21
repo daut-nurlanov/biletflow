@@ -74,6 +74,9 @@ export default function LoginPage() {
       <p className="muted">
         No account? <Link to="/register" state={{ from }}>Register</Link>
       </p>
+      <p className="muted">
+        <Link to="/forgot-password">Forgot password?</Link>
+      </p>
     </>
   )
 }

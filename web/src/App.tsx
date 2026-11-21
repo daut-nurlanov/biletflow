@@ -4,6 +4,9 @@ import EventsPage from './pages/EventsPage'
 import EventDetailPage from './pages/EventDetailPage'
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
+import VerifyEmailPage from './pages/VerifyEmailPage'
+import ForgotPasswordPage from './pages/ForgotPasswordPage'
+import ResetPasswordPage from './pages/ResetPasswordPage'
 import MyTicketsPage from './pages/MyTicketsPage'
 import SupportNewPage from './pages/SupportNewPage'
 import SupportPage from './pages/SupportPage'
@@ -61,11 +64,19 @@ export default function App() {
         </div>
       </header>
       <main className="container">
+        {user?.is_email_verified === false && (
+          <p className="verification-notice" role="status">
+            Your email is not verified. <Link to="/verify-email">Verify email</Link>
+          </p>
+        )}
         <Routes>
           <Route path="/" element={<EventsPage />} />
           <Route path="/events/:id" element={<EventDetailPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
+          <Route path="/verify-email" element={<VerifyEmailPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route path="/my-tickets" element={<MyTicketsPage />} />
           <Route path="/support" element={<SupportPage />} />
           <Route path="/support/new" element={<SupportNewPage />} />
