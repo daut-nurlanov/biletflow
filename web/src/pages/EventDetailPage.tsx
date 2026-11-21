@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { api, getToken } from '../api'
 import { useAuth } from '../auth'
@@ -28,6 +28,11 @@ export default function EventDetailPage() {
   const [quoteAttempt, setQuoteAttempt] = useState(0)
   const [buying, setBuying] = useState(false)
   const [buyError, setBuyError] = useState('')
+  const [reportOpen, setReportOpen] = useState(false)
+  const [reportReason, setReportReason] = useState('')
+  const [reporting, setReporting] = useState(false)
+  const [reportError, setReportError] = useState('')
+  const [reportSuccess, setReportSuccess] = useState('')
   const keyRef = useRef(crypto.randomUUID())
   const purchaseChoice = useRef('')
   const inFlight = useRef(false)
@@ -136,6 +141,33 @@ export default function EventDetailPage() {
     }
   }
 
+  async function reportEvent(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    if (reporting || !event) return
+    const reason = reportReason.trim()
+    if (!reason) {
+      setReportError('Please tell us what is wrong with this event.')
+      return
+    }
+    setReporting(true)
+    setReportError('')
+    try {
+      await api(`/api/events/${encodeURIComponent(event.id)}/report`, {
+        method: 'POST',
+        body: { reason },
+      })
+      setReportReason('')
+      setReportOpen(false)
+      setReportSuccess('Thank you. Your report was sent to the BiletFlow team.')
+    } catch (e) {
+      setReportError(
+        e instanceof Error ? e.message : 'Could not send the event report',
+      )
+    } finally {
+      setReporting(false)
+    }
+  }
+
   if (error) return <p className="error">{error}</p>
   if (!event || event.id !== id) return <p>Loading…</p>
 
@@ -153,6 +185,65 @@ export default function EventDetailPage() {
       {event.image_url && <img src={event.image_url} alt="" className="cover" />}
       {event.description && <p>{event.description}</p>}
       {event.refund_policy && <p className="muted">Refund policy: {event.refund_policy}</p>}
+      <div className="event-report">
+        {!reportOpen && !reportSuccess && (
+          <button
+            type="button"
+            className="btn secondary"
+            aria-expanded={false}
+            aria-controls="event-report-form"
+            onClick={() => {
+              setReportOpen(true)
+              setReportError('')
+            }}
+          >
+            Report this event
+          </button>
+        )}
+        {reportSuccess && (
+          <p className="success" role="status">
+            {reportSuccess}
+          </p>
+        )}
+        {reportOpen && (
+          <form
+            id="event-report-form"
+            className="form event-report-form"
+            onSubmit={reportEvent}
+          >
+            <label htmlFor="event-report-reason">Why are you reporting this event?</label>
+            <textarea
+              id="event-report-reason"
+              rows={4}
+              required
+              disabled={reporting}
+              value={reportReason}
+              onChange={(e) => setReportReason(e.target.value)}
+            />
+            {reportError && (
+              <div className="error" role="alert">
+                {reportError}
+              </div>
+            )}
+            <div className="row">
+              <button className="btn" type="submit" disabled={reporting}>
+                {reporting ? 'Sending…' : 'Send report'}
+              </button>
+              <button
+                className="btn secondary"
+                type="button"
+                disabled={reporting}
+                onClick={() => {
+                  setReportOpen(false)
+                  setReportError('')
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
+        )}
+      </div>
 
       <h2>Tickets</h2>
       <div className="grid">
