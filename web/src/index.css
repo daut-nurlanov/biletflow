@@ -98,3 +98,29 @@ a { color: #2563eb; text-decoration: none; }
   background: #fff;
 }
 .auth-secondary-action { margin-top: 16px; }
+
+.ticket-status {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #f3f4f6;
+  color: #4b5563;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+.ticket-status-valid {
+  background: #dcfce7;
+  color: #166534;
+}
+.ticket-status-checked_in {
+  background: #e5e7eb;
+  color: #4b5563;
+}
+.ticket-status-cancelled,
+.ticket-status-refunded {
+  background: #fee2e2;
+  color: #991b1b;
+}
