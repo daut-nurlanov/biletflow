@@ -10,5 +10,23 @@ export const formatDate = (iso: string) =>
 
 export const formatPrice = (value: string | number) => {
   const n = Number(value)
-  return n === 0 ? 'Free' : `${n.toLocaleString('en-US')} KZT`
+  if (n === 0) return 'Free'
+  const whole = Number.isInteger(n)
+  return `${n.toLocaleString('en-US', {
+    minimumFractionDigits: whole ? 0 : 2,
+    maximumFractionDigits: whole ? 0 : 2,
+  })} KZT`
+}
+
+const ticketStatusLabels: Record<string, string> = {
+  valid: 'Valid',
+  checked_in: 'Checked in',
+  cancelled: 'Cancelled',
+  refunded: 'Refunded',
+}
+
+export const formatStatus = (value: string) => {
+  const readable = value.replaceAll('_', ' ')
+  return ticketStatusLabels[value] ??
+    (readable ? readable[0].toUpperCase() + readable.slice(1) : '')
 }

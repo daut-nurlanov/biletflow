@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { api, BASE, getToken } from '../api'
-import { formatDate } from '../format'
+import { formatDate, formatStatus } from '../format'
 import type { MyTicket } from '../types'
 
 export default function MyTicketsPage() {
@@ -44,7 +44,14 @@ export default function MyTicketsPage() {
               {start && <div className="muted">{formatDate(start)}</div>}
               {t.ticket_type_name && <div className="muted">{t.ticket_type_name}</div>}
               {seat && <div className="muted">{seat}</div>}
-              <div className="muted">{t.attendee_name} · {t.status}</div>
+              <div className="row">
+                <span className="muted">{t.attendee_name}</span>
+                {t.status && (
+                  <span className={`ticket-status ticket-status-${t.status}`}>
+                    {formatStatus(t.status)}
+                  </span>
+                )}
+              </div>
               {t.status === 'valid' && t.event_status !== 'cancelled' && t.event_status !== 'suspended' ? (
                 <img className="qr" src={`${BASE}/api/tickets/${t.id}/qr.png`} alt={`Admission QR for ${title}`} />
               ) : <p className="muted">Admission QR unavailable: {t.event_status === 'cancelled' || t.event_status === 'suspended' ? `event ${t.event_status}` : t.status}.</p>}
