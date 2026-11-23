@@ -1,5 +1,6 @@
 import { Link, Route, Routes } from 'react-router-dom'
 import { useAuth } from './auth'
+import { LANGS, useI18n } from './i18n'
 import EventsPage from './pages/EventsPage'
 import EventDetailPage from './pages/EventDetailPage'
 import LoginPage from './pages/LoginPage'
@@ -24,6 +25,9 @@ import AdminOverview from './admin/Overview'
 import AdminUsers from './admin/Users'
 import AdminEvents from './admin/Events'
 import AdminOrders from './admin/Orders'
+import PaymentFailures from './admin/PaymentFailures'
+import NotificationsPage from './pages/NotificationsPage'
+import MyOrdersPage from './pages/MyOrdersPage'
 import { Moderation, Money } from './admin/Moderation'
 import { EditEventPage, NewEventPage } from './organizer/EventFormPage'
 import SetupPage from './organizer/SetupPage'
@@ -32,6 +36,7 @@ import ProfilePage from './organizer/ProfilePage'
 
 export default function App() {
   const { user, logout } = useAuth()
+  const { lang, setLang, t } = useI18n()
 
   return (
     <>
@@ -41,32 +46,45 @@ export default function App() {
             BiletFlow
           </Link>
           <nav className="nav">
-            <Link to="/my-tickets">My tickets</Link>
-            <Link to="/support">Support</Link>
+            <Link to="/my-tickets">{t('My tickets')}</Link>
+            <Link to="/my-orders">{t('My orders')}</Link>
+            <Link to="/support">{t('Support')}</Link>
             {user ? (
               <>
-                {user.role === 'platform_admin' && <Link to="/admin">Admin portal</Link>}
+                <Link to="/notifications">{t('Notifications')}</Link>
+                {user.role === 'platform_admin' && <Link to="/admin">{t('Admin portal')}</Link>}
                 {user.role === 'organizer' && (
-                  <Link to="/organizer">Organizer dashboard</Link>
+                  <Link to="/organizer">{t('Organizer dashboard')}</Link>
                 )}
                 <span className="muted">{user.full_name}</span>
                 <button className="btn secondary" onClick={logout}>
-                  Sign out
+                  {t('Sign out')}
                 </button>
               </>
             ) : (
               <>
-                <Link to="/login">Sign in</Link>
-                <Link to="/register">Register</Link>
+                <Link to="/login">{t('Sign in')}</Link>
+                <Link to="/register">{t('Register')}</Link>
               </>
             )}
+            <select
+              aria-label={t('Language')}
+              value={lang}
+              onChange={(e) => setLang(e.target.value as typeof lang)}
+            >
+              {LANGS.map((l) => (
+                <option key={l.code} value={l.code}>
+                  {l.label}
+                </option>
+              ))}
+            </select>
           </nav>
         </div>
       </header>
       <main className="container">
         {user?.is_email_verified === false && (
           <p className="verification-notice" role="status">
-            Your email is not verified. <Link to="/verify-email">Verify email</Link>
+            {t('Your email is not verified.')} <Link to="/verify-email">{t('Verify email')}</Link>
           </p>
         )}
         <Routes>
@@ -78,6 +96,8 @@ export default function App() {
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route path="/my-tickets" element={<MyTicketsPage />} />
+          <Route path="/my-orders" element={<MyOrdersPage />} />
+          <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="/support" element={<SupportPage />} />
           <Route path="/support/new" element={<SupportNewPage />} />
           <Route path="/support/:id" element={<SupportCasePage />} />
@@ -86,6 +106,7 @@ export default function App() {
             <Route path="users" element={<AdminUsers />} />
             <Route path="events" element={<AdminEvents />} />
             <Route path="orders" element={<AdminOrders />} />
+            <Route path="payment-failures" element={<PaymentFailures />} />
             <Route path="moderation" element={<Moderation />} />
             <Route path="money" element={<Money />} />
           </Route>

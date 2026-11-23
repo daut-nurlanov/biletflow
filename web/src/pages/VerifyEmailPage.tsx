@@ -2,13 +2,15 @@ import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../api'
 import { useAuth } from '../auth'
+import { useI18n } from '../i18n'
 
 interface MessageResponse {
   message: string
 }
 
 export default function VerifyEmailPage() {
-  const { user } = useAuth()
+  const { user, refreshUser } = useAuth()
+  const { t } = useI18n()
   const [code, setCode] = useState('')
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
@@ -21,7 +23,7 @@ export default function VerifyEmailPage() {
     if (verifying || resending) return
     const token = code.trim()
     if (!token) {
-      setError('Please enter your verification code.')
+      setError(t('Please enter your verification code.'))
       return
     }
     setVerifying(true)
@@ -34,8 +36,9 @@ export default function VerifyEmailPage() {
       })
       setSuccess(data.message)
       setCode('')
+      await refreshUser().catch(() => undefined)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not verify your email')
+      setError(e instanceof Error ? e.message : t('Could not verify your email'))
     } finally {
       setVerifying(false)
     }
@@ -54,7 +57,7 @@ export default function VerifyEmailPage() {
       setResendMessage(data.message)
     } catch (e) {
       setError(
-        e instanceof Error ? e.message : 'Could not send a new verification code',
+        e instanceof Error ? e.message : t('Could not send a new verification code'),
       )
     } finally {
       setResending(false)
@@ -63,17 +66,17 @@ export default function VerifyEmailPage() {
 
   return (
     <>
-      <h1>Verify your email</h1>
+      <h1>{t('Verify your email')}</h1>
       <p className="muted">
-        In this demo, verification codes arrive as notifications instead of email.
+        {t('In this demo, verification codes arrive as notifications instead of email.')}
       </p>
       {success ? (
         <p className="success" role="status">
-          {success}. <Link to="/" reloadDocument>Back to events</Link>
+          {success}. <Link to="/" reloadDocument>{t('Back to events')}</Link>
         </p>
       ) : (
         <form className="form" onSubmit={verify}>
-          <label htmlFor="verification-code">Verification code</label>
+          <label htmlFor="verification-code">{t('Verification code')}</label>
           <input
             id="verification-code"
             required
@@ -87,7 +90,7 @@ export default function VerifyEmailPage() {
             </div>
           )}
           <button className="btn" type="submit" disabled={verifying || resending}>
-            {verifying ? 'Verifying…' : 'Verify email'}
+            {verifying ? t('Verifying…') : t('Verify email')}
           </button>
         </form>
       )}
@@ -99,7 +102,7 @@ export default function VerifyEmailPage() {
             disabled={verifying || resending}
             onClick={resend}
           >
-            {resending ? 'Sending…' : 'Send a new code'}
+            {resending ? t('Sending…') : t('Send a new code')}
           </button>
           {resendMessage && (
             <p className="success" role="status">

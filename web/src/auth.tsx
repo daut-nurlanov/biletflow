@@ -15,6 +15,7 @@ interface AuthValue {
   login: (email: string, password: string) => Promise<User>
   register: (fullName: string, email: string, password: string) => Promise<User>
   logout: () => void
+  refreshUser: () => Promise<void>
 }
 
 type AuthResponse = { token: string; user?: User } & Partial<User>
@@ -92,9 +93,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setLoading(false)
   }
 
+  // used after verifying the email so the banner and badges update at once
+  async function refreshUser() {
+    setUser(await api<User>('/api/auth/me'))
+  }
+
   return (
     <AuthContext.Provider
-      value={{ user, loading, error, login, register, logout }}
+      value={{ user, loading, error, login, register, logout, refreshUser }}
     >
       {children}
     </AuthContext.Provider>

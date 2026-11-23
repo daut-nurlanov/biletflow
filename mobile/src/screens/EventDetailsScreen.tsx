@@ -1,10 +1,10 @@
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
 import type { CompositeScreenProps } from "@react-navigation/native";
-import { useCallback } from "react";
-import { FlatList, StyleSheet, Text, View } from "react-native";
+import { useCallback, useRef, useState } from "react";
+import { FlatList, StyleSheet, Text, TextInput, View } from "react-native";
 
-import { getEvent } from "../api/events";
+import { getEvent, reportEvent } from "../api/events";
 import { AppButton } from "../components/AppButton";
 import { useSession } from "../auth/SessionContext";
 import { EmptyState } from "../components/EmptyState";
@@ -64,6 +64,7 @@ export function EventDetailsScreen({ route, navigation }: Props) {
             {event.registration_closes_at ? <Text style={sharedStyles.muted}>Registration closes: {formatDateTime(event.registration_closes_at)}</Text> : null}
             <Text style={sharedStyles.muted}>Buy tickets here or on the website using the same account. Your tickets appear in My Tickets.</Text>
             {event.has_assigned_seating ? <Text style={sharedStyles.body}>This mobile checkout supports general admission. Assigned-seat checkout is not available in this app.</Text> : null}
+            <ReportEvent eventId={eventId} />
             <AppButton title="Get help with this event" onPress={() => navigation.navigate("SupportTab", { screen: "SupportNew", params: { eventId } })} />
             <Text style={sharedStyles.muted}>Capacity: {event.capacity.toLocaleString()} people</Text>
             <Text style={sharedStyles.muted}>
@@ -101,6 +102,49 @@ export function EventDetailsScreen({ route, navigation }: Props) {
         }
       />
     </Screen>
+  );
+}
+
+/** Lets a signed-in person tell the platform team that an event looks wrong. */
+function ReportEvent({ eventId }: { eventId: string }) {
+  const { authed } = useSession();
+  const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const locked = useRef(false);
+
+  async function send() {
+    if (locked.current) return;
+    if (!reason.trim()) { setError("Tell us what is wrong with this event."); return; }
+    locked.current = true; setBusy(true); setError(null);
+    try {
+      await authed((token) => reportEvent(token, eventId, reason));
+      setReason(""); setOpen(false);
+      setMessage("Thank you. Your report was sent to the BiletFlow team.");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not send the report.");
+    } finally { locked.current = false; setBusy(false); }
+  }
+
+  return (
+    <View style={{ gap: theme.spacing.sm }}>
+      {message ? <Text accessibilityRole="alert" style={sharedStyles.muted}>{message}</Text> : null}
+      {open ? (
+        <>
+          <TextInput value={reason} onChangeText={setReason} multiline placeholder="What is wrong with this event?"
+            placeholderTextColor={theme.colors.muted} accessibilityLabel="Reason for the report" editable={!busy}
+            style={{ minHeight: 90, borderWidth: 1, borderColor: theme.colors.border, borderRadius: theme.radius.sm,
+              padding: theme.spacing.md, color: theme.colors.text, backgroundColor: theme.colors.surface, textAlignVertical: "top" }} />
+          {error ? <Text accessibilityRole="alert" style={{ color: "#B42318" }}>{error}</Text> : null}
+          <AppButton title="Send report" onPress={send} loading={busy} />
+          <AppButton title="Cancel" onPress={() => { setOpen(false); setError(null); }} disabled={busy} />
+        </>
+      ) : (
+        <AppButton title="Report this event" onPress={() => { setOpen(true); setMessage(null); }} />
+      )}
+    </View>
   );
 }
 

@@ -32,6 +32,7 @@ export type TicketsStackParamList = {
 export type ScannerStackParamList = {
   Login: undefined;
   Register: undefined;
+  ForgotPassword: undefined;
   StaffEvents: undefined;
   Scan: { eventId: string; eventTitle: string };
   StaffTools: { eventId: string; eventTitle: string };
@@ -43,4 +44,5 @@ export type RootTabParamList = {
   OrganizerTab: NavigatorScreenParams<OrganizerStackParamList> | undefined;
   StaffTab: NavigatorScreenParams<ScannerStackParamList> | undefined;
   SupportTab: NavigatorScreenParams<SupportStackParamList> | undefined;
+  NotificationsTab: undefined;
 };

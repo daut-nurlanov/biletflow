@@ -14,3 +14,8 @@ export function checkoutOrder(token: string, body: CheckoutInput, key: string, s
 export function getMyOrders(token: string, signal?: AbortSignal): Promise<OrderHistoryEntry[]> {
   return apiRequest("/api/orders/my-orders", { token, signal });
 }
+
+/** Cancels a FREE registration. Paid orders are refunded by the organizer instead. */
+export function cancelOrder(token: string, orderId: string): Promise<unknown> {
+  return apiRequest(`/api/orders/${encodeURIComponent(orderId)}/cancel`, { method: "POST", token });
+}

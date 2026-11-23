@@ -1,11 +1,14 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import CalendarButton from '../components/CalendarButton'
 import { api, getToken } from '../api'
 import { useAuth } from '../auth'
 import { formatDate, formatPrice } from '../format'
 import type { EventItem, Quote, TicketType } from '../types'
+import { useI18n } from '../i18n'
 
 export default function EventDetailPage() {
+  const { t: tr } = useI18n()
   const { id } = useParams()
   const [searchParams] = useSearchParams()
   const campaignToken = searchParams.get('c')
@@ -169,7 +172,7 @@ export default function EventDetailPage() {
   }
 
   if (error) return <p className="error">{error}</p>
-  if (!event || event.id !== id) return <p>Loading…</p>
+  if (!event || event.id !== id) return <p>{tr('Loading…')}</p>
 
   const paidBlocked = (t: TicketType) => Number(t.price) > 0 && !event.is_paid_sales_active
   const soldOut = (t: TicketType) => t.quantity_available <= 0
@@ -184,7 +187,7 @@ export default function EventDetailPage() {
       </p>
       {event.image_url && <img src={event.image_url} alt="" className="cover" />}
       {event.description && <p>{event.description}</p>}
-      {event.refund_policy && <p className="muted">Refund policy: {event.refund_policy}</p>}
+      {event.refund_policy && <p className="muted">{tr('Refund policy: {v}', { v: event.refund_policy })}</p>}
       <div className="event-report">
         {!reportOpen && !reportSuccess && (
           <button
@@ -197,9 +200,12 @@ export default function EventDetailPage() {
               setReportError('')
             }}
           >
-            Report this event
+            {tr('Report this event')}
           </button>
         )}
+        <Link to={`/support/new?event_id=${encodeURIComponent(event.id)}`}>
+          {tr('Get help with this event')}
+        </Link>
         {reportSuccess && (
           <p className="success" role="status">
             {reportSuccess}
@@ -211,7 +217,7 @@ export default function EventDetailPage() {
             className="form event-report-form"
             onSubmit={reportEvent}
           >
-            <label htmlFor="event-report-reason">Why are you reporting this event?</label>
+            <label htmlFor="event-report-reason">{tr('Why are you reporting this event?')}</label>
             <textarea
               id="event-report-reason"
               rows={4}
@@ -227,7 +233,7 @@ export default function EventDetailPage() {
             )}
             <div className="row">
               <button className="btn" type="submit" disabled={reporting}>
-                {reporting ? 'Sending…' : 'Send report'}
+                {reporting ? tr('Sending…') : tr('Send report')}
               </button>
               <button
                 className="btn secondary"
@@ -238,14 +244,15 @@ export default function EventDetailPage() {
                   setReportError('')
                 }}
               >
-                Cancel
+                {tr('Cancel')}
               </button>
             </div>
           </form>
         )}
       </div>
 
-      <h2>Tickets</h2>
+      <CalendarButton key={event.id} eventId={event.id} cancelled={event.status === 'cancelled'} />
+      <h2>{tr('Tickets')}</h2>
       <div className="grid">
         {tickets.map((t) => {
           const disabled = buying || soldOut(t) || paidBlocked(t) || event.has_assigned_seating
@@ -266,8 +273,8 @@ export default function EventDetailPage() {
               </div>
               {t.description && <div className="muted">{t.description}</div>}
               <div className="muted">
-                {soldOut(t) ? 'Sold out' : `${t.quantity_available} left`}
-                {paidBlocked(t) ? ' · paid sales not available' : ''}
+                {soldOut(t) ? tr('Sold out') : tr('{n} left', { n: t.quantity_available })}
+                {paidBlocked(t) ? ` · ${tr('paid sales not available')}` : ''}
               </div>
             </button>
           )
@@ -276,18 +283,18 @@ export default function EventDetailPage() {
 
       {event.has_assigned_seating && (
         <p className="muted">
-          This event uses assigned seating, which is not available yet. To buy a ticket, open Almaty Tech Meetup.
+          {tr('Seat selection is not available on the website yet. Choose an event without assigned seating to buy tickets.')}
         </p>
       )}
 
       {selected && !event.has_assigned_seating && (
         <div className="card buy">
-          <h2>Checkout</h2>
+          <h2>{tr('Checkout')}</h2>
           <div className="form">
-            <label htmlFor="attendee-name" className="muted">Name on the ticket</label>
+            <label htmlFor="attendee-name" className="muted">{tr('Name on the ticket')}</label>
             <input id="attendee-name" maxLength={120} disabled={buying} value={name} onChange={(e) => setAttendeeName(e.target.value)} />
 
-            <label htmlFor="quantity" className="muted">Quantity (up to {maxQty})</label>
+            <label htmlFor="quantity" className="muted">{tr('Quantity (up to {n})', { n: maxQty })}</label>
             <input
               id="quantity"
               type="number"
@@ -299,7 +306,7 @@ export default function EventDetailPage() {
               onChange={(e) => setQuantity(Math.min(maxQty, Math.max(1, Math.floor(Number(e.target.value)) || 1)))}
             />
 
-            <label htmlFor="promo" className="muted">Promo code</label>
+            <label htmlFor="promo" className="muted">{tr('Promo code')}</label>
             <div className="row">
               <input id="promo" disabled={buying} value={promoInput} onChange={(e) => setPromoInput(e.target.value.toUpperCase())} />
               <button
@@ -311,28 +318,28 @@ export default function EventDetailPage() {
                   setPromoNote('')
                 }}
               >
-                Apply
+                {tr('Apply')}
               </button>
             </div>
             {promoNote && <div className="muted">{promoNote}</div>}
           </div>
 
-          {!quote && !quoteError && <p role="status">Calculating price…</p>}
-          {quoteError && <p className="error" role="alert">{quoteError} <button type="button" className="btn secondary" onClick={() => { setQuoteError(''); setQuoteAttempt((attempt) => attempt + 1) }}>Retry quote</button></p>}
+          {!quote && !quoteError && <p role="status">{tr('Calculating price…')}</p>}
+          {quoteError && <p className="error" role="alert">{quoteError} <button type="button" className="btn secondary" onClick={() => { setQuoteError(''); setQuoteAttempt((attempt) => attempt + 1) }}>{tr('Retry quote')}</button></p>}
           {quote && (
             <div className="totals">
-              <div className="row"><span>Subtotal</span><span>{formatPrice(quote.subtotal)}</span></div>
+              <div className="row"><span>{tr('Subtotal')}</span><span>{formatPrice(quote.subtotal)}</span></div>
               {Number(quote.discount) > 0 && (
-                <div className="row"><span>Discount</span><span>−{formatPrice(quote.discount)}</span></div>
+                <div className="row"><span>{tr('Discount')}</span><span>−{formatPrice(quote.discount)}</span></div>
               )}
-              <div className="row"><strong>Total</strong><strong>{formatPrice(quote.total)}</strong></div>
+              <div className="row"><strong>{tr('Total')}</strong><strong>{formatPrice(quote.total)}</strong></div>
             </div>
           )}
 
           {buyError && <p className="error" role="alert">{buyError}</p>}
-          <p className="muted">Demo checkout: payment is simulated. No real money is charged. Processing fees are paid by the organizer.</p>
+          <p className="muted">{tr('Demo checkout: payment is simulated. No real money is charged. Processing fees are paid by the organizer.')}</p>
           <button className="btn" onClick={buy} disabled={buying || !quote || !name.trim()}>
-            {buying ? 'Processing…' : getToken() ? 'Buy' : 'Sign in to buy'}
+            {buying ? tr('Processing…') : getToken() ? tr('Buy') : tr('Sign in to buy')}
           </button>
         </div>
       )}

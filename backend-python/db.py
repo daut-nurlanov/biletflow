@@ -61,6 +61,11 @@ def notify(cur, user_id, kind, subject, body):
         "INSERT INTO notifications (user_id, kind, subject, body) VALUES (%s, %s, %s, %s)",
         (user_id, kind, subject, body))
     print(f"[notification to user {user_id}] {kind}: {subject}", flush=True)
+    #demo outbox: there is no real email, so for the two account messages that
+    #carry a one-time code we also print the body. This is how someone who is
+    #signed out (forgot password) can read their code: docker compose logs backend
+    if kind in ("verify_email", "reset_password"):
+        print(f"[demo email body] {body}", flush=True)
 
 
 def get_setting(cur, key, default):
