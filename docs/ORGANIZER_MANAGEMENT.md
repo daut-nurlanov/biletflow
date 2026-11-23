@@ -294,3 +294,77 @@ is local in `feature/organizer-support`, based on that main. No Git conflicts
 occurred. Publication is authorized. Before publishing,
 fetch main again, integrate new changes locally and rerun relevant checks if
 anything overlaps. A push itself does not resolve conflicts.
+
+## Notifications, calendar and payment failures (November 20)
+
+Local branch `feature/notifications-calendar-payments` starts from main `214737d`,
+including the new organizer setup and admin portal. No Git conflicts occurred.
+Commit and push were authorized on November 23; deployment and merging into
+main are outside this request.
+
+- `/notifications` is available to signed-in accounts through the header. It
+  displays the API's latest 100 entries, newest first, including read state,
+  subject, body and Almaty timestamp. An unread-only URL filter, explicit refresh
+  and Mark all notifications as read reuse existing endpoints. Opening the page
+  never marks anything read. Mark all covers older unread entries too; it is
+  protected from duplicate submissions and failed writes retain the current list.
+  Auth restoration, account switches, expiry, loading, empty and retry states are
+  handled. Notification bodies are rendered as plain text, not HTML or links.
+- Add to calendar (.ics) appears on event details and each purchased ticket card
+  with an event ID, including the purchase-confirmation destination. Downloads use
+  bearer authentication where available, preserving private-event access checks,
+  timeout and expired-session handling. The button downloads the actual server
+  calendar file via a temporary Blob URL; error JSON never becomes an .ics file.
+  Cancelled events offer Download calendar cancellation (.ics), preserving the
+  backend's UID and cancellation data. Users import the file into their calendar;
+  no calendar access or automatic calendar write is requested.
+- `/admin/payment-failures` is a tab in the existing admin portal. Only platform
+  administrators reach its data request, and the API remains authoritative.
+  It shows the latest 200 failed simulated payments with time, buyer email, event,
+  amount in KZT, order ID and nullable payment reference. Search filters only the
+  loaded rows; counts/limits are explicit. The API has no detailed reason field,
+  so the page does not invent one. It offers no retry-payment or refund mutation.
+  Loading, empty, denied, retry and mobile table-scroll states are covered.
+
+The JSON API helper now delegates authenticated transport to `apiResponse`, also
+used for calendar files. Existing JSON callers keep the same interface. No
+backend endpoint, database schema, migration or mobile screen was changed.
+
+Validation commands (Chrome/Chromium and a Vite preview required for browser tests):
+
+```sh
+cd web
+npm run build
+npm run lint
+TEST_BASE_URL=http://127.0.0.1:3010 node --test tests/notifications-calendar-payments.browser.test.mjs
+```
+
+The new fixture suite has 12 passing checks including its parent test. Existing
+organizer, Staff, History, support and attendee checkout suites pass all 59 checks.
+The combined fixture coverage is 71 checks. Files are inspected as Blobs inside
+an isolated browser profile, without writing calendar downloads to the user's
+Downloads folder or importing anything into their calendar.
+
+The existing auth/events/backend-gaps/admin API subsets pass all 55 tests on
+isolated PostgreSQL 16, including notification ownership/read-all, ICS revision
+and cancellation, failed-payment visibility and role checks. No backend changes
+were needed. The live browser/API scenario passes actual notification marking
+and a cancelled-event calendar download with the expected UID/STATUS, alongside
+purchase, support and History. Web production build and lint pass. Temporary
+web/API servers and the disposable database were stopped after validation; user
+demo databases and calendars were not modified.
+
+### Publication verification (November 23)
+
+Before pushing, the branch integrated current main `8e815a1`, including web account
+verification/reset/reporting and ticket-status/price improvements (PRs #19–20).
+Two conflicts from restoring the local changes were resolved: MyTickets imports
+retain both `formatStatus` and CalendarButton; index.css retains account/report/
+ticket-status styles alongside notification/calendar styles. Account routes and
+event-report functionality from main remain in place. The user requested commit
+and push; merging this feature branch into main is a separate action.
+
+After integration, production build, lint and all 71 fixture-browser checks passed
+again on November 23. Browser tests ran with `--test-concurrency=2` and
+`--test-force-exit` because two workers in the first run retained connections
+after their assertions completed. No backend code changed during synchronization.

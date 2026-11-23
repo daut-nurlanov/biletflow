@@ -1,10 +1,13 @@
-import { useCallback, useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useEffect, useRef, useState } from 'react'
+import { Link, Navigate, useLocation, useSearchParams } from 'react-router-dom'
 import { api } from '../api'
 import { useAuth } from '../auth'
-import { formatDate } from '../format'
+import { messageFor, useResource } from '../organizer/data'
+import { moment } from '../organizer/format'
+import { Notice, ResourceState } from '../organizer/ui'
+import '../organizer/organizer.css'
 
-interface AppNotification {
+interface Notification {
   id: string
   kind: string
   subject: string
@@ -13,80 +16,147 @@ interface AppNotification {
   created_at: string
 }
 
-// In this demo every "email" the platform sends is also stored here, so this
-// page is where verification codes, purchase and refund messages can be read.
 export default function NotificationsPage() {
-  const { user, loading } = useAuth()
-  const [items, setItems] = useState<AppNotification[] | null>(null)
-  const [error, setError] = useState('')
+  const { user, loading, error } = useAuth()
+  const location = useLocation()
+  if (loading) return <Notice>Restoring your session…</Notice>
+  if (error)
+    return (
+      <Notice error>
+        {error}{' '}
+        <button
+          className="btn secondary"
+          onClick={() => window.location.reload()}
+        >
+          Try again
+        </button>
+      </Notice>
+    )
+  if (!user)
+    return (
+      <Navigate
+        to="/login"
+        state={{ from: location.pathname + location.search }}
+        replace
+      />
+    )
+  return <Inbox key={user.id} />
+}
+
+function Inbox() {
+  const [params, setParams] = useSearchParams()
+  const unread = params.get('unread_only') === 'true'
+  const resource = useResource<Notification[]>(
+    `/api/notifications?unread_only=${unread}`,
+  )
+  const lock = useRef<AbortController | null>(null)
+  useEffect(() => () => lock.current?.abort(), [])
   const [busy, setBusy] = useState(false)
-
-  const load = useCallback(() => {
-    api<AppNotification[]>('/api/notifications')
-      .then((data) => {
-        setItems(data)
-        setError('')
-      })
-      .catch((e: unknown) =>
-        setError(e instanceof Error ? e.message : 'Could not load notifications'),
-      )
-  }, [])
-
-  useEffect(() => {
-    if (user) load()
-  }, [user, load])
-
-  async function markAllRead() {
-    if (busy) return
+  const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
+  async function markRead() {
+    if (lock.current) return
+    const controller = new AbortController()
+    lock.current = controller
     setBusy(true)
+    setError('')
+    setNotice('')
     try {
-      await api('/api/notifications/read-all', { method: 'POST' })
-      load()
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not update notifications')
+      const result = await api<{ marked_read: number }>(
+        '/api/notifications/read-all',
+        { method: 'POST', signal: controller.signal },
+      )
+      if (controller.signal.aborted) return
+      setNotice(`${result.marked_read} notifications marked as read.`)
+      resource.refresh()
+    } catch (err) {
+      if (!controller.signal.aborted) setError(messageFor(err))
     } finally {
-      setBusy(false)
+      if (!controller.signal.aborted) {
+        lock.current = null
+        setBusy(false)
+      }
     }
   }
-
-  if (loading) return <p>Loading…</p>
-  if (!user) {
-    return (
-      <p>
-        <Link to="/login" state={{ from: '/notifications' }}>Sign in</Link> to see your
-        notifications.
-      </p>
-    )
-  }
-  if (error && !items) return <p className="error">{error}</p>
-  if (!items) return <p>Loading…</p>
-
-  const unread = items.filter((n) => !n.is_read).length
-
   return (
-    <>
-      <h1>Notifications</h1>
-      <p className="muted">
-        Messages the platform would send by email: verification codes, purchases,
-        refunds, event changes and support replies.
-      </p>
-      {error && <p className="error">{error}</p>}
-      <p>
-        <button className="btn secondary" onClick={markAllRead} disabled={busy || unread === 0}>
-          Mark all as read{unread > 0 ? ` (${unread})` : ''}
-        </button>
-      </p>
-      {items.length === 0 && <p className="muted">No notifications yet.</p>}
-      {items.map((n) => (
-        <div className="card" key={n.id} style={{ marginBottom: 12 }}>
-          <h3>
-            {n.subject}
-            {!n.is_read && <span className="muted"> · new</span>}
-          </h3>
-          <p style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>{n.body}</p>
-          <p className="muted">{formatDate(n.created_at)}</p>
+    <section className="org">
+      <div className="org-heading">
+        <div>
+          <h1>Notifications</h1>
+          <p className="muted">
+            Your latest 100 notifications, newest first. Opening this page does
+            not mark them as read.
+          </p>
         </div>
-      ))}
-    </>
+        <button
+          className="btn secondary"
+          disabled={busy}
+          onClick={resource.refresh}
+        >
+          Refresh notifications
+        </button>
+      </div>
+      <div className="org-filters">
+        <label className="org-field">
+          Show
+          <select
+            name="notification_filter"
+            value={unread ? 'unread' : 'all'}
+            disabled={busy}
+            onChange={(event) => {
+              setParams(
+                event.target.value === 'unread' ? { unread_only: 'true' } : {},
+              )
+              setNotice('')
+              setError('')
+            }}
+          >
+            <option value="all">All notifications</option>
+            <option value="unread">Unread only</option>
+          </select>
+        </label>
+        <button
+          className="btn"
+          disabled={
+            busy ||
+            !resource.data ||
+            !resource.data.some((item) => !item.is_read)
+          }
+          onClick={() => {
+            void markRead()
+          }}
+        >
+          {busy ? 'Marking as read…' : 'Mark all notifications as read'}
+        </button>
+      </div>
+      <p className="muted">
+        Mark all applies to all your unread notifications, including older ones
+        outside this list.
+      </p>
+      {error && <Notice error>{error}</Notice>}
+      {notice && <Notice>{notice}</Notice>}
+      <ResourceState {...resource} retry={resource.refresh} />
+      {resource.data?.length === 0 && (
+        <Notice>
+          {unread ? 'No unread notifications.' : 'No notifications yet.'}
+        </Notice>
+      )}
+      <div className="notification-list">
+        {resource.data?.map((item) => (
+          <article className="org-panel notification-entry" key={item.id}>
+            <div className="org-heading">
+              <h2>{item.subject}</h2>
+              <span>{item.is_read ? 'Read' : 'Unread'}</span>
+            </div>
+            <time className="muted" dateTime={item.created_at}>
+              {moment(item.created_at)} · Almaty time
+            </time>
+            <p className="notification-body">{item.body}</p>
+            <p className="muted">{item.kind.replaceAll('_', ' ')}</p>
+          </article>
+        ))}
+      </div>
+      <Link to="/">Browse events</Link>
+    </section>
   )
 }
