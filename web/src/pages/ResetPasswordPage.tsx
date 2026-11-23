@@ -1,12 +1,14 @@
 import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../api'
+import { useI18n } from '../i18n'
 
 interface MessageResponse {
   message: string
 }
 
 export default function ResetPasswordPage() {
+  const { t } = useI18n()
   const [code, setCode] = useState('')
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
@@ -19,19 +21,19 @@ export default function ResetPasswordPage() {
     if (busy) return
     const token = code.trim()
     if (!token) {
-      setError('Please enter your reset code.')
+      setError(t('Please enter your reset code.'))
       return
     }
     if (Array.from(password).length < 8) {
-      setError('Password must be at least 8 characters.')
+      setError(t('Password must be at least 8 characters.'))
       return
     }
     if (new TextEncoder().encode(password).length > 72) {
-      setError('Password is too long; use at most 72 bytes.')
+      setError(t('Password is too long; use at most 72 bytes.'))
       return
     }
     if (password !== confirm) {
-      setError('Passwords do not match.')
+      setError(t('Passwords do not match.'))
       return
     }
 
@@ -48,7 +50,7 @@ export default function ResetPasswordPage() {
       setPassword('')
       setConfirm('')
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not reset your password')
+      setError(e instanceof Error ? e.message : t('Could not reset your password'))
     } finally {
       setBusy(false)
     }
@@ -56,14 +58,14 @@ export default function ResetPasswordPage() {
 
   return (
     <>
-      <h1>Reset password</h1>
+      <h1>{t('Reset password')}</h1>
       {success ? (
         <p className="success" role="status">
-          {success}. <Link to="/login">Sign in</Link>
+          {success}. <Link to="/login">{t('Sign in')}</Link>
         </p>
       ) : (
         <form className="form" onSubmit={submit}>
-          <label htmlFor="reset-code">Reset code</label>
+          <label htmlFor="reset-code">{t('Reset code')}</label>
           <input
             id="reset-code"
             required
@@ -71,7 +73,7 @@ export default function ResetPasswordPage() {
             value={code}
             onChange={(e) => setCode(e.target.value)}
           />
-          <label htmlFor="new-password">New password</label>
+          <label htmlFor="new-password">{t('New password')}</label>
           <input
             id="new-password"
             type="password"
@@ -81,7 +83,7 @@ export default function ResetPasswordPage() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
-          <label htmlFor="confirm-password">Confirm new password</label>
+          <label htmlFor="confirm-password">{t('Confirm new password')}</label>
           <input
             id="confirm-password"
             type="password"
@@ -97,7 +99,7 @@ export default function ResetPasswordPage() {
             </div>
           )}
           <button className="btn" type="submit" disabled={busy}>
-            {busy ? 'Changing…' : 'Change password'}
+            {busy ? t('Changing…') : t('Change password')}
           </button>
         </form>
       )}

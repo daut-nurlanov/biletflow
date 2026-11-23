@@ -8,8 +8,8 @@ export default function LoginPage() {
   const { t } = useI18n()
   const navigate = useNavigate()
   const location = useLocation()
-  const [email, setEmail] = useState('dana@example.com') // demo account, remove before the final demo
-  const [password, setPassword] = useState('demo1234')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
 

@@ -131,3 +131,5 @@ p a, li a { text-decoration: underline; }
 .notification-body { white-space: pre-wrap; overflow-wrap: anywhere; }
 .notification-entry h2 { font-size: 1.15rem; margin: 0; overflow-wrap: anywhere; }
 .notification-list { display: grid; gap: 12px; margin-bottom: 20px; }
+
+.event-report a { margin-left: 12px; }

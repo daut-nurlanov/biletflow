@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import CalendarButton from '../components/CalendarButton'
 import { api, getToken } from '../api'
 import { useAuth } from '../auth'
@@ -203,6 +203,9 @@ export default function EventDetailPage() {
             {tr('Report this event')}
           </button>
         )}
+        <Link to={`/support/new?event_id=${encodeURIComponent(event.id)}`}>
+          {tr('Get help with this event')}
+        </Link>
         {reportSuccess && (
           <p className="success" role="status">
             {reportSuccess}
@@ -280,7 +283,7 @@ export default function EventDetailPage() {
 
       {event.has_assigned_seating && (
         <p className="muted">
-          This event uses assigned seating, which is not available yet. To buy a ticket, open Almaty Tech Meetup.
+          {tr('Seat selection is not available on the website yet. Choose an event without assigned seating to buy tickets.')}
         </p>
       )}
 
