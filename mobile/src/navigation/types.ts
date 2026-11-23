@@ -18,6 +18,10 @@ export type OrganizerStackParamList = {
   EventDashboard: { eventId: string };
   EventActivity: { eventId: string; eventTitle: string };
   EventStaff: { eventId: string; eventTitle: string };
+  NewEvent: undefined;
+  EditEvent: { eventId: string };
+  EventSetup: { eventId: string };
+  TicketTypeForm: { eventId: string; ticketTypeId?: string };
 };
 
 export type TicketsStackParamList = {

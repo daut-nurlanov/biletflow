@@ -8,6 +8,8 @@ export type EventStatus =
   | "cancelled"
   | "suspended";
 
+export type EventVisibility = "public" | "unlisted" | "private";
+
 export interface Event {
   id: string;
   organizer_id: string;
@@ -52,6 +54,8 @@ export interface EventDetails extends Event {
   end_time: string | null;
   venue_address: string | null;
   description: string | null;
+  category: string | null;
+  visibility: EventVisibility;
   image_url: string | null;
   refund_policy: string | null;
   paid_sales_suspended: boolean;
