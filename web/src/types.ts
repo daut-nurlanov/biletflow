@@ -48,6 +48,7 @@ export interface Quote {
 
 // exact shape of /api/tickets/my-tickets is checked in /docs, so most fields are optional
 export interface MyTicket {
+  event_id?: string
   id: string
   attendee_name?: string
   status?: string

@@ -13,7 +13,7 @@ export class ApiError extends Error {
   }
 }
 
-export async function api<T>(
+export async function apiResponse(
   path: string,
   options: {
     method?: string
@@ -21,7 +21,7 @@ export async function api<T>(
     headers?: Record<string, string>
     signal?: AbortSignal
   } = {},
-): Promise<T> {
+): Promise<Response> {
   const headers: Record<string, string> = { ...options.headers }
   const token = getToken()
   if (token) headers.Authorization = `Bearer ${token}`
@@ -70,5 +70,13 @@ export async function api<T>(
     }
     throw new ApiError(res.status, detail)
   }
-  return res.json() as Promise<T>
+  return res
+}
+
+export async function api<T>(
+  path: string,
+  options: Parameters<typeof apiResponse>[1] = {},
+): Promise<T> {
+  const response = await apiResponse(path, options)
+  return response.json() as Promise<T>
 }
