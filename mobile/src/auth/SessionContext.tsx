@@ -20,6 +20,8 @@ interface SessionValue {
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (input: AttendeeRegistration) => Promise<void>;
   signOut: () => Promise<void>;
+  /** Reload the signed-in user (for example after the email is verified). */
+  refreshUser: () => Promise<void>;
   /**
    * Run a request with the signed-in token. If the backend says the session is
    * no longer valid (expired token or suspended account), sign out so the app
@@ -116,6 +118,12 @@ export function SessionProvider({ children }: PropsWithChildren) {
   }, []);
 
   const token = state.status === "signedIn" ? state.token : null;
+  const refreshUser = useCallback(async () => {
+    if (!token) return;
+    const user = await getMe(token);
+    await saveSession(token, user);
+    setState({ status: "signedIn", token, user });
+  }, [token]);
   const authed = useCallback(async <T,>(call: (token: string) => Promise<T>): Promise<T> => {
     if (!token) throw new Error("Please sign in first.");
     try {
@@ -127,8 +135,8 @@ export function SessionProvider({ children }: PropsWithChildren) {
   }, [token, signOut]);
 
   const value = useMemo(
-    () => ({ state, signIn, signUp, signOut, authed }),
-    [state, signIn, signUp, signOut, authed],
+    () => ({ state, signIn, signUp, signOut, refreshUser, authed }),
+    [state, signIn, signUp, signOut, refreshUser, authed],
   );
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }

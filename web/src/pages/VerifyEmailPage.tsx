@@ -8,7 +8,7 @@ interface MessageResponse {
 }
 
 export default function VerifyEmailPage() {
-  const { user } = useAuth()
+  const { user, refreshUser } = useAuth()
   const [code, setCode] = useState('')
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
@@ -34,6 +34,7 @@ export default function VerifyEmailPage() {
       })
       setSuccess(data.message)
       setCode('')
+      await refreshUser().catch(() => undefined)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not verify your email')
     } finally {

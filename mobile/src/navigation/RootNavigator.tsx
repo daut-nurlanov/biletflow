@@ -11,6 +11,7 @@ import { EventDetailsScreen } from "../screens/EventDetailsScreen";
 import { EventStaffScreen } from "../screens/EventStaffScreen";
 import { EventsScreen } from "../screens/EventsScreen";
 import { MyTicketsScreen } from "../screens/MyTicketsScreen";
+import { NotificationsScreen } from "../screens/NotificationsScreen";
 import { OrderHistoryScreen } from "../screens/OrderHistoryScreen";
 import { OrganizerEventsScreen } from "../screens/OrganizerEventsScreen";
 import { ScanScreen } from "../screens/ScanScreen";
@@ -139,6 +140,7 @@ export function RootNavigator({ role }: { role: "attendee" | "organizer" }) {
           </>
         )}
         <Tabs.Screen name="SupportTab" component={SupportNavigator} options={{ title: "Support", headerShown: false }} />
+        <Tabs.Screen name="NotificationsTab" component={NotificationsScreen} options={{ title: "Alerts", headerTitle: "Notifications" }} />
       </Tabs.Navigator>
     </NavigationContainer>
   );

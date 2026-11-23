@@ -3,6 +3,7 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 
 import { useSession } from "../auth/SessionContext";
 import { LoadingState } from "../components/LoadingState";
+import { ForgotPasswordScreen } from "../screens/ForgotPasswordScreen";
 import { LoginScreen } from "../screens/LoginScreen";
 import { RegisterScreen } from "../screens/RegisterScreen";
 import { ScanScreen } from "../screens/ScanScreen";
@@ -53,6 +54,7 @@ export function ScannerNavigator() {
           <>
             <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />
             <Stack.Screen name="Register" component={RegisterScreen} options={{ headerShown: false }} />
+            <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} options={{ title: "Reset password" }} />
           </>
         )}
       </Stack.Navigator>

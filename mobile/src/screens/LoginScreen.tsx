@@ -124,6 +124,17 @@ export function LoginScreen({ navigation }: Props) {
 
           <Pressable
             accessibilityRole="button"
+            accessibilityLabel="Forgot your password"
+            accessibilityState={{ disabled: submitting }}
+            onPress={() => navigation.navigate("ForgotPassword")}
+            disabled={submitting}
+            style={styles.registerLink}
+          >
+            <Text style={styles.toggleText}>Forgot your password?</Text>
+          </Pressable>
+
+          <Pressable
+            accessibilityRole="button"
             accessibilityLabel="Create an attendee account"
             accessibilityState={{ disabled: submitting }}
             onPress={() => navigation.navigate("Register")}

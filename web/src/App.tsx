@@ -29,6 +29,7 @@ import { EditEventPage, NewEventPage } from './organizer/EventFormPage'
 import SetupPage from './organizer/SetupPage'
 import PromoPage from './organizer/PromoPage'
 import ProfilePage from './organizer/ProfilePage'
+import NotificationsPage from './pages/NotificationsPage'
 
 export default function App() {
   const { user, logout } = useAuth()
@@ -43,6 +44,7 @@ export default function App() {
           <nav className="nav">
             <Link to="/my-tickets">My tickets</Link>
             <Link to="/support">Support</Link>
+            {user && <Link to="/notifications">Notifications</Link>}
             {user ? (
               <>
                 {user.role === 'platform_admin' && <Link to="/admin">Admin portal</Link>}
@@ -78,6 +80,7 @@ export default function App() {
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route path="/my-tickets" element={<MyTicketsPage />} />
+          <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="/support" element={<SupportPage />} />
           <Route path="/support/new" element={<SupportNewPage />} />
           <Route path="/support/:id" element={<SupportCasePage />} />

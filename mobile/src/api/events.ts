@@ -23,3 +23,7 @@ export const EVENT_ACTIVITY_LIMIT = 50;
 export function getEventActivity(token: string, eventId: string, signal?: AbortSignal): Promise<EventActivity[]> {
   return apiRequest(`/api/events/${encodeURIComponent(eventId)}/timeline?limit=${EVENT_ACTIVITY_LIMIT}`, { token, signal });
 }
+
+export function reportEvent(token: string, eventId: string, reason: string): Promise<unknown> {
+  return apiRequest(`/api/events/${encodeURIComponent(eventId)}/report`, { method: "POST", token, body: { reason: reason.trim() } });
+}
