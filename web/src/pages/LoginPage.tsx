@@ -1,9 +1,11 @@
 import { useState, type FormEvent } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth'
+import { useI18n } from '../i18n'
 
 export default function LoginPage() {
   const { login } = useAuth()
+  const { t } = useI18n()
   const navigate = useNavigate()
   const location = useLocation()
   const [email, setEmail] = useState('dana@example.com') // demo account, remove before the final demo
@@ -38,10 +40,10 @@ export default function LoginPage() {
 
   return (
     <>
-      <h1>Sign in</h1>
+      <h1>{t('Sign in')}</h1>
       <form className="form" onSubmit={onSubmit}>
         <label>
-          Email
+          {t('Email')}
           <input
             type="email"
             autoComplete="username"
@@ -52,7 +54,7 @@ export default function LoginPage() {
           />
         </label>
         <label>
-          Password
+          {t('Password')}
           <input
             type="password"
             autoComplete="current-password"
@@ -68,14 +70,14 @@ export default function LoginPage() {
           </div>
         )}
         <button className="btn" type="submit" disabled={busy}>
-          {busy ? 'Signing in…' : 'Sign in'}
+          {busy ? t('Signing in…') : t('Sign in')}
         </button>
       </form>
       <p className="muted">
-        No account? <Link to="/register" state={{ from }}>Register</Link>
+        {t('No account?')} <Link to="/register" state={{ from }}>{t('Register')}</Link>
       </p>
       <p className="muted">
-        <Link to="/forgot-password">Forgot password?</Link>
+        <Link to="/forgot-password">{t('Forgot password?')}</Link>
       </p>
     </>
   )

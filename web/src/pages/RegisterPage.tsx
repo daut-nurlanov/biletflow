@@ -1,9 +1,11 @@
 import { useState, type FormEvent } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth'
+import { useI18n } from '../i18n'
 
 export default function RegisterPage() {
   const { register } = useAuth()
+  const { t } = useI18n()
   const navigate = useNavigate()
   const location = useLocation()
   const fromState: unknown = location.state?.from
@@ -36,16 +38,16 @@ export default function RegisterPage() {
 
   return (
     <>
-      <h1>Create an account</h1>
+      <h1>{t('Create an account')}</h1>
       <form className="form" onSubmit={onSubmit}>
-        <input aria-label="Full name" required disabled={busy} value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Full name" />
-        <input aria-label="Email" type="email" required disabled={busy} value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" />
-        <input aria-label="Password" type="password" required disabled={busy} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password (8+ characters)" />
+        <input aria-label={t('Full name')} required disabled={busy} value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder={t('Full name')} />
+        <input aria-label={t('Email')} type="email" required disabled={busy} value={email} onChange={(e) => setEmail(e.target.value)} placeholder={t('Email')} />
+        <input aria-label={t('Password')} type="password" required disabled={busy} value={password} onChange={(e) => setPassword(e.target.value)} placeholder={t('Password (8+ characters)')} />
         {error && <div className="error" role="alert">{error}</div>}
-        <button className="btn" type="submit" disabled={busy}>{busy ? 'Creating…' : 'Create account'}</button>
+        <button className="btn" type="submit" disabled={busy}>{busy ? t('Creating…') : t('Create account')}</button>
       </form>
       <p className="muted">
-        Already have an account? <Link to="/login" state={{ from }}>Sign in</Link>
+        {t('Already have an account?')} <Link to="/login" state={{ from }}>{t('Sign in')}</Link>
       </p>
     </>
   )

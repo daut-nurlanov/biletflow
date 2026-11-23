@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { api } from '../api'
 import { useAuth } from '../auth'
 import { formatDate, formatPrice, formatStatus } from '../format'
+import { useI18n } from '../i18n'
 
 interface MyOrder {
   id: string
@@ -19,6 +20,7 @@ interface MyOrder {
 // Attendees see their orders here. A free registration can be cancelled by the
 // attendee; a paid order is refunded by the organizer (SRS: cancel and refunds).
 export default function MyOrdersPage() {
+  const { t } = useI18n()
   const { user, loading } = useAuth()
   const [orders, setOrders] = useState<MyOrder[] | null>(null)
   const [error, setError] = useState('')
@@ -58,25 +60,25 @@ export default function MyOrdersPage() {
     }
   }
 
-  if (loading) return <p>Loading…</p>
+  if (loading) return <p>{t('Loading…')}</p>
   if (!user) {
     return (
       <p>
-        <Link to="/login" state={{ from: '/my-orders' }}>Sign in</Link> to see your orders.
+        <Link to="/login" state={{ from: '/my-orders' }}>{t('Sign in')}</Link> {t('to see your orders.')}
       </p>
     )
   }
   if (error && !orders) return <p className="error">{error}</p>
-  if (!orders) return <p>Loading…</p>
+  if (!orders) return <p>{t('Loading…')}</p>
 
   return (
     <>
-      <h1>My orders</h1>
+      <h1>{t('My orders')}</h1>
       {notice && <p className="success" role="status">{notice}</p>}
       {error && <p className="error" role="alert">{error}</p>}
       {orders.length === 0 && (
         <p className="muted">
-          You have no orders yet. <Link to="/">Browse events</Link>
+          {t('You have no orders yet.')} <Link to="/">{t('Browse events')}</Link>
         </p>
       )}
       <div className="grid">
@@ -89,42 +91,42 @@ export default function MyOrdersPage() {
               <div className="muted">{formatDate(o.start_time)}</div>
               <div className="row">
                 <span>
-                  {o.ticket_count} {o.ticket_count === 1 ? 'ticket' : 'tickets'} ·{' '}
+                  {o.ticket_count === 1 ? t('{n} ticket', { n: 1 }) : t('{n} tickets', { n: o.ticket_count })} ·{' '}
                   {formatPrice(o.total_amount)}
                 </span>
                 <span className={`ticket-status ticket-status-${o.status === 'paid' ? 'valid' : o.status}`}>
-                  {o.status === 'paid' && free ? 'Registered' : formatStatus(o.status)}
+                  {o.status === 'paid' && free ? t('Registered') : formatStatus(o.status)}
                 </span>
               </div>
-              {o.promo_code_applied && <div className="muted">Promo code: {o.promo_code_applied}</div>}
-              <div className="muted">Ordered {formatDate(o.created_at)}</div>
-              <div className="muted" style={{ wordBreak: 'break-all' }}>Order reference: {o.id}</div>
+              {o.promo_code_applied && <div className="muted">{t('Promo code: {v}', { v: o.promo_code_applied })}</div>}
+              <div className="muted">{t('Ordered {v}', { v: formatDate(o.created_at) })}</div>
+              <div className="muted" style={{ wordBreak: 'break-all' }}>{t('Order reference: {v}', { v: o.id })}</div>
               {active && free && (
                 confirming === o.id ? (
                   <p>
-                    Cancel this registration? Your tickets stop working.{' '}
+                    {t('Cancel this registration? Your tickets stop working.')}{' '}
                     <button className="btn" onClick={() => cancel(o)} disabled={busy === o.id}>
-                      {busy === o.id ? 'Cancelling…' : 'Yes, cancel'}
+                      {busy === o.id ? t('Cancelling…') : t('Yes, cancel')}
                     </button>{' '}
                     <button className="btn secondary" onClick={() => setConfirming(null)} disabled={busy === o.id}>
-                      Keep it
+                      {t('Keep it')}
                     </button>
                   </p>
                 ) : (
                   <p>
                     <button className="btn secondary" onClick={() => setConfirming(o.id)}>
-                      Cancel registration
+                      {t('Cancel registration')}
                     </button>
                   </p>
                 )
               )}
               {active && !free && (
                 <p className="muted">
-                  Paid orders are refunded by the organizer. Ask for a refund through support.
+                  {t('Paid orders are refunded by the organizer. Ask for a refund through support.')}
                 </p>
               )}
               <p>
-                <Link to={`/support/new?order_id=${encodeURIComponent(o.id)}`}>Get help with this order</Link>
+                <Link to={`/support/new?order_id=${encodeURIComponent(o.id)}`}>{t('Get help with this order')}</Link>
               </p>
             </div>
           )

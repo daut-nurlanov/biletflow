@@ -3,8 +3,10 @@ import { Link } from 'react-router-dom'
 import { api } from '../api'
 import { formatDate } from '../format'
 import type { EventItem } from '../types'
+import { useI18n } from '../i18n'
 
 export default function EventsPage() {
+  const { t } = useI18n()
   const [events, setEvents] = useState<EventItem[] | null>(null)
   const [error, setError] = useState('')
 
@@ -15,12 +17,12 @@ export default function EventsPage() {
   }, [])
 
   if (error) return <p className="error">{error}</p>
-  if (!events) return <p>Loading…</p>
+  if (!events) return <p>{t('Loading…')}</p>
 
   return (
     <>
-      <h1>Events</h1>
-      {events.length === 0 && <p className="muted">No upcoming events.</p>}
+      <h1>{t('Events')}</h1>
+      {events.length === 0 && <p className="muted">{t('No upcoming events.')}</p>}
       <div className="grid">
         {events.map((ev) => (
           <Link to={`/events/${ev.id}`} key={ev.id} className="card">
