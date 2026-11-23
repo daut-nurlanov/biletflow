@@ -18,6 +18,8 @@ import { NotificationsScreen } from "../screens/NotificationsScreen";
 import { OrderDetailScreen } from "../screens/OrderDetailScreen";
 import { OrderHistoryScreen } from "../screens/OrderHistoryScreen";
 import { OrganizerEventsScreen } from "../screens/OrganizerEventsScreen";
+import { OrganizerProfileScreen } from "../screens/OrganizerProfileScreen";
+import { PaidSalesActivationScreen } from "../screens/PaidSalesActivationScreen";
 import { ScanScreen } from "../screens/ScanScreen";
 import { StaffEventsScreen } from "../screens/StaffEventsScreen";
 import { StaffToolsScreen } from "../screens/StaffToolsScreen";
@@ -98,7 +100,15 @@ function TicketsNavigator() {
 function OrganizerNavigator() {
   return (
     <OrganizerStack.Navigator screenOptions={{ headerTintColor: theme.colors.primary, headerRight: () => <SignOutButton /> }}>
-      <OrganizerStack.Screen name="OrganizerEvents" component={OrganizerEventsScreen} options={{ title: "My events" }} />
+      <OrganizerStack.Screen name="OrganizerEvents" component={OrganizerEventsScreen} options={({ navigation }) => ({
+        title: "My events",
+        headerLeft: () => (
+          <Pressable accessibilityRole="button" accessibilityLabel="Organizer profile" hitSlop={12}
+            onPress={() => navigation.navigate("OrganizerProfile")}>
+            <Text style={{ color: theme.colors.primary, fontSize: theme.fontSize.body }}>Profile</Text>
+          </Pressable>
+        ),
+      })} />
       <OrganizerStack.Screen name="EventDashboard" component={EventDashboardScreen} options={{ title: "Event dashboard" }} />
       <OrganizerStack.Screen name="EventActivity" component={EventActivityScreen} options={{ title: "Event activity" }} />
       <OrganizerStack.Screen name="EventStaff" component={EventStaffScreen} options={{ title: "Door staff" }} />
@@ -107,6 +117,8 @@ function OrganizerNavigator() {
       <OrganizerStack.Screen name="OrderDetail" component={OrderDetailScreen}
         getId={({ params }) => params.orderId} options={{ title: "Order" }} />
       <OrganizerStack.Screen name="EventPromotions" component={EventPromotionsScreen} options={{ title: "Promotions" }} />
+      <OrganizerStack.Screen name="OrganizerProfile" component={OrganizerProfileScreen} options={{ title: "Organizer profile" }} />
+      <OrganizerStack.Screen name="PaidSalesActivation" component={PaidSalesActivationScreen} options={{ title: "Paid sales" }} />
     </OrganizerStack.Navigator>
   );
 }

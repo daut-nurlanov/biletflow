@@ -100,6 +100,10 @@ export function EventDashboardScreen({ route, navigation }: Props) {
             <Text style={sharedStyles.muted}>
               {`Paid sales: ${event.paid_sales_suspended ? "Suspended by platform" : event.is_paid_sales_active ? "Activated" : "Not activated yet"}`}
             </Text>
+            <AppButton
+              title={event.is_paid_sales_active || event.paid_sales_suspended ? "Paid sales details" : "Activate paid sales"}
+              onPress={() => navigation.navigate("PaidSalesActivation", { eventId, eventTitle: event.title })}
+            />
             <AppButton title="Attendees" onPress={() => navigation.navigate("EventAttendees", { eventId, eventTitle: event.title })} />
             <AppButton title="Orders and refunds" onPress={() => navigation.navigate("EventOrders", { eventId, eventTitle: event.title })} />
             <AppButton title="Promotions" onPress={() => navigation.navigate("EventPromotions", { eventId, eventTitle: event.title })} />

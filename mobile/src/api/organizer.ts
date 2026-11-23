@@ -2,7 +2,7 @@ import type { ImageURISource } from "react-native";
 
 import { environment } from "../config/environment";
 import type {
-  CampaignInput, EventAttendee, EventOrder, OrderDetail, PromoCampaign,
+  ActivationChecklist, CampaignInput, EventAttendee, EventOrder, OrderDetail, OrganizerProfile, PromoCampaign,
 } from "../types/organizer";
 import { apiRequest } from "./client";
 
@@ -71,4 +71,28 @@ export function promoQrImageSource(token: string, campaignId: string): ImageURIS
     uri: `${environment.apiBaseUrl}/api/promo-campaigns/${encodeURIComponent(campaignId)}/qr.png`,
     headers: { Authorization: `Bearer ${token}` },
   };
+}
+
+export function getOrganizerProfile(token: string, signal?: AbortSignal): Promise<OrganizerProfile> {
+  return apiRequest("/api/organizer/profile", { token, signal });
+}
+
+export function updateOrganizerProfile(
+  token: string, details: { contact_phone: string; payout_account_details: string },
+): Promise<OrganizerProfile> {
+  return apiRequest("/api/organizer/profile", { method: "PUT", token, body: details });
+}
+
+/** Simulated identity check: the backend only requires both details to be saved. */
+export function verifyOrganizerProfile(token: string): Promise<OrganizerProfile> {
+  return apiRequest("/api/organizer/profile/verify", { method: "POST", token });
+}
+
+export function getActivationChecklist(token: string, eventId: string, signal?: AbortSignal): Promise<ActivationChecklist> {
+  return apiRequest(`${eventPath(eventId)}/activation-checklist`, { token, signal });
+}
+
+/** Pays the simulated activation fee and turns on paid sales for one event. */
+export function activatePaidSales(token: string, eventId: string): Promise<unknown> {
+  return apiRequest(`${eventPath(eventId)}/activate-paid`, { method: "POST", token, body: { accept_terms: true } });
 }

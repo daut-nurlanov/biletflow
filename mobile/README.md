@@ -342,3 +342,28 @@ refund/cancel rules, error wording, labels and the campaign form). Phone checks:
 | `src/utils/organizerOrders.ts` | Refund/cancel rules, error wording, labels, campaign form check |
 | `src/components/FilterChips.tsx` | Row of status choices |
 | `src/screens/EventAttendeesScreen.tsx`, `EventOrdersScreen.tsx`, `OrderDetailScreen.tsx`, `EventPromotionsScreen.tsx` | The four screens |
+
+### Organizer profile and paid-sales activation
+
+- **Organizer profile** (**Profile** in the My events header): contact phone and payout
+  account (`GET`/`PUT /api/organizer/profile`), then **Verify identity**
+  (`POST /api/organizer/profile/verify`). Verification is simulated: the backend only
+  checks that both details are saved, so the button stays off until they are.
+- **Paid sales** (button under "Paid sales" on the event dashboard): the activation
+  checklist (`GET /api/events/{id}/activation-checklist`) with the simulated fee. When
+  every required step is done, accept the terms and **Pay activation fee and activate**
+  (`POST /api/events/{id}/activate-paid`), with a confirmation first. Missing profile
+  steps link to the profile. Free-only events are told they need no activation.
+
+Check with `node --test tests/organizer-profile.test.cjs` (4 tests). Phone checks, as
+Aigerim on an event with a paid ticket type that isn't activated yet:
+
+1. **Profile**: save a phone and an IBAN-like account, then **Verify identity**.
+2. Event dashboard → **Activate paid sales**: every prerequisite shows ✓. Tick the terms,
+   activate, confirm. The screen says paid sales are active, and back on the dashboard
+   "Paid sales: Activated".
+
+| File | Purpose |
+| --- | --- |
+| `src/screens/OrganizerProfileScreen.tsx`, `PaidSalesActivationScreen.tsx` | The two screens |
+| `src/utils/organizerSetup.ts` | Profile form check, when to verify, activation state |

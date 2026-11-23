@@ -88,3 +88,23 @@ export interface CampaignInput {
   valid_from?: string;
   valid_until?: string;
 }
+
+/** GET /api/organizer/profile. The backend creates an empty one on first visit. */
+export interface OrganizerProfile {
+  contact_phone: string | null;
+  payout_account_details: string | null;
+  /** Simulated identity check: true once both details were saved and verified. */
+  paid_sales_verified: boolean;
+}
+
+export type ChecklistKey = "paid_ticket_type" | "identity_verified" | "payout_account" | "fee_paid" | "terms_accepted";
+
+/** GET /api/events/{id}/activation-checklist. */
+export interface ActivationChecklist {
+  event_id: string;
+  activation_fee: Money;
+  currency: string;
+  items: { key: ChecklistKey | string; label: string; done: boolean }[];
+  paid_sales_active: boolean;
+  suspended_by_admin: boolean;
+}
