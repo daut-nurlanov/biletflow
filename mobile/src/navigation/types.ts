@@ -18,6 +18,10 @@ export type OrganizerStackParamList = {
   EventDashboard: { eventId: string };
   EventActivity: { eventId: string; eventTitle: string };
   EventStaff: { eventId: string; eventTitle: string };
+  EventAttendees: { eventId: string; eventTitle: string };
+  EventOrders: { eventId: string; eventTitle: string };
+  OrderDetail: { orderId: string; eventId: string };
+  EventPromotions: { eventId: string; eventTitle: string };
 };
 
 export type TicketsStackParamList = {

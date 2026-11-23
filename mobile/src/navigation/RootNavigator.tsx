@@ -7,11 +7,15 @@ import { useSession } from "../auth/SessionContext";
 import { CheckoutScreen } from "../screens/CheckoutScreen";
 import { EventDashboardScreen } from "../screens/EventDashboardScreen";
 import { EventActivityScreen } from "../screens/EventActivityScreen";
+import { EventAttendeesScreen } from "../screens/EventAttendeesScreen";
 import { EventDetailsScreen } from "../screens/EventDetailsScreen";
 import { EventStaffScreen } from "../screens/EventStaffScreen";
+import { EventOrdersScreen } from "../screens/EventOrdersScreen";
+import { EventPromotionsScreen } from "../screens/EventPromotionsScreen";
 import { EventsScreen } from "../screens/EventsScreen";
 import { MyTicketsScreen } from "../screens/MyTicketsScreen";
 import { NotificationsScreen } from "../screens/NotificationsScreen";
+import { OrderDetailScreen } from "../screens/OrderDetailScreen";
 import { OrderHistoryScreen } from "../screens/OrderHistoryScreen";
 import { OrganizerEventsScreen } from "../screens/OrganizerEventsScreen";
 import { ScanScreen } from "../screens/ScanScreen";
@@ -98,6 +102,11 @@ function OrganizerNavigator() {
       <OrganizerStack.Screen name="EventDashboard" component={EventDashboardScreen} options={{ title: "Event dashboard" }} />
       <OrganizerStack.Screen name="EventActivity" component={EventActivityScreen} options={{ title: "Event activity" }} />
       <OrganizerStack.Screen name="EventStaff" component={EventStaffScreen} options={{ title: "Door staff" }} />
+      <OrganizerStack.Screen name="EventAttendees" component={EventAttendeesScreen} options={{ title: "Attendees" }} />
+      <OrganizerStack.Screen name="EventOrders" component={EventOrdersScreen} options={{ title: "Orders" }} />
+      <OrganizerStack.Screen name="OrderDetail" component={OrderDetailScreen}
+        getId={({ params }) => params.orderId} options={{ title: "Order" }} />
+      <OrganizerStack.Screen name="EventPromotions" component={EventPromotionsScreen} options={{ title: "Promotions" }} />
     </OrganizerStack.Navigator>
   );
 }
