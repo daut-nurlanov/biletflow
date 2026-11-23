@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import CalendarButton from '../components/CalendarButton'
 import { api, getToken } from '../api'
 import { useAuth } from '../auth'
 import { formatDate, formatPrice } from '../format'
@@ -245,6 +246,7 @@ export default function EventDetailPage() {
         )}
       </div>
 
+      <CalendarButton key={event.id} eventId={event.id} cancelled={event.status === 'cancelled'} />
       <h2>Tickets</h2>
       <div className="grid">
         {tickets.map((t) => {

@@ -172,6 +172,15 @@ Each person has a short plain-words description and a checklist.
 
 ### Aldiyar: organizer web, the watch and manage side
 
+Additional assignment (November 20, 2026), implemented locally in
+`feature/notifications-calendar-payments` from main `214737d`:
+- [x] Notifications list with unread filter, refresh and explicit mark-all-read.
+- [x] Add to calendar (.ics) on event details and purchased ticket cards, including cancellation files and authenticated downloads.
+- [x] Admin payment failures page integrated into the existing portal, with read-only rows, local search and role enforcement.
+
+Commit and push authorized November 23; synchronized with main `8e815a1`, preserving PRs #19–20. Existing backend endpoints
+are reused; see `ORGANIZER_MANAGEMENT.md` for behavior and verification.
+
 Implementation update (November 18, 2026): modules 1–4 are merged in main through PR #15 (`667d8dc`). Organizer support (module 5) is implemented locally in `feature/organizer-support` from current main, without Git conflicts. It adds event/status/escalation/request-type filters, handler status/assignment/escalation controls in the shared conversation, and organizer platform requests without a personal order. The backend keeps existing mobile calls compatible, adds optional list filters/context names, prevents duplicate escalation/status side effects and records automatic customer-reply status changes in History. All 231 backend tests, 59 fixture-browser checks, web build/lint and a real browser/API workflow pass. The user authorized commit, push and PR merge for module 5 on November 18. See [ORGANIZER_MANAGEMENT.md](ORGANIZER_MANAGEMENT.md) for validation and scope. The meeting with Daut and ongoing integration/bug fixes remain.
 
 **In plain words:** you build the pages where an organizer sees what is happening with an event: who bought tickets, how much money, what happened when, and support messages. You know the backend best, so you are also the person everyone asks when an endpoint answers something strange.

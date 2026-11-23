@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { api, BASE, getToken } from '../api'
 import { formatDate, formatStatus } from '../format'
+import CalendarButton from '../components/CalendarButton'
 import type { MyTicket } from '../types'
 
 export default function MyTicketsPage() {
@@ -56,6 +57,7 @@ export default function MyTicketsPage() {
                 <img className="qr" src={`${BASE}/api/tickets/${t.id}/qr.png`} alt={`Admission QR for ${title}`} />
               ) : <p className="muted">Admission QR unavailable: {t.event_status === 'cancelled' || t.event_status === 'suspended' ? `event ${t.event_status}` : t.status}.</p>}
               <a href={`${BASE}/api/tickets/${t.id}/pdf`} target="_blank" rel="noreferrer">Download PDF</a>
+              {t.event_id && <CalendarButton eventId={t.event_id} cancelled={t.event_status === 'cancelled'} />}
               <p>
                 <Link to={`/support/new?ticket_id=${encodeURIComponent(t.id)}`}>
                   Get help with this ticket

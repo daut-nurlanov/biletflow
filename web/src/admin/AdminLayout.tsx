@@ -18,7 +18,7 @@ export function AdminGuard() {
     )
   if (!user)
     return (
-      <Navigate to="/login" state={{ from: location.pathname }} replace />
+      <Navigate to="/login" state={{ from: location.pathname + location.search }} replace />
     )
   if (user.role !== 'platform_admin')
     return (
@@ -43,6 +43,7 @@ export function AdminGuard() {
         <NavLink to="/admin/users">Users</NavLink>
         <NavLink to="/admin/events">Events</NavLink>
         <NavLink to="/admin/orders">Orders</NavLink>
+        <NavLink to="/admin/payment-failures">Payment failures</NavLink>
         <NavLink to="/admin/moderation">Reports and promos</NavLink>
         <NavLink to="/admin/money">Fees and refunds</NavLink>
         <Link to="/support">Support cases</Link>

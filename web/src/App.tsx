@@ -24,6 +24,8 @@ import AdminOverview from './admin/Overview'
 import AdminUsers from './admin/Users'
 import AdminEvents from './admin/Events'
 import AdminOrders from './admin/Orders'
+import PaymentFailures from './admin/PaymentFailures'
+import NotificationsPage from './pages/NotificationsPage'
 import { Moderation, Money } from './admin/Moderation'
 import { EditEventPage, NewEventPage } from './organizer/EventFormPage'
 import SetupPage from './organizer/SetupPage'
@@ -45,6 +47,7 @@ export default function App() {
             <Link to="/support">Support</Link>
             {user ? (
               <>
+                <Link to="/notifications">Notifications</Link>
                 {user.role === 'platform_admin' && <Link to="/admin">Admin portal</Link>}
                 {user.role === 'organizer' && (
                   <Link to="/organizer">Organizer dashboard</Link>
@@ -78,6 +81,7 @@ export default function App() {
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route path="/my-tickets" element={<MyTicketsPage />} />
+          <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="/support" element={<SupportPage />} />
           <Route path="/support/new" element={<SupportNewPage />} />
           <Route path="/support/:id" element={<SupportCasePage />} />
@@ -86,6 +90,7 @@ export default function App() {
             <Route path="users" element={<AdminUsers />} />
             <Route path="events" element={<AdminEvents />} />
             <Route path="orders" element={<AdminOrders />} />
+            <Route path="payment-failures" element={<PaymentFailures />} />
             <Route path="moderation" element={<Moderation />} />
             <Route path="money" element={<Money />} />
           </Route>
