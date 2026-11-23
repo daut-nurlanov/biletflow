@@ -69,6 +69,7 @@ export function EventDashboardScreen({ route, navigation }: Props) {
             <StatusBadge status={eventDisplayStatus(event)} />
             <Text style={sharedStyles.body}>{event.venue_name}</Text>
             <Text style={sharedStyles.muted}>{formatDateTime(event.start_time)}</Text>
+            <AppButton title="Event setup" onPress={() => navigation.navigate("EventSetup", { eventId })} />
 
             <View style={[sharedStyles.card, styles.summary]}>
               <Text accessibilityRole="header" style={sharedStyles.title}>Ticket sales</Text>
@@ -109,7 +110,7 @@ export function EventDashboardScreen({ route, navigation }: Props) {
             <AppButton title="Promotions" onPress={() => navigation.navigate("EventPromotions", { eventId, eventTitle: event.title })} />
             <AppButton title="Event activity" onPress={() => navigation.navigate("EventActivity", { eventId, eventTitle: event.title })} />
             <AppButton title="Door staff" onPress={() => navigation.navigate("EventStaff", { eventId, eventTitle: event.title })} />
-            <Text style={sharedStyles.muted}>Event setup, campaign dates and detailed analytics are on the BiletFlow website.</Text>
+            <Text style={sharedStyles.muted}>Campaign dates and detailed analytics are on the BiletFlow website.</Text>
             <Text accessibilityRole="header" style={[sharedStyles.title, styles.sectionTitle]}>
               Sales by ticket type
             </Text>

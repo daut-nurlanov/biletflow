@@ -4,6 +4,7 @@ import { FlatList } from "react-native";
 
 import { getOrganizerEvents } from "../api/events";
 import { useSession } from "../auth/SessionContext";
+import { AppButton } from "../components/AppButton";
 import { EmptyState } from "../components/EmptyState";
 import { ErrorState } from "../components/ErrorState";
 import { EventCard } from "../components/EventCard";
@@ -34,6 +35,7 @@ export function OrganizerEventsScreen({ navigation }: Props) {
           contentContainerStyle={sharedStyles.listContent}
           refreshing={refreshing}
           onRefresh={refresh}
+          ListHeaderComponent={<AppButton title="New event" onPress={() => navigation.navigate("NewEvent")} />}
           renderItem={({ item }) => (
             <EventCard
               event={{ ...item, status: item.phase ?? item.status }}

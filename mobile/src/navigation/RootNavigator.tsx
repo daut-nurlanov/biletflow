@@ -9,6 +9,7 @@ import { EventDashboardScreen } from "../screens/EventDashboardScreen";
 import { EventActivityScreen } from "../screens/EventActivityScreen";
 import { EventAttendeesScreen } from "../screens/EventAttendeesScreen";
 import { EventDetailsScreen } from "../screens/EventDetailsScreen";
+import { EventSetupScreen } from "../screens/EventSetupScreen";
 import { EventStaffScreen } from "../screens/EventStaffScreen";
 import { EventOrdersScreen } from "../screens/EventOrdersScreen";
 import { EventPromotionsScreen } from "../screens/EventPromotionsScreen";
@@ -18,6 +19,8 @@ import { NotificationsScreen } from "../screens/NotificationsScreen";
 import { OrderDetailScreen } from "../screens/OrderDetailScreen";
 import { OrderHistoryScreen } from "../screens/OrderHistoryScreen";
 import { OrganizerEventsScreen } from "../screens/OrganizerEventsScreen";
+import { EditOrganizerEventScreen, NewOrganizerEventScreen } from "../screens/OrganizerEventFormScreen";
+import { OrganizerTicketTypeFormScreen } from "../screens/OrganizerTicketTypeFormScreen";
 import { OrganizerProfileScreen } from "../screens/OrganizerProfileScreen";
 import { PaidSalesActivationScreen } from "../screens/PaidSalesActivationScreen";
 import { ScanScreen } from "../screens/ScanScreen";
@@ -112,6 +115,11 @@ function OrganizerNavigator() {
       <OrganizerStack.Screen name="EventDashboard" component={EventDashboardScreen} options={{ title: "Event dashboard" }} />
       <OrganizerStack.Screen name="EventActivity" component={EventActivityScreen} options={{ title: "Event activity" }} />
       <OrganizerStack.Screen name="EventStaff" component={EventStaffScreen} options={{ title: "Door staff" }} />
+      <OrganizerStack.Screen name="NewEvent" component={NewOrganizerEventScreen} options={{ title: "New event" }} />
+      <OrganizerStack.Screen name="EditEvent" component={EditOrganizerEventScreen} options={{ title: "Edit event" }} />
+      <OrganizerStack.Screen name="EventSetup" component={EventSetupScreen} options={{ title: "Event setup" }} />
+      <OrganizerStack.Screen name="TicketTypeForm" component={OrganizerTicketTypeFormScreen}
+        options={({ route }) => ({ title: route.params.ticketTypeId ? "Edit ticket type" : "New ticket type" })} />
       <OrganizerStack.Screen name="EventAttendees" component={EventAttendeesScreen} options={{ title: "Attendees" }} />
       <OrganizerStack.Screen name="EventOrders" component={EventOrdersScreen} options={{ title: "Orders" }} />
       <OrganizerStack.Screen name="OrderDetail" component={OrderDetailScreen}
