@@ -27,7 +27,7 @@ test('profile and activation requests match the backend routes', async () => {
 });
 
 test('the profile form needs a real phone and a payout account', () => {
-  const { profileInput } = load('src/utils/organizerSetup.ts');
+  const { profileInput } = load('src/utils/organizerProfile.ts');
   assert.deepEqual(plain(profileInput('  +7 701 123 45 67 ', ' KZ86 125K ')),
     { input: { contact_phone: '+7 701 123 45 67', payout_account_details: 'KZ86 125K' } });
   for (const [phone, payout] of [['', 'KZ1'], ['123', 'KZ1'], ['call me', 'KZ1'], ['+7 701 123 45 67', '  '], ['+7'.padEnd(41, '1'), 'KZ1'], ['+77011234567', 'K'.repeat(201)]]) {
@@ -36,7 +36,7 @@ test('the profile form needs a real phone and a payout account', () => {
 });
 
 test('verification is offered only for saved, complete, unverified profiles', () => {
-  const { canVerify } = load('src/utils/organizerSetup.ts');
+  const { canVerify } = load('src/utils/organizerProfile.ts');
   assert.equal(canVerify({ contact_phone: '+77011234567', payout_account_details: 'KZ1', paid_sales_verified: false }), true);
   assert.equal(canVerify({ contact_phone: '+77011234567', payout_account_details: 'KZ1', paid_sales_verified: true }), false);
   assert.equal(canVerify({ contact_phone: null, payout_account_details: 'KZ1', paid_sales_verified: false }), false);
@@ -44,7 +44,7 @@ test('verification is offered only for saved, complete, unverified profiles', ()
 });
 
 test('activation is offered only when the backend would accept it', () => {
-  const { activationState, isProfileStep } = load('src/utils/organizerSetup.ts');
+  const { activationState, isProfileStep } = load('src/utils/organizerProfile.ts');
   const items = (done) => ['paid_ticket_type', 'identity_verified', 'payout_account', 'fee_paid', 'terms_accepted']
     .map((key) => ({ key, label: key, done: done.includes(key) }));
   const base = { paid_sales_active: false, suspended_by_admin: false };

@@ -366,4 +366,4 @@ Aigerim on an event with a paid ticket type that isn't activated yet:
 | File | Purpose |
 | --- | --- |
 | `src/screens/OrganizerProfileScreen.tsx`, `PaidSalesActivationScreen.tsx` | The two screens |
-| `src/utils/organizerSetup.ts` | Profile form check, when to verify, activation state |
+| `src/utils/organizerProfile.ts` | Profile form check, when to verify, activation state |

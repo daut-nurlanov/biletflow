@@ -14,7 +14,7 @@ import { sharedStyles, theme } from "../theme";
 import { formStyles } from "../theme/forms";
 import { formatMoney } from "../utils/formatting";
 import { organizerMessage } from "../utils/organizerOrders";
-import { activationState, isProfileStep } from "../utils/organizerSetup";
+import { activationState, isProfileStep } from "../utils/organizerProfile";
 
 type Props = NativeStackScreenProps<OrganizerStackParamList, "PaidSalesActivation">;
 

@@ -11,7 +11,7 @@ import { useApiResource } from "../hooks/useApiResource";
 import { sharedStyles, theme } from "../theme";
 import { formStyles } from "../theme/forms";
 import { organizerMessage } from "../utils/organizerOrders";
-import { canVerify, PAYOUT_MAX, PHONE_MAX, profileInput } from "../utils/organizerSetup";
+import { canVerify, PAYOUT_MAX, PHONE_MAX, profileInput } from "../utils/organizerProfile";
 
 export function OrganizerProfileScreen() {
   const { authed } = useSession();
