@@ -8,12 +8,15 @@ import { CheckoutScreen } from "../screens/CheckoutScreen";
 import { EventDashboardScreen } from "../screens/EventDashboardScreen";
 import { EventActivityScreen } from "../screens/EventActivityScreen";
 import { EventDetailsScreen } from "../screens/EventDetailsScreen";
+import { EventSetupScreen } from "../screens/EventSetupScreen";
 import { EventStaffScreen } from "../screens/EventStaffScreen";
 import { EventsScreen } from "../screens/EventsScreen";
 import { MyTicketsScreen } from "../screens/MyTicketsScreen";
 import { NotificationsScreen } from "../screens/NotificationsScreen";
 import { OrderHistoryScreen } from "../screens/OrderHistoryScreen";
 import { OrganizerEventsScreen } from "../screens/OrganizerEventsScreen";
+import { EditOrganizerEventScreen, NewOrganizerEventScreen } from "../screens/OrganizerEventFormScreen";
+import { OrganizerTicketTypeFormScreen } from "../screens/OrganizerTicketTypeFormScreen";
 import { ScanScreen } from "../screens/ScanScreen";
 import { StaffEventsScreen } from "../screens/StaffEventsScreen";
 import { StaffToolsScreen } from "../screens/StaffToolsScreen";
@@ -98,6 +101,11 @@ function OrganizerNavigator() {
       <OrganizerStack.Screen name="EventDashboard" component={EventDashboardScreen} options={{ title: "Event dashboard" }} />
       <OrganizerStack.Screen name="EventActivity" component={EventActivityScreen} options={{ title: "Event activity" }} />
       <OrganizerStack.Screen name="EventStaff" component={EventStaffScreen} options={{ title: "Door staff" }} />
+      <OrganizerStack.Screen name="NewEvent" component={NewOrganizerEventScreen} options={{ title: "New event" }} />
+      <OrganizerStack.Screen name="EditEvent" component={EditOrganizerEventScreen} options={{ title: "Edit event" }} />
+      <OrganizerStack.Screen name="EventSetup" component={EventSetupScreen} options={{ title: "Event setup" }} />
+      <OrganizerStack.Screen name="TicketTypeForm" component={OrganizerTicketTypeFormScreen}
+        options={({ route }) => ({ title: route.params.ticketTypeId ? "Edit ticket type" : "New ticket type" })} />
     </OrganizerStack.Navigator>
   );
 }

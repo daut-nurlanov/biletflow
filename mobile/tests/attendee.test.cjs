@@ -56,7 +56,7 @@ test('registration forces attendee role and My Tickets sends the current token a
   assert.equal(getTicketQrImageUrl('ticket/unsafe?'), 'https://test.invalid/api/tickets/ticket%2Funsafe%3F/qr.png');
 });
 
-test('admission QR visibility covers all ticket and event status combinations', () => {
+test('admission badge and QR visibility cover all ticket and event status combinations', () => {
   const qr = () => null;
   const { TicketCard } = load('src/components/TicketCard.tsx', {
     'react-native': { Text: 'Text', View: 'View' }, '../theme': { sharedStyles: {} },
@@ -73,9 +73,13 @@ test('admission QR visibility covers all ticket and event status combinations', 
     for (const event_status of ['draft', 'upcoming', 'active', 'completed', 'cancelled', 'suspended']) {
       const tree = TicketCard({ ticket: { id: 'ticket-id', status, event_status, event_title: 'Event', attendee_name: 'Attendee' },
         qrImageSource: { uri: 'https://test.invalid/qr.png' } });
-      assert.equal(nodes(tree).filter((node) => node.type === qr).length,
-        status === 'valid' && !['cancelled', 'suspended'].includes(event_status) ? 1 : 0,
-        `${status}/${event_status}`);
+      const cardNodes = nodes(tree);
+      const context = `${status}/${event_status}`;
+      const blocked = ['cancelled', 'suspended'].includes(event_status);
+      assert.equal(cardNodes.find((node) => node.type === 'StatusBadge')?.props.status,
+        status === 'valid' && blocked ? event_status : status, context);
+      assert.equal(cardNodes.filter((node) => node.type === qr).length,
+        status === 'valid' && !blocked ? 1 : 0, context);
     }
   }
 });

@@ -25,7 +25,7 @@ const admissionMessages = {
 export function TicketCard({ ticket, qrImageSource, onSupport, onPdf }: TicketCardProps) {
   // The scanner rejects these events even when the ticket itself is still valid.
   const eventBlocked = ticket.event_status === "cancelled" || ticket.event_status === "suspended";
-  const showQr = ticket.status === "valid" && !eventBlocked;
+  const admissionStatus = ticket.status === "valid" && eventBlocked ? ticket.event_status : ticket.status;
 
   return (
     <View style={sharedStyles.card}>
@@ -37,7 +37,7 @@ export function TicketCard({ ticket, qrImageSource, onSupport, onPdf }: TicketCa
       {ticket.section ? <Text style={sharedStyles.body}>Section {ticket.section}, row {ticket.row_label}, seat {ticket.seat_number}</Text> : null}
       <Text style={sharedStyles.body}>Attendee: {ticket.attendee_name}</Text>
       <Text style={sharedStyles.muted}>Ticket ending {ticket.id.slice(-8)}</Text>
-      <StatusBadge status={ticket.status} />
+      <StatusBadge status={admissionStatus} />
       {eventBlocked ? (
         <Text style={sharedStyles.body}>
           {ticket.event_status === "cancelled"
@@ -52,7 +52,7 @@ export function TicketCard({ ticket, qrImageSource, onSupport, onPdf }: TicketCa
           ? "The admission QR is unavailable for this event."
           : admissionMessages[ticket.status] ?? "Ticket status unavailable. Ask door staff for help."}
       </Text>
-      {showQr ? (
+      {admissionStatus === "valid" ? (
         <TicketQrCode
           source={qrImageSource}
           accessibilityLabel={`Admission QR code for ${ticket.event_title}, ${ticket.attendee_name}`}
