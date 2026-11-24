@@ -35,7 +35,7 @@ export function PaidSalesActivationScreen({ route, navigation }: Props) {
 
   const checklist = resource.data;
   if (!checklist && resource.loading) return <Screen><LoadingState message="Loading the checklist…" /></Screen>;
-  if (!checklist) {
+  if (!checklist || resource.error) {
     return <Screen><ErrorState title="Couldn't load the checklist" message={resource.error ?? "Try again."} onRetry={resource.retry} /></Screen>;
   }
 
@@ -50,7 +50,7 @@ export function PaidSalesActivationScreen({ route, navigation }: Props) {
     setNotice(null);
     try {
       await authed((token) => activatePaidSales(token, eventId));
-      setNotice({ text: "Paid sales activated. Buyers can now pay for this event's tickets.", error: false });
+      setNotice({ text: "Paid sales activated for this event.", error: false });
     } catch (caught) {
       setNotice({
         text: `${organizerMessage(caught)} If the connection dropped, pull down on the dashboard to check before trying again.`,
@@ -86,7 +86,7 @@ export function PaidSalesActivationScreen({ route, navigation }: Props) {
         {state.kind === "active" ? (
           <View style={sharedStyles.card}>
             <Text style={sharedStyles.title}>Paid sales are active</Text>
-            <Text style={sharedStyles.body}>Buyers can pay for this event&apos;s paid ticket types.</Text>
+            <Text style={sharedStyles.body}>Paid tickets can be sold once the event is published and on sale.</Text>
           </View>
         ) : state.kind === "suspended" ? (
           <View style={sharedStyles.card}>
@@ -132,7 +132,7 @@ export function PaidSalesActivationScreen({ route, navigation }: Props) {
                   <Text style={[sharedStyles.body, styles.flex]}>I accept the paid-event terms</Text>
                 </Pressable>
                 <AppButton title={busy ? "Activating…" : "Pay activation fee and activate"} onPress={confirm}
-                  disabled={!terms} loading={busy} />
+                  disabled={!terms || resource.loading || resource.refreshing} loading={busy} />
               </>
             ) : null}
           </>

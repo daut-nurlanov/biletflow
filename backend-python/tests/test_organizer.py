@@ -50,9 +50,40 @@ def test_activation_needs_a_paid_ticket_type_and_the_owner(kit):
 def test_organizer_profile(kit):
     org, attendee = kit.user("organizer"), kit.user()
     assert kit.client.get("/api/organizer/profile", headers=org.h).json()["paid_sales_verified"] is False
-    updated = kit.client.put("/api/organizer/profile", json={"contact_phone": "+7 777"}, headers=org.h).json()
-    assert updated["contact_phone"] == "+7 777" and updated["payout_account_details"] is None
+    updated = kit.client.put("/api/organizer/profile", json={"contact_phone": " +7 701 000 0000 "}, headers=org.h).json()
+    assert updated["contact_phone"] == "+7 701 000 0000" and updated["payout_account_details"] is None
     assert kit.client.get("/api/organizer/profile", headers=attendee.h).status_code == 403
+
+
+def test_invalid_profile_fields_cannot_verify_or_activate_paid_sales(kit):
+    organizer = kit.user("organizer")
+    event, _ = kit.event(organizer, publish=False)
+    profile = "/api/organizer/profile"
+    activation = f"/api/events/{event['id']}"
+    for invalid in ({"contact_phone": " \t "}, {"contact_phone": "not a phone"},
+                    {"contact_phone": "1" * 41}, {"payout_account_details": " \n "},
+                    {"payout_account_details": "x" * 201}):
+        assert kit.client.put(profile, json=invalid, headers=organizer.h).status_code == 400
+    assert kit.client.post(profile + "/verify", headers=organizer.h).status_code == 409
+    assert kit.client.post(activation + "/activate-paid", json={"accept_terms": True},
+                           headers=organizer.h).status_code == 409
+
+    # Old rows may already contain whitespace and carry a verified flag.
+    run_sql("""UPDATE organizer_profiles SET contact_phone = ' ', payout_account_details = ' ',
+               paid_sales_verified = TRUE WHERE user_id = %s""", (organizer.id,))
+    checklist = kit.client.get(activation + "/activation-checklist", headers=organizer.h).json()
+    items = {item["key"]: item["done"] for item in checklist["items"]}
+    assert not items["identity_verified"] and not items["payout_account"]
+    assert kit.client.post(profile + "/verify", headers=organizer.h).status_code == 409
+    assert kit.client.post(activation + "/activate-paid", json={"accept_terms": True},
+                           headers=organizer.h).status_code == 409
+
+    updated = kit.client.put(profile, json={"contact_phone": " (701) 000-0000 ",
+                                          "payout_account_details": " Kaspi 4821 "}, headers=organizer.h).json()
+    assert updated["contact_phone"] == "(701) 000-0000" and updated["payout_account_details"] == "Kaspi 4821"
+    assert kit.client.post(profile + "/verify", headers=organizer.h).status_code == 200
+    assert kit.client.post(activation + "/activate-paid", json={"accept_terms": True},
+                           headers=organizer.h).status_code == 200
 
 
 def test_dashboard_groups_events_by_phase(kit):

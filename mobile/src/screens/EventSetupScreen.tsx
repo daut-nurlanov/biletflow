@@ -98,7 +98,8 @@ export function EventSetupScreen({ route, navigation }: Props) {
             </View>
           );
         })}
-        {event.ticket_types.some((type) => Number(type.price) > 0) && !event.is_paid_sales_active && phase !== "cancelled"
+        {event.paid_sales_suspended ? <Text style={sharedStyles.muted}>Paid sales are suspended by BiletFlow.</Text> : null}
+        {event.ticket_types.some((type) => Number(type.price) > 0) && !event.is_paid_sales_active && !event.paid_sales_suspended && phase !== "cancelled"
           ? <Text style={sharedStyles.muted}>Activate paid sales from the event dashboard before buyers can purchase paid tickets.</Text> : null}
       </ScrollView>
     </Screen>

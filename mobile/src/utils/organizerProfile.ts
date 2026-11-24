@@ -34,8 +34,8 @@ export type ActivationState =
   | { kind: "ready" };
 
 export function activationState(checklist: ActivationChecklist): ActivationState {
-  if (checklist.paid_sales_active) return { kind: "active" };
   if (checklist.suspended_by_admin) return { kind: "suspended" };
+  if (checklist.paid_sales_active) return { kind: "active" };
   const missing = checklist.items.filter((item) => PREREQUISITES.includes(item.key) && !item.done);
   if (missing.some((item) => item.key === "paid_ticket_type")) return { kind: "no_paid_tickets" };
   if (missing.length > 0) return { kind: "blocked", missing: missing.map((item) => item.label) };

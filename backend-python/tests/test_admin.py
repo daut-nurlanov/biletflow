@@ -74,7 +74,7 @@ def test_admin_sees_activations_refunds_and_promo_activity(kit):
     event, tt = kit.event(org, publish=False)
     run_sql("UPDATE events SET is_paid_sales_active = false WHERE id = %s", (event["id"],))
     kit.publish(org, event["id"])
-    kit.client.put("/api/organizer/profile", json={"contact_phone": "1", "payout_account_details": "x"}, headers=org.h)
+    kit.client.put("/api/organizer/profile", json={"contact_phone": "+7 701 000 0000", "payout_account_details": "QA account"}, headers=org.h)
     kit.client.post("/api/organizer/profile/verify", headers=org.h)
     kit.client.post(f"/api/events/{event['id']}/activate-paid", json={"accept_terms": True}, headers=org.h)
     promo = kit.client.post(f"/api/events/{event['id']}/promo-campaigns", headers=org.h, json={

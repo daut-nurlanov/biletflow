@@ -76,11 +76,16 @@ export function campaignInput(form: CampaignForm): { input: CampaignInput } | { 
   if (code && (code.length > 40 || !/^[A-Z0-9_-]+$/.test(code))) {
     return { error: "A code can only use letters, digits, - and _ (at most 40 characters). Leave it empty to generate one." };
   }
-  const value = Number(form.discountValue.trim().replace(",", "."));
-  if (!form.discountValue.trim() || !Number.isFinite(value) || value <= 0) {
+  const amount = form.discountValue.trim().replace(",", ".");
+  const value = Number(amount);
+  if (!/^(?:\d+(?:\.\d*)?|\.\d+)$/.test(amount) || value <= 0) {
     return { error: "Enter a discount above 0." };
   }
+  if ((amount.split(".")[1] ?? "").replace(/0+$/, "").length > 2) {
+    return { error: "Use a discount with up to two decimal places." };
+  }
   if (form.discountType === "percentage" && value > 100) return { error: "A percentage discount can be at most 100." };
+  if (form.discountType === "fixed" && value > 99_999_999.99) return { error: "A fixed discount can be at most 99,999,999.99 KZT." };
   const max = Number(form.maxRedemptions.trim());
   if (!Number.isInteger(max) || max < 1) return { error: "Max uses must be a whole number, at least 1." };
   return {
