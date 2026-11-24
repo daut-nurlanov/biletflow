@@ -1,5 +1,8 @@
 import os
+import smtplib
+import threading
 from contextlib import contextmanager
+from email.message import EmailMessage
 
 import psycopg2
 import psycopg2.extras
@@ -53,13 +56,50 @@ def audit(cur, actor_id, event_id, action, details, entity_type=None, entity_id=
         (actor_id, event_id, action, details, entity_type, str(entity_id) if entity_id else None))
 
 
+def _send_email(to_address, subject, body):
+    #real email through any SMTP provider (Gmail app password, SendGrid, Mailgun,
+    #a school mail server...). Runs in its own thread so a slow or broken mail
+    #server can never slow down or break a purchase. Failures are only logged.
+    host = os.environ.get("SMTP_HOST", "").strip()
+    port = int(os.environ.get("SMTP_PORT", "587") or 587)
+    user = os.environ.get("SMTP_USER", "").strip()
+    password = os.environ.get("SMTP_PASSWORD", "")
+    sender = os.environ.get("SMTP_FROM", "").strip() or user or "no-reply@biletflow.local"
+    use_ssl = os.environ.get("SMTP_SSL", "").strip().lower() in ("1", "true", "yes")
+    use_starttls = os.environ.get("SMTP_STARTTLS", "true").strip().lower() not in ("0", "false", "no")
+    try:
+        msg = EmailMessage()
+        msg["From"] = sender
+        msg["To"] = to_address
+        msg["Subject"] = subject
+        msg.set_content(body + "\n\n-- BiletFlow (university project demo, no real payments)")
+        if use_ssl:
+            server = smtplib.SMTP_SSL(host, port, timeout=15)
+        else:
+            server = smtplib.SMTP(host, port, timeout=15)
+        with server:
+            if use_starttls and not use_ssl:
+                server.starttls()
+            if user:
+                server.login(user, password)
+            server.send_message(msg)
+        print(f"[email sent] {to_address}: {subject}", flush=True)
+    except Exception as error:  # noqa: BLE001 - never let email problems reach the caller
+        print(f"[email FAILED] {to_address}: {subject}: {error}", flush=True)
+
+
 def notify(cur, user_id, kind, subject, body):
-    #"email" for the demo: we store it as an in-app notification (see
-    #GET /api/notifications) and print it to the server log. swapping in a
-    #real email provider later only means changing this one function
+    #every message is stored as an in-app notification (GET /api/notifications)
+    #and printed to the server log. If SMTP_HOST is set it is ALSO sent as a real
+    #email. With SMTP_HOST empty (the default) nothing leaves the computer.
     cur.execute(
         "INSERT INTO notifications (user_id, kind, subject, body) VALUES (%s, %s, %s, %s)",
         (user_id, kind, subject, body))
+    if os.environ.get("SMTP_HOST", "").strip():
+        cur.execute("SELECT email FROM users WHERE id = %s", (user_id,))
+        row = cur.fetchone()
+        if row and row["email"]:
+            threading.Thread(target=_send_email, args=(row["email"], subject, body), daemon=True).start()
     print(f"[notification to user {user_id}] {kind}: {subject}", flush=True)
     #demo outbox: there is no real email, so for the two account messages that
     #carry a one-time code we also print the body. This is how someone who is

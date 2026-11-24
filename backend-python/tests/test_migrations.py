@@ -45,7 +45,10 @@ def test_legacy_upgrade_preserves_orders_and_is_repeatable(monkeypatch):
         cur.execute("SELECT processing_fee FROM orders WHERE id = %s", (order,))
         assert cur.fetchone()["processing_fee"] == 12
         cur.execute("SELECT count(*) AS n FROM schema_migrations")
-        assert cur.fetchone()["n"] == 1
+        expected = len(list((Path(__file__).resolve().parents[1] / "migrations").glob("*.sql")))
+        assert cur.fetchone()["n"] == expected  #every migration file applied exactly once
+        cur.execute("SELECT to_regclass('event_images') AS t")  #the cover-picture table came from migration 002
+        assert cur.fetchone()["t"] is not None
     finally:
         connection.rollback()  # Includes the test schema; no demo records are touched.
         connection.close()

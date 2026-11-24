@@ -1,8 +1,9 @@
 import os
+import uuid
 from datetime import datetime, timedelta, timezone
 
 import psycopg2
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel
 
 from db import audit, notify, release_expired_holds, tx
@@ -193,6 +194,68 @@ def list_events(organizer_id: str | None = None, public: bool = False, q: str | 
         else:
             cur.execute(f"SELECT * FROM events WHERE {on_sale}" + filters + " ORDER BY start_time, id LIMIT %(limit)s OFFSET %(offset)s", params)
         return cur.fetchall()
+
+
+MAX_IMAGE_BYTES = 2 * 1024 * 1024
+
+
+def _image_type(data):
+    #trust the file's own first bytes, not the name or header the browser sent
+    if data[:3] == b"\xff\xd8\xff":
+        return "image/jpeg"
+    if data[:8] == b"\x89PNG\r\n\x1a\n":
+        return "image/png"
+    if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return "image/webp"
+    return None
+
+
+@router.post("/api/events/{event_id}/image")
+async def upload_event_image(event_id: str, request: Request,
+                             user=Depends(require_roles("organizer", "platform_admin"))):
+    """Upload the cover picture. Send the raw file as the request body (JPEG, PNG or WebP, up to 2 MB)."""
+    declared = request.headers.get("content-length")
+    if declared and declared.isdigit() and int(declared) > MAX_IMAGE_BYTES + 1024:
+        raise HTTPException(status_code=413, detail="The image is larger than 2 MB. Choose a smaller file")
+    data = await request.body()
+    if not data:
+        raise HTTPException(status_code=400, detail="No image was sent")
+    if len(data) > MAX_IMAGE_BYTES:
+        raise HTTPException(status_code=413, detail="The image is larger than 2 MB. Choose a smaller file")
+    content_type = _image_type(data)
+    if content_type is None:
+        raise HTTPException(status_code=400, detail="Only JPEG, PNG or WebP pictures are accepted")
+    with tx() as cur:
+        event = assert_manager(cur, user, event_id, lock=True)
+        assert_editable(event, user)
+        cur.execute(
+            """INSERT INTO event_images (event_id, content_type, data) VALUES (%s, %s, %s)
+               ON CONFLICT (event_id) DO UPDATE SET content_type = EXCLUDED.content_type,
+                                                    data = EXCLUDED.data, updated_at = now()""",
+            (event_id, content_type, data))
+        #the version number in the link makes browsers fetch the new picture after a replace
+        version = int(datetime.now(timezone.utc).timestamp())
+        cur.execute("UPDATE events SET image_url = %s WHERE id = %s RETURNING *",
+                    (f"/api/events/{event_id}/image?v={version}", event_id))
+        updated = cur.fetchone()
+        audit(cur, user["id"], event_id, "event_image_uploaded", "Cover picture uploaded", "event", event_id)
+        return updated
+
+
+@router.get("/api/events/{event_id}/image")
+def get_event_image(event_id: str):
+    """The cover picture. Public on purpose: it is loaded by <img> tags, which cannot send a login token."""
+    try:
+        uuid.UUID(event_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="No picture")
+    with tx() as cur:
+        cur.execute("SELECT content_type, data FROM event_images WHERE event_id = %s", (event_id,))
+        row = cur.fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="No picture")
+    return Response(content=bytes(row["data"]), media_type=row["content_type"],
+                    headers={"Cache-Control": "public, max-age=300", "X-Content-Type-Options": "nosniff"})
 
 
 @router.get("/api/events/{event_id}")

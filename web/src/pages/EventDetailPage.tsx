@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import CalendarButton from '../components/CalendarButton'
-import { api, getToken } from '../api'
+import { api, getToken, imageSrc } from '../api'
 import { useAuth } from '../auth'
 import { formatDate, formatPrice } from '../format'
 import type { EventItem, Quote, TicketType } from '../types'
@@ -185,7 +185,7 @@ export default function EventDetailPage() {
         {formatDate(event.start_time)} · {event.venue_name}
         {event.venue_address ? `, ${event.venue_address}` : ''}
       </p>
-      {event.image_url && <img src={event.image_url} alt="" className="cover" />}
+      {event.image_url && <img src={imageSrc(event.image_url)} alt="" className="cover" />}
       {event.description && <p>{event.description}</p>}
       {event.refund_policy && <p className="muted">{tr('Refund policy: {v}', { v: event.refund_policy })}</p>}
       <div className="event-report">

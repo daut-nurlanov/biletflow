@@ -219,3 +219,7 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.tomldocs/qa/
+
+# database backups made by backup.bat / backup.sh
+backups/
+.env

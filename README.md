@@ -33,6 +33,8 @@ demo records. Do not reset volumes to fix missing columns. See
 - `docs/SETUP.md`: full setup guide, what works and what does not, demo IDs and promo codes
 - `docs/DATA_MODELS_AND_APIS.md`: every table and every endpoint
 - `docs/TASKS.md`: who is doing what, and what is left
+- `docs/BACKUP_RECOVERY.md`: how to back up and restore the database (`backup.bat`, `restore.bat`)
+- `docs/EMAIL_SETUP.md`: how to turn on real emails (off by default; messages always appear in the app)
 - `mobile/README.md`: how to run the mobile app
 - `docs/BiletFlow_SRS_Initial_Draft.pdf`: the requirements document
 

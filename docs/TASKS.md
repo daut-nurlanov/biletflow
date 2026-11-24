@@ -1,6 +1,8 @@
 # BiletFlow: Status and Tasks
 
-Last updated: November 19, 2026.
+Last updated: November 24, 2026.
+
+**Nov 24 update:** added optional real email through SMTP (`docs/EMAIL_SETUP.md`), database backup and restore scripts (`docs/BACKUP_RECOVERY.md`), cover picture upload for events (stored in the database, 2 MB, JPEG/PNG/WebP) and a Preview public page button on the organizer Set-up tab. Backend tests now collect 260 cases.
 
 **Nov 19 update:** organizer set-up pages (`/organizer/new`, the Set-up and Promotions tabs, `/organizer/profile`) and the admin portal (`/admin`) are now in `web/`. See `docs/DEMO_SCRIPT.md` for the demo walk-through. Final presentation: second half of November.
 

@@ -201,6 +201,9 @@ export default function SetupPage() {
               Edit details
             </Link>
           )}
+          <a className="btn secondary" href={`/events/${event.id}`} target="_blank" rel="noreferrer">
+            Preview public page
+          </a>
           {draft && (
             <button className="btn" disabled={busy} onClick={() => run('Event published. Buyers can now see it.', `/api/events/${event.id}/publish`)}>
               Publish event

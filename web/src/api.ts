@@ -1,6 +1,11 @@
 export const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
 const TOKEN_KEY = 'biletflow_token'
 
+// Pictures uploaded to BiletFlow are stored as paths like /api/events/<id>/image.
+// The website and the API run on different addresses, so add the API address.
+export const imageSrc = (url: string | null | undefined) =>
+  !url ? '' : url.startsWith('/') ? `${BASE}${url}` : url
+
 export const getToken = () => localStorage.getItem(TOKEN_KEY)
 export const setToken = (t: string | null) =>
   t ? localStorage.setItem(TOKEN_KEY, t) : localStorage.removeItem(TOKEN_KEY)

@@ -1,9 +1,24 @@
 import { useState, type FormEvent } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
-import { api } from '../api'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
+import { BASE, api, getToken, imageSrc } from '../api'
 import { messageFor, useResource } from './data'
 import { Notice, ResourceState } from './ui'
 import { toApiTime, toLocalInput, type FullEvent } from './setup'
+
+const MAX_IMAGE_BYTES = 2 * 1024 * 1024
+const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp']
+
+async function uploadImage(eventId: string, file: File) {
+  const response = await fetch(`${BASE}/api/events/${encodeURIComponent(eventId)}/image`, {
+    method: 'POST',
+    headers: { 'Content-Type': file.type, Authorization: `Bearer ${getToken() ?? ''}` },
+    body: file,
+  })
+  if (!response.ok) {
+    const data = await response.json().catch(() => null)
+    throw new Error(typeof data?.detail === 'string' ? data.detail : 'The picture could not be uploaded')
+  }
+}
 
 const CATEGORIES = ['Concert', 'Conference', 'Workshop', 'Sports', 'Festival', 'Theatre', 'Other']
 
@@ -65,8 +80,12 @@ function EventForm({
   eventId?: string
 }) {
   const navigate = useNavigate()
+  const location = useLocation()
   const [form, setForm] = useState(initial)
-  const [error, setError] = useState('')
+  const [file, setFile] = useState<File | null>(null)
+  const [error, setError] = useState(
+    (location.state as { warning?: string } | null)?.warning ?? '',
+  )
   const [busy, setBusy] = useState(false)
   const set = (key: keyof FormState) => (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>,
@@ -78,6 +97,14 @@ function EventForm({
     const capacity = Number(form.capacity)
     if (!Number.isInteger(capacity) || capacity < 1) {
       setError('Capacity must be a whole number of at least 1.')
+      return
+    }
+    if (file && !IMAGE_TYPES.includes(file.type)) {
+      setError('The cover picture must be a JPEG, PNG or WebP file.')
+      return
+    }
+    if (file && file.size > MAX_IMAGE_BYTES) {
+      setError('The cover picture is larger than 2 MB. Choose a smaller file.')
       return
     }
     // Empty optional fields are left out. The server keeps the old value
@@ -99,16 +126,28 @@ function EventForm({
     }
     setBusy(true)
     try {
+      let savedId = eventId
       if (eventId) {
         await api(`/api/events/${eventId}`, { method: 'PUT', body })
-        navigate(`/organizer/events/${eventId}/setup`)
       } else {
         const created = await api<{ id: string }>('/api/events', {
           method: 'POST',
           body,
         })
-        navigate(`/organizer/events/${created.id}/setup`)
+        savedId = created.id
       }
+      if (file && savedId) {
+        try {
+          await uploadImage(savedId, file)
+        } catch (err) {
+          // the event itself is saved; reopen it so the picture can be tried again
+          navigate(`/organizer/events/${savedId}/edit`, {
+            state: { warning: `The event was saved, but the picture was not: ${messageFor(err)}` },
+          })
+          return
+        }
+      }
+      navigate(`/organizer/events/${savedId}/setup`)
     } catch (err) {
       setError(messageFor(err))
       setBusy(false)
@@ -173,7 +212,18 @@ function EventForm({
         <textarea rows={2} maxLength={2000} value={form.refund_policy} onChange={set('refund_policy')} />
       </label>
       <label className="org-field">
-        Image address (https://...)
+        Cover picture (JPEG, PNG or WebP, up to 2 MB)
+        <input
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+        />
+      </label>
+      {form.image_url && !file && (
+        <img src={imageSrc(form.image_url)} alt="Current cover" style={{ maxWidth: 240, borderRadius: 8 }} />
+      )}
+      <label className="org-field">
+        Or an image address (https://...)
         <input type="url" maxLength={500} value={form.image_url} onChange={set('image_url')} />
       </label>
       <div className="org-form-row">
