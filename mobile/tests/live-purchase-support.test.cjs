@@ -21,7 +21,7 @@ test('native purchase controller -> real quote/checkout -> My Tickets/QR -> staf
     const organizer = await api('/api/auth/register', { email: `org-${suffix}@test.invalid`, full_name: 'Checkout Organizer', password: 'test-password123', role: 'organizer' });
     const notifications = await api('/api/notifications', undefined, organizer.token);
     await api('/api/auth/verify-email', { token: notifications.find((n) => n.kind === 'verify_email').body.split(': ').at(-1) });
-    await api('/api/organizer/profile', { contact_phone: 'Demo contact', payout_account_details: 'Simulated account' }, organizer.token, 'PUT');
+    await api('/api/organizer/profile', { contact_phone: '+7 701 000 0000', payout_account_details: 'Simulated account' }, organizer.token, 'PUT');
     await api('/api/organizer/profile/verify', undefined, organizer.token, 'POST');
     const event = await api('/api/events', { title: `Native purchase ${suffix}`, venue_name: 'Test Hall', start_time: '2030-12-20T18:00:00+05:00', capacity: 30 }, organizer.token);
     const paid = await api(`/api/events/${event.id}/ticket-types`, { name: 'Paid admission', price: 2000, total_quantity: 10 }, organizer.token);

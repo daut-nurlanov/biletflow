@@ -22,6 +22,12 @@ export type OrganizerStackParamList = {
   EditEvent: { eventId: string };
   EventSetup: { eventId: string };
   TicketTypeForm: { eventId: string; ticketTypeId?: string };
+  EventAttendees: { eventId: string; eventTitle: string };
+  EventOrders: { eventId: string; eventTitle: string };
+  OrderDetail: { orderId: string; eventId: string };
+  EventPromotions: { eventId: string; eventTitle: string };
+  OrganizerProfile: undefined;
+  PaidSalesActivation: { eventId: string; eventTitle: string };
 };
 
 export type TicketsStackParamList = {

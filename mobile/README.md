@@ -303,6 +303,67 @@ reaches FastAPI running on the same computer.
 | `src/utils/ticketSales.ts` | Sold/remaining/percent maths, percent text, sales-window text |
 | `src/components/EventCard.tsx` | Optional `actionLabel` and `accessibilityHint`; attendee defaults unchanged |
 
-Not built yet, because the backend has no endpoints for them: revenue, refunds, and
-check-in counts on the dashboard; editing events; the paid-sales activation checklist;
-staff management.
+### Attendees, orders, refunds and promotions (Nov 23)
+
+The event dashboard now opens four more organizer screens. They use the same
+endpoints and rules as the website, with the organizer's sign-in token.
+
+- **Attendees** (`GET /api/events/{id}/attendees`): one row per ticket, with the buyer's
+  email, ticket type, seat, status and check-in time. Search by name or email (sent
+  after a short pause in typing) and filter by ticket status. Tap a row to open its order.
+- **Orders and refunds** (`GET /api/events/{id}/orders`): filter by order status; tap
+  one to open it.
+- **Order** (`GET /api/orders/{id}`): amount, promo code, tickets and refund history.
+  A confirmed paid order can be **refunded** in full (`POST /api/orders/{id}/refund`,
+  optional reason, simulated). A confirmed free registration can be **cancelled**
+  (`POST /api/orders/{id}/cancel`). Both ask first, and neither is offered once a
+  ticket in the order was used at the door. After either one the order reloads, so a
+  lost answer never leaves a stale status on screen.
+- **Promotions** (`/api/events/{id}/promo-campaigns`): create a percent or fixed
+  campaign (code optional, max uses), enable or disable it, show its blue QR
+  (`/api/promo-campaigns/{id}/qr.png`, loaded with the token) and share its link. Start
+  and end dates are set on the website.
+
+Check with `node --test tests/organizer.test.cjs` (5 tests: the exact requests,
+refund/cancel rules, error wording, labels and the campaign form). Phone checks:
+
+1. As Aigerim, open an event's dashboard, then **Attendees**. Search `dana`; filter
+   **Checked in**.
+2. **Orders and refunds** → a paid order with no used tickets → **Refund order** →
+   confirm. The order and its tickets show Refunded, and the attendee's QR stops working.
+3. Open an order whose ticket was scanned: no refund button, and the reason is shown.
+4. **Promotions** → create `DEMO20`, 20%, 10 uses → its QR appears. Disable it, then
+   try `DEMO20` at checkout as Dana: it is refused. Enable it again.
+
+| File | Purpose |
+| --- | --- |
+| `src/api/organizer.ts` | Attendee, order, refund, cancel and promo campaign requests |
+| `src/types/organizer.ts` | Shapes of those answers |
+| `src/utils/organizerOrders.ts` | Refund/cancel rules, error wording, labels, campaign form check |
+| `src/components/FilterChips.tsx` | Row of status choices |
+| `src/screens/EventAttendeesScreen.tsx`, `EventOrdersScreen.tsx`, `OrderDetailScreen.tsx`, `EventPromotionsScreen.tsx` | The four screens |
+
+### Organizer profile and paid-sales activation
+
+- **Organizer profile** (**Profile** in the My events header): contact phone and payout
+  account (`GET`/`PUT /api/organizer/profile`), then **Verify identity**
+  (`POST /api/organizer/profile/verify`). Verification is simulated: the backend only
+  checks that both details are saved, so the button stays off until they are.
+- **Paid sales** (button under "Paid sales" on the event dashboard): the activation
+  checklist (`GET /api/events/{id}/activation-checklist`) with the simulated fee. When
+  every required step is done, accept the terms and **Pay activation fee and activate**
+  (`POST /api/events/{id}/activate-paid`), with a confirmation first. Missing profile
+  steps link to the profile. Free-only events are told they need no activation.
+
+Check with `node --test tests/organizer-profile.test.cjs` (4 tests). Phone checks, as
+Aigerim on an event with a paid ticket type that isn't activated yet:
+
+1. **Profile**: save a phone and an IBAN-like account, then **Verify identity**.
+2. Event dashboard → **Activate paid sales**: every prerequisite shows ✓. Tick the terms,
+   activate, confirm. The screen says paid sales are active, and back on the dashboard
+   "Paid sales: Activated".
+
+| File | Purpose |
+| --- | --- |
+| `src/screens/OrganizerProfileScreen.tsx`, `PaidSalesActivationScreen.tsx` | The two screens |
+| `src/utils/organizerProfile.ts` | Profile form check, when to verify, activation state |

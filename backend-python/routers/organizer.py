@@ -1,3 +1,4 @@
+import re
 import uuid
 from datetime import datetime
 from decimal import Decimal
@@ -29,26 +30,48 @@ class ActivateRequest(BaseModel):
     accept_terms: bool = False
 
 
+def _valid_contact_phone(value):
+    phone = (value or "").strip()
+    return (len(phone) <= 40 and bool(re.fullmatch(r"\+?[0-9()\s.-]+", phone))
+            and len(re.findall(r"[0-9]", phone)) >= 7)
+
+
+def _valid_payout_account(value):
+    # This is a simulated account field. Existing payouts may use local bank
+    # descriptions rather than an IBAN.
+    return 0 < len((value or "").strip()) <= 200
+
+
 @router.get("/api/organizer/profile")
 def get_profile(user=Depends(require_roles("organizer"))):
     with tx() as cur:
         cur.execute("SELECT * FROM organizer_profiles WHERE user_id = %s", (user["id"],))
         profile = cur.fetchone()
         if not profile:
-            cur.execute("INSERT INTO organizer_profiles (user_id) VALUES (%s) RETURNING *", (user["id"],))
+            cur.execute("INSERT INTO organizer_profiles (user_id) VALUES (%s) ON CONFLICT (user_id) DO NOTHING",
+                        (user["id"],))
+            cur.execute("SELECT * FROM organizer_profiles WHERE user_id = %s", (user["id"],))
             profile = cur.fetchone()
         return profile
 
 
 @router.put("/api/organizer/profile")
 def update_profile(payload: ProfileUpdate, user=Depends(require_roles("organizer"))):
-    get_profile(user)
+    phone = payload.contact_phone.strip() if payload.contact_phone is not None else None
+    payout = payload.payout_account_details.strip() if payload.payout_account_details is not None else None
+    if phone is not None and not _valid_contact_phone(phone):
+        raise HTTPException(status_code=400, detail="Enter a contact phone with at least 7 digits (at most 40 characters)")
+    if payout is not None and not _valid_payout_account(payout):
+        raise HTTPException(status_code=400, detail="Enter a payout account (at most 200 characters)")
     with tx() as cur:
         cur.execute(
-            """UPDATE organizer_profiles SET contact_phone = COALESCE(%s, contact_phone),
-                      payout_account_details = COALESCE(%s, payout_account_details)
-               WHERE user_id = %s RETURNING *""",
-            (payload.contact_phone, payload.payout_account_details, user["id"]))
+            """INSERT INTO organizer_profiles (user_id, contact_phone, payout_account_details)
+               VALUES (%s, %s, %s)
+               ON CONFLICT (user_id) DO UPDATE SET
+                 contact_phone = COALESCE(EXCLUDED.contact_phone, organizer_profiles.contact_phone),
+                 payout_account_details = COALESCE(EXCLUDED.payout_account_details, organizer_profiles.payout_account_details)
+               RETURNING *""",
+            (user["id"], phone, payout))
         return cur.fetchone()
 
 
@@ -56,27 +79,33 @@ def update_profile(payload: ProfileUpdate, user=Depends(require_roles("organizer
 def verify_identity(user=Depends(require_roles("organizer"))):
     #SIMULATION: a real platform would check an ID document here. we only check
     #that the contact and payout details were filled in, then mark the profile verified
-    profile = get_profile(user)
-    if not profile["contact_phone"] or not profile["payout_account_details"]:
-        raise HTTPException(status_code=409, detail="Add a contact phone and payout account details first")
     with tx() as cur:
+        cur.execute("SELECT * FROM organizer_profiles WHERE user_id = %s FOR UPDATE", (user["id"],))
+        profile = cur.fetchone()
+        if not profile or not (_valid_contact_phone(profile["contact_phone"]) and
+                               _valid_payout_account(profile["payout_account_details"])):
+            raise HTTPException(status_code=409, detail="Save a valid contact phone and payout account first")
         cur.execute("UPDATE organizer_profiles SET paid_sales_verified = true WHERE user_id = %s RETURNING *", (user["id"],))
         verified = cur.fetchone()
         audit(cur, user["id"], None, "identity_verified", "Organizer identity verified (simulated)", "user", user["id"])
         return verified
 
 
-def build_checklist(cur, event):
-    cur.execute("SELECT * FROM organizer_profiles WHERE user_id = %s", (event["organizer_id"],))
+def build_checklist(cur, event, *, lock_profile=False):
+    cur.execute("SELECT * FROM organizer_profiles WHERE user_id = %s" + (" FOR SHARE" if lock_profile else ""),
+                (event["organizer_id"],))
     profile = cur.fetchone() or {}
+    payout_ready = _valid_payout_account(profile.get("payout_account_details"))
+    identity_ready = (profile.get("paid_sales_verified") is True
+                      and _valid_contact_phone(profile.get("contact_phone")) and payout_ready)
     cur.execute("SELECT count(*) AS n FROM ticket_types WHERE event_id = %s AND price > 0", (event["id"],))
     has_paid = cur.fetchone()["n"] > 0
     cur.execute("SELECT * FROM paid_sales_activations WHERE event_id = %s", (event["id"],))
     activation = cur.fetchone()
     items = [
         {"key": "paid_ticket_type", "label": "Create at least one paid ticket type", "done": has_paid},
-        {"key": "identity_verified", "label": "Complete identity verification", "done": bool(profile.get("paid_sales_verified"))},
-        {"key": "payout_account", "label": "Add a payout account", "done": bool(profile.get("payout_account_details"))},
+        {"key": "identity_verified", "label": "Complete identity verification", "done": identity_ready},
+        {"key": "payout_account", "label": "Add a payout account", "done": payout_ready},
         {"key": "fee_paid", "label": "Pay the activation fee", "done": activation is not None},
         {"key": "terms_accepted", "label": "Accept the paid-event terms", "done": activation is not None},
     ]
@@ -104,7 +133,8 @@ def activate_paid_sales(event_id: str, payload: ActivateRequest, user=Depends(re
             raise HTTPException(status_code=409, detail="Paid sales are already active for this event")
         if not payload.accept_terms:
             raise HTTPException(status_code=400, detail="You must accept the paid-event terms")
-        missing = [i["label"] for i in build_checklist(cur, event) if i["key"] in ("paid_ticket_type", "identity_verified", "payout_account") and not i["done"]]
+        missing = [i["label"] for i in build_checklist(cur, event, lock_profile=True)
+                   if i["key"] in ("paid_ticket_type", "identity_verified", "payout_account") and not i["done"]]
         if missing:
             raise HTTPException(status_code=409, detail="Not ready yet: " + "; ".join(missing))
         fee = Decimal(get_setting(cur, "activation_fee", "5000"))

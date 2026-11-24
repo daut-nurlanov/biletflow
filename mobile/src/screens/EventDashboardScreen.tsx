@@ -101,9 +101,16 @@ export function EventDashboardScreen({ route, navigation }: Props) {
             <Text style={sharedStyles.muted}>
               {`Paid sales: ${event.paid_sales_suspended ? "Suspended by platform" : event.is_paid_sales_active ? "Activated" : "Not activated yet"}`}
             </Text>
+            <AppButton
+              title={event.is_paid_sales_active || event.paid_sales_suspended ? "Paid sales details" : "Activate paid sales"}
+              onPress={() => navigation.navigate("PaidSalesActivation", { eventId, eventTitle: event.title })}
+            />
+            <AppButton title="Attendees" onPress={() => navigation.navigate("EventAttendees", { eventId, eventTitle: event.title })} />
+            <AppButton title="Orders and refunds" onPress={() => navigation.navigate("EventOrders", { eventId, eventTitle: event.title })} />
+            <AppButton title="Promotions" onPress={() => navigation.navigate("EventPromotions", { eventId, eventTitle: event.title })} />
             <AppButton title="Event activity" onPress={() => navigation.navigate("EventActivity", { eventId, eventTitle: event.title })} />
             <AppButton title="Door staff" onPress={() => navigation.navigate("EventStaff", { eventId, eventTitle: event.title })} />
-            <Text style={sharedStyles.muted}>Detailed analytics and paid-sales activation are available on the BiletFlow website.</Text>
+            <Text style={sharedStyles.muted}>Campaign dates and detailed analytics are on the BiletFlow website.</Text>
             <Text accessibilityRole="header" style={[sharedStyles.title, styles.sectionTitle]}>
               Sales by ticket type
             </Text>

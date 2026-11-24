@@ -7,16 +7,22 @@ import { useSession } from "../auth/SessionContext";
 import { CheckoutScreen } from "../screens/CheckoutScreen";
 import { EventDashboardScreen } from "../screens/EventDashboardScreen";
 import { EventActivityScreen } from "../screens/EventActivityScreen";
+import { EventAttendeesScreen } from "../screens/EventAttendeesScreen";
 import { EventDetailsScreen } from "../screens/EventDetailsScreen";
 import { EventSetupScreen } from "../screens/EventSetupScreen";
 import { EventStaffScreen } from "../screens/EventStaffScreen";
+import { EventOrdersScreen } from "../screens/EventOrdersScreen";
+import { EventPromotionsScreen } from "../screens/EventPromotionsScreen";
 import { EventsScreen } from "../screens/EventsScreen";
 import { MyTicketsScreen } from "../screens/MyTicketsScreen";
 import { NotificationsScreen } from "../screens/NotificationsScreen";
+import { OrderDetailScreen } from "../screens/OrderDetailScreen";
 import { OrderHistoryScreen } from "../screens/OrderHistoryScreen";
 import { OrganizerEventsScreen } from "../screens/OrganizerEventsScreen";
 import { EditOrganizerEventScreen, NewOrganizerEventScreen } from "../screens/OrganizerEventFormScreen";
 import { OrganizerTicketTypeFormScreen } from "../screens/OrganizerTicketTypeFormScreen";
+import { OrganizerProfileScreen } from "../screens/OrganizerProfileScreen";
+import { PaidSalesActivationScreen } from "../screens/PaidSalesActivationScreen";
 import { ScanScreen } from "../screens/ScanScreen";
 import { StaffEventsScreen } from "../screens/StaffEventsScreen";
 import { StaffToolsScreen } from "../screens/StaffToolsScreen";
@@ -97,7 +103,15 @@ function TicketsNavigator() {
 function OrganizerNavigator() {
   return (
     <OrganizerStack.Navigator screenOptions={{ headerTintColor: theme.colors.primary, headerRight: () => <SignOutButton /> }}>
-      <OrganizerStack.Screen name="OrganizerEvents" component={OrganizerEventsScreen} options={{ title: "My events" }} />
+      <OrganizerStack.Screen name="OrganizerEvents" component={OrganizerEventsScreen} options={({ navigation }) => ({
+        title: "My events",
+        headerLeft: () => (
+          <Pressable accessibilityRole="button" accessibilityLabel="Organizer profile" hitSlop={12}
+            onPress={() => navigation.navigate("OrganizerProfile")}>
+            <Text style={{ color: theme.colors.primary, fontSize: theme.fontSize.body }}>Profile</Text>
+          </Pressable>
+        ),
+      })} />
       <OrganizerStack.Screen name="EventDashboard" component={EventDashboardScreen} options={{ title: "Event dashboard" }} />
       <OrganizerStack.Screen name="EventActivity" component={EventActivityScreen} options={{ title: "Event activity" }} />
       <OrganizerStack.Screen name="EventStaff" component={EventStaffScreen} options={{ title: "Door staff" }} />
@@ -106,6 +120,13 @@ function OrganizerNavigator() {
       <OrganizerStack.Screen name="EventSetup" component={EventSetupScreen} options={{ title: "Event setup" }} />
       <OrganizerStack.Screen name="TicketTypeForm" component={OrganizerTicketTypeFormScreen}
         options={({ route }) => ({ title: route.params.ticketTypeId ? "Edit ticket type" : "New ticket type" })} />
+      <OrganizerStack.Screen name="EventAttendees" component={EventAttendeesScreen} options={{ title: "Attendees" }} />
+      <OrganizerStack.Screen name="EventOrders" component={EventOrdersScreen} options={{ title: "Orders" }} />
+      <OrganizerStack.Screen name="OrderDetail" component={OrderDetailScreen}
+        getId={({ params }) => params.orderId} options={{ title: "Order" }} />
+      <OrganizerStack.Screen name="EventPromotions" component={EventPromotionsScreen} options={{ title: "Promotions" }} />
+      <OrganizerStack.Screen name="OrganizerProfile" component={OrganizerProfileScreen} options={{ title: "Organizer profile" }} />
+      <OrganizerStack.Screen name="PaidSalesActivation" component={PaidSalesActivationScreen} options={{ title: "Paid sales" }} />
     </OrganizerStack.Navigator>
   );
 }
