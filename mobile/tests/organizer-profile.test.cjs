@@ -52,7 +52,11 @@ test('activation is offered only when the backend would accept it', () => {
   const blocked = activationState({ ...base, items: items(['paid_ticket_type', 'payout_account']) });
   assert.deepEqual(plain(blocked), { kind: 'blocked', missing: ['identity_verified'] });
   assert.equal(activationState({ ...base, items: items(['identity_verified', 'payout_account']) }).kind, 'no_paid_tickets');
-  assert.equal(activationState({ ...base, paid_sales_active: true, items: items([]) }).kind, 'active');
-  assert.equal(activationState({ ...base, suspended_by_admin: true, items: items(['paid_ticket_type', 'identity_verified', 'payout_account']) }).kind, 'suspended');
+  for (const [paid_sales_active, suspended_by_admin, kind] of [
+    [false, false, 'ready'], [true, false, 'active'], [false, true, 'suspended'], [true, true, 'suspended'],
+  ]) {
+    assert.equal(activationState({ paid_sales_active, suspended_by_admin,
+      items: items(['paid_ticket_type', 'identity_verified', 'payout_account']) }).kind, kind);
+  }
   assert.deepEqual(['identity_verified', 'payout_account', 'paid_ticket_type', 'fee_paid'].map(isProfileStep), [true, true, false, false]);
 });

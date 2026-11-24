@@ -1,27 +1,49 @@
+import json
 import os
 import secrets
 import string
+from decimal import Decimal
 
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel
 
 from db import audit, tx
-from security import assert_manager, check_number, require_roles
+from security import assert_manager, require_roles
 from routers.orders import qr_png
 
 router = APIRouter()
 
 BASE_URL = os.getenv("PUBLIC_BASE_URL", "http://localhost:3000")
+DISCOUNT_INCREMENT = Decimal("0.01")
+MAX_FIXED_DISCOUNT = Decimal("99999999.99")  # promo_campaigns.discount_value is NUMERIC(10,2).
 
 
 class CampaignCreate(BaseModel):
     code: str | None = None
     discount_type: str
-    discount_value: float
+    discount_value: Decimal
     max_redemptions: int
     valid_from: str | None = None
     valid_until: str | None = None
     ticket_type_ids: list[str] | None = None
+
+
+async def _exact_discount(request: Request) -> Decimal | None:
+    # FastAPI's normal JSON decode visits a float before Pydantic sees the value.
+    # Read the cached JSON bytes so extra decimal digits cannot disappear there.
+    raw = await request.body()
+    if not raw:
+        return None
+    try:
+        body = json.loads(raw, parse_float=Decimal, parse_constant=Decimal)
+    except (ValueError, ArithmeticError):
+        raise HTTPException(status_code=400, detail="Enter a valid discount") from None
+    value = body.get("discount_value") if isinstance(body, dict) else None
+    if not isinstance(value, Decimal):
+        return None
+    if not value.is_finite() or value.copy_abs() > MAX_FIXED_DISCOUNT:
+        raise HTTPException(status_code=400, detail="Enter a finite discount within the supported range")
+    return value
 
 
 def campaign_link(campaign):
@@ -36,12 +58,16 @@ def with_link(campaign):
 
 
 @router.post("/api/events/{event_id}/promo-campaigns", status_code=201)
-def create_campaign(event_id: str, payload: CampaignCreate, user=Depends(require_roles("organizer", "platform_admin"))):
+def create_campaign(event_id: str, payload: CampaignCreate, user=Depends(require_roles("organizer", "platform_admin")),
+                    exact_discount: Decimal | None = Depends(_exact_discount)):
     if payload.discount_type not in ("percentage", "fixed"):
         raise HTTPException(status_code=400, detail="discount_type must be percentage or fixed")
-    check_number(payload.discount_value, "discount_value")
-    if payload.discount_value <= 0 or (payload.discount_type == "percentage" and payload.discount_value > 100):
-        raise HTTPException(status_code=400, detail="Discount must be above 0 (and at most 100 for percentages)")
+    limit = Decimal("100") if payload.discount_type == "percentage" else MAX_FIXED_DISCOUNT
+    value = exact_discount if exact_discount is not None else payload.discount_value
+    if not value.is_finite() or not 0 < value <= limit:
+        raise HTTPException(status_code=400, detail=f"Discount must be above 0 and at most {limit}")
+    if value < DISCOUNT_INCREMENT or value != value.quantize(DISCOUNT_INCREMENT):
+        raise HTTPException(status_code=400, detail="Use a discount with up to two decimal places")
     if payload.max_redemptions < 1:
         raise HTTPException(status_code=400, detail="max_redemptions must be at least 1")
     code = (payload.code or "").strip().upper() or "".join(
@@ -63,7 +89,7 @@ def create_campaign(event_id: str, payload: CampaignCreate, user=Depends(require
                                             valid_from, valid_until, ticket_type_ids, qr_token, created_by)
                VALUES (%s, %s, %s, %s, %s, %s, %s, %s::uuid[], %s, %s)
                RETURNING *, ticket_type_ids::text[] AS ticket_type_ids""",
-            (event_id, code, payload.discount_type, payload.discount_value, payload.max_redemptions,
+            (event_id, code, payload.discount_type, value, payload.max_redemptions,
              payload.valid_from, payload.valid_until, payload.ticket_type_ids or None,
              "cmp_" + secrets.token_urlsafe(12), user["id"]))
         campaign = cur.fetchone()

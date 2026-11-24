@@ -403,8 +403,11 @@ def my_orders(user=Depends(current_user)):
         return cur.fetchall()
 
 
-def _load_order_for(cur, order_id, user, lock=False):
-    cur.execute("SELECT * FROM orders WHERE id = %s" + (" FOR UPDATE" if lock else ""), (order_id,))
+def _load_order_for(cur, order_id, user, *, lock_for_update=False):
+    # A status read waits for an in-flight refund/cancellation and keeps the
+    # header, ticket states, and refund history consistent until it returns.
+    lock = " FOR UPDATE" if lock_for_update else " FOR SHARE"
+    cur.execute("SELECT * FROM orders WHERE id = %s" + lock, (order_id,))
     order = cur.fetchone()
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
@@ -427,6 +430,20 @@ def get_order(order_id: str, user=Depends(current_user)):
         return order
 
 
+def _lock_releasable_tickets(cur, order_id):
+    # The caller holds the order lock. Match checkout's type -> campaign -> ticket
+    # order so an assigned-seat purchase cannot deadlock with an order release.
+    cur.execute("""SELECT id FROM ticket_types WHERE id IN (
+                       SELECT ticket_type_id FROM tickets WHERE order_id = %s
+                   ) ORDER BY id FOR NO KEY UPDATE""", (order_id,))
+    cur.execute("""SELECT id FROM promo_campaigns WHERE id IN (
+                       SELECT campaign_id FROM promo_redemptions WHERE order_id = %s
+                   ) ORDER BY id FOR NO KEY UPDATE""", (order_id,))
+    # QR and manual admission both lock this same row before deciding its status.
+    cur.execute("SELECT status FROM tickets WHERE order_id = %s ORDER BY id FOR UPDATE", (order_id,))
+    return not any(ticket["status"] == "checked_in" for ticket in cur.fetchall())
+
+
 def _release_order(cur, order_id, new_ticket_status):
     #tickets stop working, and their inventory goes back on sale. a ticket whose
     #status is no longer valid/checked_in also frees its seat automatically
@@ -444,15 +461,14 @@ def _release_order(cur, order_id, new_ticket_status):
 def refund_order(order_id: str, payload: RefundRequest | None = None, user=Depends(current_user)):
     #full refunds only (partial refunds are out of scope in the SRS)
     with tx() as cur:
-        order, event, _ = _load_order_for(cur, order_id, user, lock=True)
+        order, event, _ = _load_order_for(cur, order_id, user, lock_for_update=True)
         if not can_manage(user, event):
             raise HTTPException(status_code=403, detail="Only the event's organizer can refund an order")
         if order["status"] != "paid":
             raise HTTPException(status_code=409, detail=f"This order is already {order['status']}")
         if order["total_amount"] <= 0:
             raise HTTPException(status_code=409, detail="This is a free registration, use cancel instead of refund")
-        cur.execute("SELECT count(*) AS n FROM tickets WHERE order_id = %s AND status = 'checked_in'", (order_id,))
-        if cur.fetchone()["n"] > 0:
+        if not _lock_releasable_tickets(cur, order_id):
             raise HTTPException(status_code=409, detail="Some tickets were already used at the door, so the order cannot be refunded")
         _release_order(cur, order_id, "refunded")
         cur.execute("UPDATE orders SET status = 'refunded' WHERE id = %s RETURNING *", (order_id,))
@@ -474,13 +490,12 @@ def cancel_order(order_id: str, user=Depends(current_user)):
     #cancelling a FREE registration. the attendee can cancel their own, the
     #organizer can cancel anyone's. paid orders go through refund instead
     with tx() as cur:
-        order, event, _ = _load_order_for(cur, order_id, user, lock=True)
+        order, event, _ = _load_order_for(cur, order_id, user, lock_for_update=True)
         if order["status"] != "paid":
             raise HTTPException(status_code=409, detail=f"This order is already {order['status']}")
         if order["total_amount"] > 0:
             raise HTTPException(status_code=409, detail="This order was paid for, ask the organizer for a refund")
-        cur.execute("SELECT count(*) AS n FROM tickets WHERE order_id = %s AND status = 'checked_in'", (order_id,))
-        if cur.fetchone()["n"] > 0:
+        if not _lock_releasable_tickets(cur, order_id):
             raise HTTPException(status_code=409, detail="Some tickets were already used at the door")
         _release_order(cur, order_id, "cancelled")
         cur.execute("UPDATE orders SET status = 'cancelled' WHERE id = %s RETURNING *", (order_id,))

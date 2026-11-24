@@ -1,5 +1,44 @@
 import re
+from decimal import Decimal
 from uuid import uuid4
+
+import pytest
+
+
+@pytest.mark.parametrize(("kind", "amount", "expected"), [
+    ("fixed", "0.01", 201),
+    ("fixed", "1500.50", 201),
+    ("fixed", "99999999.99", 201),
+    ("fixed", "100000000.00", 400),
+    ("fixed", "0", 400),
+    ("fixed", "-1", 400),
+    ("fixed", "0.001", 400),
+    ("fixed", "1.234", 400),
+    ("fixed", "1.23000000000000000001", 400),
+    ("fixed", "NaN", 400),
+    ("fixed", "Infinity", 400),
+    ("fixed", "1e999", 400),
+    ("percentage", "0", 400),
+    ("percentage", "0.01", 201),
+    ("percentage", "12.345", 400),
+    ("percentage", "99.99", 201),
+    ("percentage", "100.00", 201),
+    ("percentage", "100.00000000000000000001", 400),
+    ("percentage", "100.01", 400),
+])
+def test_campaign_discount_matches_database_precision(kit, kind, amount, expected):
+    organizer = kit.user("organizer")
+    event, _ = kit.event(organizer, publish=False)
+    path = f"/api/events/{event['id']}/promo-campaigns"
+    response = kit.client.post(
+        path, headers={**organizer.h, "Content-Type": "application/json"},
+        content=f'{{"discount_type":"{kind}","discount_value":{amount},"max_redemptions":1}}',
+    )
+    assert response.status_code == expected, response.text
+    if expected == 201:
+        assert Decimal(str(response.json()["discount_value"])) == Decimal(amount)
+    else:
+        assert kit.client.get(path, headers=organizer.h).json() == []
 
 from conftest import fetch_one, run_sql
 

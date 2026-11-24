@@ -53,6 +53,8 @@ def verify_qr(payload: VerifyRequest, user=Depends(require_roles(*STAFF_ROLES)))
         if code.startswith("cmp_") or "/events/" in code or "?c=" in code or cur.fetchone():
             raise HTTPException(status_code=400, detail="This is a promo campaign QR code, not an admission ticket")
 
+        # Manual search uses this endpoint to admit a ticket too. Only lock the
+        # ticket here, which is the same row order refunds lock before validating.
         cur.execute(
             """SELECT tickets.*, seats.section, seats.row_label, seats.seat_number, ticket_types.name AS ticket_type_name
                FROM tickets LEFT JOIN seats ON tickets.seat_id = seats.id

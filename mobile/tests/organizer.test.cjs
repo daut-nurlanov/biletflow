@@ -107,3 +107,22 @@ test('the campaign form is checked with the backend rules before sending', () =>
   for (const bad of errors) assert.equal(typeof campaignInput(bad).error, 'string', JSON.stringify(bad));
   assert.equal(typeof campaignInput({ ...form, discountType: 'fixed', discountValue: '5000' }).input, 'object');
 });
+
+test('campaign discount precision and bounds match stored discounts', () => {
+  const { campaignInput } = load('src/utils/organizerOrders.ts', { '../api/client': { ApiError } });
+  const form = { code: '', maxRedemptions: '1' };
+  for (const [discountType, discountValue, expected] of [
+    ['fixed', '0.01', 0.01], ['fixed', '1500,50', 1500.5],
+    ['fixed', '99999999.99', 99999999.99], ['percentage', '100.00', 100],
+    ['percentage', '99.99', 99.99], ['percentage', '0.01', 0.01],
+  ]) {
+    assert.equal(campaignInput({ ...form, discountType, discountValue }).input.discount_value, expected);
+  }
+  for (const [discountType, discountValue] of [
+    ['fixed', '0'], ['fixed', '-0.01'], ['fixed', '0.001'], ['fixed', '1.234'],
+    ['fixed', '1.23000000000000000001'], ['fixed', '100000000'],
+    ['percentage', '100.01'], ['percentage', '12.345'], ['percentage', '0'],
+  ]) {
+    assert.equal(typeof campaignInput({ ...form, discountType, discountValue }).error, 'string', discountValue);
+  }
+});

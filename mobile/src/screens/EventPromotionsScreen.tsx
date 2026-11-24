@@ -68,6 +68,7 @@ export function EventPromotionsScreen({ route }: Props) {
   function create() {
     const checked = campaignInput({ code, discountType, discountValue, maxRedemptions });
     if ("error" in checked) {
+      Keyboard.dismiss();
       setNotice({ text: checked.error, error: true });
       return;
     }
