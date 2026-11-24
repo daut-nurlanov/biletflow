@@ -100,3 +100,23 @@ def test_send_email_swallows_connection_errors(monkeypatch, capsys):
     monkeypatch.setenv("SMTP_PORT", "1")  #nothing listens here
     db._send_email("someone@example.test", "Hello", "Body")  #must not raise
     assert "[email FAILED]" in capsys.readouterr().out
+
+
+def test_confirmation_email_has_link_ticket_ids_and_pdf_attachment(kit, monkeypatch):
+    import time
+    org = kit.user("organizer")
+    buyer = kit.user("attendee")
+    event, ticket_type = kit.event(org)
+    sent = []
+    monkeypatch.setattr(db, "_send_email", lambda *args: sent.append(args))
+    monkeypatch.setenv("SMTP_HOST", "mail.example.test")
+    response = kit.buy(buyer, event["id"], ticket_type["id"])
+    assert response.status_code in (200, 201), response.text
+    for _ in range(50):
+        if sent:
+            break
+        time.sleep(0.05)
+    to, subject, body, attachments = sent[0]
+    ticket_id = response.json()["tickets"][0]["id"]
+    assert "/my-tickets" in body and ticket_id in body
+    assert len(attachments) == 1 and attachments[0][1].startswith(b"%PDF")

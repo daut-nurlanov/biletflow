@@ -65,6 +65,8 @@ export interface CampaignForm {
   discountType: DiscountType;
   discountValue: string;
   maxRedemptions: string;
+  /** "all" or one ticket type id. */
+  ticketTypeId?: string;
 }
 
 /**
@@ -94,6 +96,7 @@ export function campaignInput(form: CampaignForm): { input: CampaignInput } | { 
       discount_type: form.discountType,
       discount_value: value,
       max_redemptions: max,
+      ...(form.ticketTypeId && form.ticketTypeId !== "all" ? { ticket_type_ids: [form.ticketTypeId] } : {}),
     },
   };
 }

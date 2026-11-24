@@ -16,6 +16,7 @@ from security import can_manage, current_user, load_event, optional_user, resolv
 
 router = APIRouter()
 
+BASE_URL = os.getenv("PUBLIC_BASE_URL", "http://localhost:3000")
 TIMEZONE = ZoneInfo(os.getenv("DISPLAY_TIMEZONE", "Asia/Almaty"))
 FONT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "fonts")
 
@@ -279,9 +280,21 @@ def checkout(payload: CheckoutRequest, user=Depends(optional_user),
         audit(cur, attendee_id, payload.event_id, "order_paid",
               f"Order of {quantity} ticket(s), {priced['total']} KZT (simulated payment {payment_ref})",
               "order", order["id"])
+        attachments = []
+        if os.environ.get("SMTP_HOST", "").strip():
+            #real email is on: attach each ticket as a PDF with its QR code
+            for ticket in tickets:
+                cur.execute(TICKET_DETAIL_SQL + " WHERE tickets.id = %s", (ticket["id"],))
+                detail = cur.fetchone()
+                if detail:
+                    attachments.append((f"ticket-{ticket['id']}.pdf", render_ticket_pdf(detail)))
+        ids = ", ".join(str(ticket["id"]) for ticket in tickets)
         notify(cur, attendee_id, "order_confirmation", f"Your tickets for {event['title']}",
-               f"Order {order['id']} confirmed: {quantity} ticket(s), total {priced['total']} KZT. "
-               "Your QR tickets are in My Tickets.")
+               f"Order {order['id']} confirmed: {quantity} ticket(s), total {priced['total']} KZT.\n"
+               f"Ticket ID(s): {ids}\n"
+               f"Open your QR tickets: {BASE_URL}/my-tickets\n"
+               "Your QR tickets are also in My Tickets in the app.",
+               attachments=attachments)
         #"ticket" (the first one) is kept so older clients keep working
         return {"order": order, "ticket": tickets[0], "tickets": tickets}
 
@@ -347,7 +360,13 @@ def ticket_pdf(ticket_id: str):
         t = cur.fetchone()
     if not t:
         raise HTTPException(status_code=404, detail="Ticket not found")
+    return Response(
+        content=render_ticket_pdf(t), media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="ticket-{ticket_id}.pdf"'})
 
+
+def render_ticket_pdf(t) -> bytes:
+    #used by the download endpoint and by the confirmation email attachment
     pdf = FPDF(format="A4")
     pdf.set_auto_page_break(False)
     pdf.add_page()
@@ -387,9 +406,7 @@ def ticket_pdf(ticket_id: str):
     pdf.set_font(family, "", 9)
     pdf.cell(0, 6, "Digital and printed copies of this ticket are the same ticket and admit one person once.",
              align="C", new_x="LMARGIN", new_y="NEXT")
-    return Response(
-        content=bytes(pdf.output()), media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="ticket-{ticket_id}.pdf"'})
+    return bytes(pdf.output())
 
 
 @router.get("/api/orders/my-orders")

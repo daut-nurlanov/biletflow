@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { api, BASE, getToken } from '../api'
 import { messageFor, useResource } from './data'
 import { useManagedEvent } from './Layout'
-import { toApiTime, type Campaign } from './setup'
+import { toApiTime, type Campaign, type TicketType } from './setup'
 import { Notice, ResourceState, Table } from './ui'
 
 // The campaign QR needs the organizer's sign-in, so it is fetched with the
@@ -45,6 +45,8 @@ function CampaignQr({ id, code }: { id: string; code: string }) {
 export default function PromoPage() {
   const event = useManagedEvent()
   const list = useResource<Campaign[]>(`/api/events/${event.id}/promo-campaigns`)
+  const types = useResource<TicketType[]>(`/api/events/${event.id}/ticket-types`)
+  const [picked, setPicked] = useState<string[]>([])
   const [code, setCode] = useState('')
   const [type, setType] = useState('percentage')
   const [value, setValue] = useState('10')
@@ -69,10 +71,13 @@ export default function PromoPage() {
           max_redemptions: Number(max),
           valid_from: toApiTime(from),
           valid_until: toApiTime(until),
+          // empty means the code works for every ticket type
+          ticket_type_ids: picked.length > 0 ? picked : undefined,
         },
       })
       setMessage({ text: `Campaign ${made.code} created.`, error: false })
       setCode('')
+      setPicked([])
       setShown(made.id)
       list.refresh()
     } catch (err) {
@@ -135,6 +140,23 @@ export default function PromoPage() {
             <input type="datetime-local" value={until} onChange={(e) => setUntil(e.target.value)} />
           </label>
         </div>
+        {types.data && types.data.length > 0 && (
+          <fieldset className="org-field">
+            <legend>Applies to (leave all unchecked for every ticket type)</legend>
+            {types.data.map((t) => (
+              <label key={t.id} style={{ display: 'block' }}>
+                <input
+                  type="checkbox"
+                  checked={picked.includes(t.id)}
+                  onChange={(e) =>
+                    setPicked(e.target.checked ? [...picked, t.id] : picked.filter((id) => id !== t.id))
+                  }
+                />{' '}
+                {t.name}
+              </label>
+            ))}
+          </fieldset>
+        )}
         <div className="org-actions">
           <button className="btn" disabled={busy}>
             {busy ? 'Creating…' : 'Create campaign'}
@@ -154,6 +176,13 @@ export default function PromoPage() {
                 {c.discount_type === 'percentage'
                   ? `${Number(c.discount_value)}%`
                   : `${Number(c.discount_value)} KZT`}
+                <div className="muted">
+                  {c.ticket_type_ids && c.ticket_type_ids.length > 0
+                    ? `Only: ${c.ticket_type_ids
+                        .map((id) => types.data?.find((t) => t.id === id)?.name ?? 'a ticket type')
+                        .join(', ')}`
+                    : 'All ticket types'}
+                </div>
               </td>
               <td>
                 {c.redemptions_count ?? 0} / {c.max_redemptions}

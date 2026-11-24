@@ -4,7 +4,7 @@ import {
   ActivityIndicator, FlatList, Image, Keyboard, KeyboardAvoidingView, Platform, Pressable, Share, StyleSheet, Text, TextInput, View,
 } from "react-native";
 
-import { createPromoCampaign, getPromoCampaigns, promoQrImageSource, setPromoCampaignActive } from "../api/organizer";
+import { createPromoCampaign, getEventTicketTypes, getPromoCampaigns, promoQrImageSource, setPromoCampaignActive } from "../api/organizer";
 import { useSession } from "../auth/SessionContext";
 import { AppButton } from "../components/AppButton";
 import { EmptyState } from "../components/EmptyState";
@@ -37,6 +37,12 @@ export function EventPromotionsScreen({ route }: Props) {
     [authed, eventId],
   );
   const resource = useApiResource(load);
+  const loadTypes = useCallback(
+    (signal: AbortSignal) => authed((t) => getEventTicketTypes(t, eventId, signal)),
+    [authed, eventId],
+  );
+  const ticketTypes = useApiResource(loadTypes);
+  const [ticketTypeId, setTicketTypeId] = useState("all");
 
   const [code, setCode] = useState("");
   const [discountType, setDiscountType] = useState<DiscountType>("percentage");
@@ -66,7 +72,7 @@ export function EventPromotionsScreen({ route }: Props) {
   }
 
   function create() {
-    const checked = campaignInput({ code, discountType, discountValue, maxRedemptions });
+    const checked = campaignInput({ code, discountType, discountValue, maxRedemptions, ticketTypeId });
     if ("error" in checked) {
       Keyboard.dismiss();
       setNotice({ text: checked.error, error: true });
@@ -127,6 +133,14 @@ export function EventPromotionsScreen({ route }: Props) {
                       onChangeText={setMaxRedemptions} keyboardType="number-pad" editable={!busy} />
                   </View>
                 </View>
+                {(ticketTypes.data ?? []).length > 1 ? (
+                  <FilterChips
+                    label="Applies to"
+                    options={[{ value: "all", label: "All tickets" }, ...(ticketTypes.data ?? []).map((t) => ({ value: t.id, label: t.name }))]}
+                    value={ticketTypeId}
+                    onChange={setTicketTypeId}
+                  />
+                ) : null}
                 <AppButton title={busyId === "new" ? "Creating…" : "Create campaign"} onPress={create} disabled={busy} loading={busyId === "new"} />
                 <Text style={sharedStyles.muted}>Start and end dates can be set on the website.</Text>
               </View>
@@ -150,6 +164,11 @@ export function EventPromotionsScreen({ route }: Props) {
               </View>
               <Text style={sharedStyles.body}>{discountLabel(item)}</Text>
               <Text style={sharedStyles.muted}>{usageLabel(item)}</Text>
+              <Text style={sharedStyles.muted}>
+                {item.ticket_type_ids && item.ticket_type_ids.length > 0
+                  ? `Only: ${item.ticket_type_ids.map((id) => (ticketTypes.data ?? []).find((t) => t.id === id)?.name ?? "one ticket type").join(", ")}`
+                  : "All ticket types"}
+              </Text>
               {item.valid_until ? <Text style={sharedStyles.muted}>{`Ends ${formatDateTime(item.valid_until)}`}</Text> : null}
               <View style={styles.buttons}>
                 <SecondaryButton

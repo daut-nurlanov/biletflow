@@ -1,6 +1,7 @@
 import type { ImageURISource } from "react-native";
 
 import { environment } from "../config/environment";
+import type { TicketType } from "../types/ticket";
 import type {
   ActivationChecklist, CampaignInput, EventAttendee, EventOrder, OrderDetail, OrganizerProfile, PromoCampaign,
 } from "../types/organizer";
@@ -53,6 +54,10 @@ export function cancelRegistration(token: string, orderId: string): Promise<unkn
 
 export function getPromoCampaigns(token: string, eventId: string, signal?: AbortSignal): Promise<PromoCampaign[]> {
   return apiRequest(`${eventPath(eventId)}/promo-campaigns`, { token, signal });
+}
+
+export function getEventTicketTypes(token: string, eventId: string, signal?: AbortSignal): Promise<TicketType[]> {
+  return apiRequest(`${eventPath(eventId)}/ticket-types`, { token, signal });
 }
 
 export function createPromoCampaign(token: string, eventId: string, input: CampaignInput): Promise<PromoCampaign> {

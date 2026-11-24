@@ -56,7 +56,7 @@ def audit(cur, actor_id, event_id, action, details, entity_type=None, entity_id=
         (actor_id, event_id, action, details, entity_type, str(entity_id) if entity_id else None))
 
 
-def _send_email(to_address, subject, body):
+def _send_email(to_address, subject, body, attachments=()):
     #real email through any SMTP provider (Gmail app password, SendGrid, Mailgun,
     #a school mail server...). Runs in its own thread so a slow or broken mail
     #server can never slow down or break a purchase. Failures are only logged.
@@ -73,6 +73,8 @@ def _send_email(to_address, subject, body):
         msg["To"] = to_address
         msg["Subject"] = subject
         msg.set_content(body + "\n\n-- BiletFlow (university project demo, no real payments)")
+        for filename, data in attachments:
+            msg.add_attachment(data, maintype="application", subtype="pdf", filename=filename)
         if use_ssl:
             server = smtplib.SMTP_SSL(host, port, timeout=15)
         else:
@@ -88,7 +90,7 @@ def _send_email(to_address, subject, body):
         print(f"[email FAILED] {to_address}: {subject}: {error}", flush=True)
 
 
-def notify(cur, user_id, kind, subject, body):
+def notify(cur, user_id, kind, subject, body, attachments=()):
     #every message is stored as an in-app notification (GET /api/notifications)
     #and printed to the server log. If SMTP_HOST is set it is ALSO sent as a real
     #email. With SMTP_HOST empty (the default) nothing leaves the computer.
@@ -99,7 +101,7 @@ def notify(cur, user_id, kind, subject, body):
         cur.execute("SELECT email FROM users WHERE id = %s", (user_id,))
         row = cur.fetchone()
         if row and row["email"]:
-            threading.Thread(target=_send_email, args=(row["email"], subject, body), daemon=True).start()
+            threading.Thread(target=_send_email, args=(row["email"], subject, body, attachments), daemon=True).start()
     print(f"[notification to user {user_id}] {kind}: {subject}", flush=True)
     #demo outbox: there is no real email, so for the two account messages that
     #carry a one-time code we also print the body. This is how someone who is

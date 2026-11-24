@@ -76,6 +76,7 @@ export interface PromoCampaign {
   valid_until: string | null;
   /** Opens the event page with the code applied. The server prices it; the link can't change a price. */
   campaign_link: string;
+  ticket_type_ids?: string[] | null;
   created_at: string;
 }
 
@@ -87,6 +88,8 @@ export interface CampaignInput {
   max_redemptions: number;
   valid_from?: string;
   valid_until?: string;
+  /** Leave out for every ticket type. */
+  ticket_type_ids?: string[];
 }
 
 /** GET /api/organizer/profile. The backend creates an empty one on first visit. */
