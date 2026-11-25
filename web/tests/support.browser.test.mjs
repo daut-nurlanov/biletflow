@@ -437,6 +437,8 @@ test(
       await t.test(
         'polling preserves the draft and a delayed read cannot overwrite a status update',
         async () => {
+          await field('#support-reply', 'Keep this draft')
+          await eventually(() => browser.evaluate('document.querySelector(".support-counter")?.textContent.trim() === "15 / 4000"'), 'React has saved the draft in the form')
           cases[0].status = 'resolved'
           await pause(10_500)
           await eventually(

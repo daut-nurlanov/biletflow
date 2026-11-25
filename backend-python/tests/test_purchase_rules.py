@@ -5,6 +5,7 @@ from uuid import uuid4
 from fastapi.testclient import TestClient
 
 import main
+from db import tx
 from conftest import fetch_one, run_sql
 
 
@@ -134,12 +135,12 @@ def test_hold_on_unknown_seat_is_404_and_needs_an_identity(kit):
     assert kit.client.post("/api/seats/hold", json={"seat_id": str(uuid4())}).status_code == 401
 
 
-def test_unknown_attendee_is_404_and_identity_rules(kit):
+def test_checkout_requires_session_and_matches_attendee_identity(kit):
     org, buyer, other = kit.user("organizer"), kit.user(), kit.user()
     event, tt = kit.event(org)
     ghost = kit.client.post("/api/orders/checkout", json={
         "attendee_id": str(uuid4()), "event_id": event["id"], "ticket_type_id": tt["id"], "attendee_name": "x"})
-    assert ghost.status_code == 404
+    assert ghost.status_code == 401
     #signed in, but naming somebody else
     stolen = kit.client.post("/api/orders/checkout", headers=buyer.h, json={
         "attendee_id": other.id, "event_id": event["id"], "ticket_type_id": tt["id"], "attendee_name": "x"})
@@ -148,8 +149,7 @@ def test_unknown_attendee_is_404_and_identity_rules(kit):
     anonymous = kit.client.post("/api/orders/checkout", json={
         "event_id": event["id"], "ticket_type_id": tt["id"], "attendee_name": "x"})
     assert anonymous.status_code == 401
-    #the older, token-less way still works (kept for the existing mobile app)
-    assert kit.buy(buyer, event["id"], tt["id"], signed_in=False).status_code == 201
+    assert kit.buy(buyer, event["id"], tt["id"], signed_in=False).status_code == 401
 
 
 def test_my_tickets_uses_the_token_and_cannot_peek_at_others(kit):
@@ -159,7 +159,7 @@ def test_my_tickets_uses_the_token_and_cannot_peek_at_others(kit):
     assert len(kit.client.get("/api/tickets/my-tickets", headers=a.h).json()) == 2
     assert kit.client.get("/api/tickets/my-tickets", headers=b.h).json() == []
     assert kit.client.get(f"/api/tickets/my-tickets?attendee_id={a.id}", headers=b.h).status_code == 403
-    assert len(kit.client.get(f"/api/tickets/my-tickets?attendee_id={a.id}").json()) == 2   #legacy
+    assert kit.client.get(f"/api/tickets/my-tickets?attendee_id={a.id}").status_code == 401
     assert kit.client.get("/api/tickets/my-tickets").status_code == 401
 
 
@@ -186,13 +186,43 @@ def test_pdf_has_a_qr_image_and_handles_kazakh_and_russian_names(kit):
     event, tt = kit.event(org, title="Концерт Алматы")
     seat = kit.seats(org, event["id"])[0]
     ticket = kit.buy(buyer, event["id"], tt["id"], seat_id=seat, attendee_name="Әйгерім Қасымова").json()["ticket"]
-    pdf = kit.client.get(f"/api/tickets/{ticket['id']}/pdf")
+    pdf = kit.client.get(f"/api/tickets/{ticket['id']}/pdf", headers=buyer.h)
     assert pdf.status_code == 200 and pdf.content.startswith(b"%PDF") and b"/Subtype /Image" in pdf.content
-    png = kit.client.get(f"/api/tickets/{ticket['id']}/qr.png")
+    png = kit.client.get(f"/api/tickets/{ticket['id']}/qr.png", headers=buyer.h)
     assert png.status_code == 200 and png.content.startswith(b"\x89PNG")
-    assert kit.client.get(f"/api/tickets/{uuid4()}/pdf").status_code == 404
-    detail = kit.client.get(f"/api/tickets/{ticket['id']}").json()
+    assert kit.client.get(f"/api/tickets/{uuid4()}/pdf", headers=buyer.h).status_code == 404
+    detail = kit.client.get(f"/api/tickets/{ticket['id']}", headers=buyer.h).json()
     assert detail["section"] == "T" and detail["event_title"] == "Концерт Алматы"
+
+
+def test_ticket_downloads_require_ownership_and_hide_ineligible_qr(kit):
+    organizer, owner, other = kit.user("organizer"), kit.user(), kit.user()
+    event, ticket_type = kit.event(organizer)
+    ticket = kit.buy(owner, event["id"], ticket_type["id"]).json()["ticket"]
+    path = f"/api/tickets/{ticket['id']}"
+    for suffix in ("", "/qr.png", "/pdf"):
+        assert kit.client.get(path + suffix).status_code == 401
+        assert kit.client.get(path + suffix, headers=other.h).status_code == 404
+        assert kit.client.get(path + suffix, headers=organizer.h).status_code == 404
+        owned = kit.client.get(path + suffix, headers=owner.h)
+        assert owned.status_code == 200
+        assert owned.headers["cache-control"] == "private, no-store"
+
+    for status in ("suspended", "cancelled"):
+        with tx() as cur:
+            cur.execute("UPDATE events SET status = %s WHERE id = %s", (status, event["id"]))
+        assert kit.client.get(path + "/qr.png", headers=owner.h).status_code == 409
+        pdf = kit.client.get(path + "/pdf", headers=owner.h)
+        assert pdf.status_code == 200 and b"/Subtype /Image" not in pdf.content
+
+    with tx() as cur:
+        cur.execute("UPDATE events SET status = 'upcoming' WHERE id = %s", (event["id"],))
+    for status in ("checked_in", "cancelled", "refunded"):
+        with tx() as cur:
+            cur.execute("UPDATE tickets SET status = %s WHERE id = %s", (status, ticket["id"]))
+        assert kit.client.get(path + "/qr.png", headers=owner.h).status_code == 409
+        pdf = kit.client.get(path + "/pdf", headers=owner.h)
+        assert pdf.status_code == 200 and b"/Subtype /Image" not in pdf.content
 
 
 def test_concurrent_last_ticket_and_last_seat_and_last_promo(kit):

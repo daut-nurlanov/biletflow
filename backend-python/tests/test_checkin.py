@@ -87,15 +87,18 @@ def test_checkin_stats(kit):
     assert stats == {"registered": 4, "checked_in": 2, "not_arrived": 2, "percent_checked_in": 50.0}
 
 
-def test_manual_search_by_name_or_email(kit):
+def test_manual_search_by_name_email_or_ticket_id(kit):
     org, buyer, event, tt, ticket, staff = setup(kit)
     search = lambda text, who=staff: kit.client.post("/api/checkin/manual-search", json={"event_id": event["id"], "name": text}, headers=who.h)
     assert [t["id"] for t in search("aidos").json()] == [ticket["id"]]
     assert [t["id"] for t in search(buyer.email[:12]).json()] == [ticket["id"]]
+    assert [t["id"] for t in search(ticket["id"].upper()).json()] == [ticket["id"]]
+    assert [t["id"] for t in search(ticket["id"][-8:]).json()] == [ticket["id"]]
     assert search("zzzz").json() == []
     assert search("a").status_code == 400
     assert search("aidos", buyer).status_code == 403
     assert search("aidos", kit.user("event_admin")).status_code == 403
+    assert search(ticket["id"], kit.user("event_admin")).status_code == 403
 
 
 def test_staff_only_see_assigned_events(kit):

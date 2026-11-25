@@ -6,6 +6,11 @@ import pytest
 from fastapi.testclient import TestClient
 
 import main
+from security import make_token
+
+
+def authorization(attendee_id):
+    return {"Authorization": f"Bearer {make_token(attendee_id)}"}
 
 
 @pytest.fixture
@@ -78,9 +83,11 @@ def checkout_payload(records, attendee_id, ticket_type_id, seat_id=None):
     }
 
 
-def test_checkout_rejects_missing_required_fields():
+def test_checkout_rejects_missing_required_fields(checkout_records):
     with TestClient(main.app) as client:
-        response = client.post("/api/orders/checkout", json={})
+        response = client.post(
+            "/api/orders/checkout", json={}, headers=authorization(checkout_records["attendee_ids"][0]),
+        )
 
     assert response.status_code == 422
 
@@ -99,6 +106,7 @@ def test_checkout_rejects_sold_out_ticket_type(checkout_records):
     with TestClient(main.app) as client:
         response = client.post(
             "/api/orders/checkout",
+            headers=authorization(checkout_records["attendee_ids"][0]),
             json=checkout_payload(
                 checkout_records,
                 checkout_records["attendee_ids"][0],
@@ -114,6 +122,7 @@ def test_checkout_rejects_already_sold_seat(checkout_records):
     with TestClient(main.app) as client:
         first_response = client.post(
             "/api/orders/checkout",
+            headers=authorization(checkout_records["attendee_ids"][0]),
             json=checkout_payload(
                 checkout_records,
                 checkout_records["attendee_ids"][0],
@@ -123,6 +132,7 @@ def test_checkout_rejects_already_sold_seat(checkout_records):
         )
         second_response = client.post(
             "/api/orders/checkout",
+            headers=authorization(checkout_records["attendee_ids"][1]),
             json=checkout_payload(
                 checkout_records,
                 checkout_records["attendee_ids"][1],
@@ -144,6 +154,7 @@ def test_concurrent_checkout_cannot_oversell_last_ticket(checkout_records):
             barrier.wait(timeout=10)
             return client.post(
                 "/api/orders/checkout",
+                headers=authorization(attendee_id),
                 json=checkout_payload(
                     checkout_records,
                     attendee_id,
@@ -165,6 +176,7 @@ def test_concurrent_checkout_cannot_sell_same_seat_across_ticket_types(checkout_
             barrier.wait(timeout=10)
             return client.post(
                 "/api/orders/checkout",
+                headers=authorization(checkout_records["attendee_ids"][index]),
                 json=checkout_payload(
                     checkout_records,
                     checkout_records["attendee_ids"][index],

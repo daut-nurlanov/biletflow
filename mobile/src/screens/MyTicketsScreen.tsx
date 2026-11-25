@@ -1,11 +1,13 @@
-import { useCallback, useState } from "react";
-import { Alert, Linking, Modal, ScrollView, SectionList, StyleSheet, Text, View } from "react-native";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Alert, Modal, ScrollView, SectionList, StyleSheet, Text, View } from "react-native";
+import { File, Paths } from "expo-file-system";
+import * as Sharing from "expo-sharing";
 import { SafeAreaView } from "react-native-safe-area-context";
 import type { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
 import type { CompositeScreenProps } from "@react-navigation/native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 
-import { getMyTickets, getTicketPdfUrl, getTicketQrImageUrl } from "../api/tickets";
+import { getMyTickets, getTicketPdf } from "../api/tickets";
 import { useSession } from "../auth/SessionContext";
 import { AppButton } from "../components/AppButton";
 import { BrandIcon } from "../components/BrandIcon";
@@ -36,9 +38,38 @@ function eventEnded(ticket: Ticket, asOf: number) {
 }
 
 export function MyTicketsScreen({ navigation }: Props) {
-  const { authed } = useSession();
+  const { authed, state } = useSession();
   const [openId, setOpenId] = useState<string>();
-  const close = () => setOpenId(undefined);
+  const [pdfLoading, setPdfLoading] = useState(false);
+  const pdfRequest = useRef<AbortController | null>(null);
+  useEffect(() => () => pdfRequest.current?.abort(), []);
+  const close = () => {
+    pdfRequest.current?.abort();
+    setOpenId(undefined);
+    setPdfLoading(false);
+  };
+  async function openPdf(ticketId: string) {
+    if (pdfRequest.current) return;
+    const request = new AbortController();
+    pdfRequest.current = request;
+    setPdfLoading(true);
+    let file: File | undefined;
+    try {
+      if (!await Sharing.isAvailableAsync()) throw new Error("PDF sharing is unavailable on this device.");
+      const pdf = await authed((token) => getTicketPdf(ticketId, token, request.signal));
+      if (request.signal.aborted) return;
+      file = new File(Paths.cache, `ticket-${encodeURIComponent(ticketId)}.pdf`);
+      file.create({ overwrite: true });
+      file.write(pdf);
+      await Sharing.shareAsync(file.uri, { mimeType: "application/pdf", UTI: "com.adobe.pdf" });
+    } catch (error) {
+      if (!request.signal.aborted) Alert.alert("Couldn't open PDF", error instanceof Error ? error.message : "Please try again.");
+    } finally {
+      try { if (file?.exists) file.delete(); } catch { /* The operating system can clear its cache. */ }
+      pdfRequest.current = null;
+      if (!request.signal.aborted) setPdfLoading(false);
+    }
+  }
   const loadTickets = useCallback(
     async (signal: AbortSignal) => ({ tickets: await authed((token) => getMyTickets(token, signal)), asOf: Date.now() }),
     [authed],
@@ -92,17 +123,16 @@ export function MyTicketsScreen({ navigation }: Props) {
           ListEmptyComponent={<EmptyState title="No tickets yet" message="You don't have any tickets yet." />}
         />
       )}
-      {opened ? <Modal animationType="slide" onRequestClose={close} presentationStyle="pageSheet">
+      {opened && state.status === "signedIn" ? <Modal animationType="slide" onRequestClose={close} presentationStyle="pageSheet">
         <SafeAreaView style={styles.modal} accessibilityViewIsModal>
           <ScrollView contentContainerStyle={sharedStyles.listContent}>
             <AppButton title="Close ticket" variant="secondary" onPress={close} />
-            <TicketCard ticket={opened} pastEvent={eventEnded(opened, asOf)} qrImageSource={{ uri: getTicketQrImageUrl(opened.id) }}
+            <TicketCard ticket={opened} pastEvent={eventEnded(opened, asOf)}
               onSupport={() => {
                 close();
                 navigation.navigate("SupportTab", { screen: "SupportNew", params: { ticketId: opened.id } });
               }}
-              onPdf={() => { void Linking.openURL(getTicketPdfUrl(opened.id))
-                .catch(() => Alert.alert("Couldn't open PDF", "Check your connection and try again.")); }} />
+              pdfLoading={pdfLoading} onPdf={() => { void openPdf(opened.id); }} />
           </ScrollView>
         </SafeAreaView>
       </Modal> : null}

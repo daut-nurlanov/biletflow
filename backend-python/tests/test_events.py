@@ -149,13 +149,18 @@ def test_cancel_event_notifies_holders_and_stops_sales_and_scanning(kit):
 
 def test_duplicate_copies_setup_but_not_transactions(kit):
     org, buyer = kit.user("organizer"), kit.user("attendee")
-    event, tt = kit.event(org, description="keep me")
+    event, tt = kit.event(
+        org, description="keep me", registration_opens_at="2024-01-01T00:00:00Z",
+        registration_closes_at="2030-01-01T19:00:00+05:00",
+    )
     kit.seats(org, event["id"], rows=2, per_row=3)
     kit.buy(buyer, event["id"], tt["id"])
     copy = kit.client.post(f"/api/events/{event['id']}/duplicate", headers=org.h)
     assert copy.status_code == 201
     new = copy.json()
     assert new["status"] == "draft" and new["title"].endswith("(copy)") and new["description"] == "keep me"
+    assert new["registration_opens_at"] == event["registration_opens_at"]
+    assert new["registration_closes_at"] == event["registration_closes_at"]
     types = kit.client.get(f"/api/events/{new['id']}/ticket-types", headers=org.h).json()
     assert len(types) == 1 and types[0]["quantity_available"] == types[0]["total_quantity"] == 10
     assert len(kit.client.get(f"/api/events/{new['id']}/seats", headers=org.h).json()) == 6
@@ -254,5 +259,5 @@ def test_bad_ids_give_clean_errors_not_crashes(kit):
     org = kit.user("organizer")
     assert kit.client.get("/api/events/not-a-uuid").status_code == 400
     assert kit.client.get(f"/api/events/{uuid4()}").status_code == 404
-    assert kit.client.get("/api/tickets/not-a-uuid").status_code == 400
+    assert kit.client.get("/api/tickets/not-a-uuid", headers=org.h).status_code == 400
     assert kit.client.post("/api/events", headers=org.h, json={"title": "x", "venue_name": "y", "start_time": "garbage"}).status_code == 400

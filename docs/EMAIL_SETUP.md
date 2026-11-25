@@ -1,9 +1,18 @@
-# Real emails (optional)
+# Local email capture and optional SMTP
 
-By default BiletFlow does not send real email. Every message is stored as a
-notification (website: Notifications, mobile: Alerts tab) and printed in the
-server log (`docker compose logs backend`). Verification and reset codes are
-printed in full, so the demo works without any email account.
+BiletFlow stores messages in the in-app notification inbox. Server logs record
+notification types and delivery errors without including verification or reset
+codes.
+
+For a local demo, set `BILETFLOW_EMAIL_OUTBOX` to a private directory writable by
+the API process. Messages are captured as `.eml` files with any ticket PDF
+attachments. Capture takes precedence over SMTP. Use synthetic addresses and
+keep this directory out of Git and shared storage.
+
+For Docker Compose, use `BILETFLOW_EMAIL_OUTBOX=/tmp/biletflow-email` and copy the
+outbox to an ignored QA directory with
+`docker compose cp backend:/tmp/biletflow-email mobile/.expo/biletflow-email`.
+Read the most recent message for the synthetic recipient to retrieve a code.
 
 To also send real email, set these before starting Docker. Windows (CMD):
 
@@ -26,6 +35,6 @@ Mac or Linux: use `export` instead of `set`.
 How it behaves: sending happens in the background after the message is saved. If
 the mail server is down or the password is wrong, the purchase or registration
 still succeeds and the log shows `[email FAILED]`. With `SMTP_HOST` empty (the
-default) nothing is sent and nothing breaks.
+default), messages remain in-app unless local capture is configured.
 
 Demo payments stay simulated. Emails say that this is a university project.

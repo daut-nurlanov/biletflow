@@ -40,8 +40,8 @@ services:
       #time it starts (everyone has to sign in again after a restart). to keep logins across
       #restarts, set your own secret first:  BILETFLOW_SECRET=some-long-random-text docker compose up -d
       BILETFLOW_SECRET: ${BILETFLOW_SECRET:-}
-      #real emails are OFF unless SMTP_HOST is set (see docs/EMAIL_SETUP.md). with it empty,
-      #messages only appear in the app (Notifications) and in the server log
+      # Optional local capture takes precedence over SMTP (see docs/EMAIL_SETUP.md).
+      BILETFLOW_EMAIL_OUTBOX: ${BILETFLOW_EMAIL_OUTBOX:-}
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_USER: ${SMTP_USER:-}

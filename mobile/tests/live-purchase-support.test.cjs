@@ -91,7 +91,8 @@ test('native purchase controller -> real quote/checkout -> My Tickets/QR -> staf
     assert.equal(Number(freeFlow.view.confirmation.order.total_amount), 0);
     const mine = await tickets.getMyTickets(attendee.token); assert.equal(mine.length, 3);
     const ticket = mine.find((t) => t.ticket_type_id === paid.id);
-    const png = await fetch(tickets.getTicketQrImageUrl(ticket.id)); assert.equal(png.status, 200); assert.equal(png.headers.get('content-type'), 'image/png');
+    const png = await tickets.getTicketQr(ticket.id, attendee.token);
+    assert.equal(png.type, 'image/png');
     const staffEmail = `staff-${suffix}@test.invalid`;
     await api(`/api/events/${event.id}/staff`, { mode: 'create', email: staffEmail, full_name: 'Door Staff', password: 'test-password123' }, organizer.token);
     const staff = await auth.login(staffEmail, 'test-password123');

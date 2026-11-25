@@ -158,11 +158,17 @@ export default function App() {
               path="*"
               element={
                 <p>
-                  Page not found. <Link to="/organizer">My events</Link>
+                  {t('Page not found.')} <Link to="/organizer">{t('My events')}</Link>
                 </p>
               }
             />
           </Route>
+          <Route path="*" element={
+            <section className="card">
+              <h1>{t('Page not found.')}</h1>
+              <Link to="/">{t('Back to events')}</Link>
+            </section>
+          } />
         </Routes>
       </main>
     </>

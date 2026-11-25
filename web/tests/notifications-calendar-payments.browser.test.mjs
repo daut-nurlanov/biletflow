@@ -234,8 +234,10 @@ test(
           await browser.evaluate(
             `const select=document.querySelector('select[name="notification_filter"]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(select,'unread');select.dispatchEvent(new Event('change',{bubbles:true}))`,
           )
-          await browser.wait('Ticket confirmed')
-          assert.equal(await browser.has('Old message'), false)
+          await eventually(async () =>
+            (await browser.evaluate('location.search')) === '?unread_only=true' &&
+            (await browser.has('Ticket confirmed')) && !(await browser.has('Old message')),
+          'Unread filter committed and filtered records loaded')
           assert.equal(
             await browser.evaluate('location.search'),
             '?unread_only=true',

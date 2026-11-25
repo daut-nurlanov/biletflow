@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { spawn } from 'node:child_process'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -15,7 +15,7 @@ const chrome = process.env.CHROME_BIN || [
   '/usr/bin/chromium', '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
 ].find(existsSync)
 
-test('live Docker: attendee purchase, organizer support, staff and history',
+test('live: attendee purchase, protected ticket downloads, organizer support, staff and history',
   { skip: !apiBase || !chrome, timeout: 120_000 }, async () => {
     async function request(path, { token, body, method = body ? 'POST' : 'GET' } = {}) {
       const response = await fetch(apiBase + path, { method,
@@ -67,6 +67,7 @@ test('live Docker: attendee purchase, organizer support, staff and history',
       await browser.connect(targets.find((target) => target.type === 'page').webSocketDebuggerUrl)
       await browser.send('Page.enable')
       await browser.send('Runtime.enable')
+      await browser.send('Browser.setDownloadBehavior', { behavior: 'allow', downloadPath: profile })
       await browser.navigate('/login')
       await browser.wait('Sign in')
       await browser.evaluate(`localStorage.setItem('biletflow_token', ${JSON.stringify(attendee.token)})`)
@@ -86,9 +87,25 @@ test('live Docker: attendee purchase, organizer support, staff and history',
       const tickets = await request('/api/tickets/my-tickets', { token: attendee.token })
       assert.equal(tickets.length, 2)
       await eventually(() => browser.evaluate('document.querySelectorAll("img.qr").length === 2 && [...document.querySelectorAll("img.qr")].every(i => i.complete && i.naturalWidth > 0)'), 'Real QR images loaded')
+      await browser.click('Download PDF')
+      let downloaded
+      await eventually(async () => {
+        for (const ticket of tickets) {
+          try {
+            downloaded = await readFile(join(profile, `ticket-${ticket.id}.pdf`))
+            return downloaded.length > 0
+          } catch (error) {
+            if (error.code !== 'ENOENT') throw error
+          }
+        }
+        return false
+      }, 'Authenticated browser PDF download')
+      assert.equal(downloaded.subarray(0, 5).toString(), '%PDF-')
       const orders = await request('/api/orders/my-orders', { token: attendee.token })
       assert.deepEqual(orders.map((o) => Number(o.total_amount)).sort((a, b) => a - b), [0, 4000])
-      const ticket = tickets[0]
+      const ticket = tickets.find((item) => item.ticket_type_name === 'Paid admission')
+      const freeTicket = tickets.find((item) => item.ticket_type_name === 'Free admission')
+      assert.ok(ticket && freeTicket)
       const scan = { event_id: event.id, qr_code_hash: ticket.qr_code_hash }
       assert.equal((await request('/api/checkin/verify-qr', { token: staff.token, body: scan })).result, 'valid')
       assert.equal((await request('/api/checkin/verify-qr', { token: staff.token, body: scan })).result, 'already_checked_in')
@@ -96,7 +113,7 @@ test('live Docker: attendee purchase, organizer support, staff and history',
       assert.equal(stats.checked_in, 1)
       await browser.navigate('/my-tickets')
       await browser.wait(event.title)
-      assert.equal(await browser.evaluate('document.querySelectorAll("img.qr").length'), 1)
+      await eventually(() => browser.evaluate('document.querySelectorAll("img.qr").length === 1'), 'Only the unused ticket has a QR')
       const analytics = await request(`/api/events/${event.id}/analytics`, { token: org })
       assert.equal(Number(analytics.money.gross_sales), 5000)
       assert.equal(Number(analytics.money.discounts), 1000)
@@ -219,6 +236,17 @@ test('live Docker: attendee purchase, organizer support, staff and history',
       })()`)
       await browser.click('Apply filters')
       await eventually(() => browser.evaluate(`document.querySelectorAll('.org-history-entry').length === 1 && document.querySelector('.org-history h3').textContent === 'Staff access revoked'`), 'filtered staff history')
+      await browser.evaluate(`localStorage.setItem('biletflow_token', ${JSON.stringify(attendee.token)})`)
+      await browser.navigate('/my-orders')
+      await browser.wait('Cancel registration')
+      await browser.click('Cancel registration')
+      await browser.click('Yes, cancel')
+      await browser.wait('was cancelled.')
+      const updatedTickets = await request('/api/tickets/my-tickets', { token: attendee.token })
+      assert.equal(updatedTickets.find((item) => item.id === freeTicket.id)?.status, 'cancelled')
+      assert.equal((await request('/api/checkin/verify-qr', { token: staff.token,
+        body: { event_id: event.id, qr_code_hash: freeTicket.qr_code_hash } })).result, 'cancelled')
+      await browser.evaluate(`localStorage.setItem('biletflow_token', ${JSON.stringify(org)})`)
       await request(`/api/events/${event.id}/cancel`, { token: org, method: 'POST' })
       await browser.navigate(`/organizer/events/${event.id}/history`)
       await browser.wait('Event cancelled')

@@ -11,7 +11,9 @@ export default function CalendarButton({
   eventId: string
   cancelled?: boolean
 }) {
-  const { user } = useAuth()
+  const { user, loading } = useAuth()
+  const { t } = useI18n()
+  if (loading) return <p role="status">{t('Preparing calendar…')}</p>
   return (
     <CalendarDownload
       key={`${eventId}:${user?.id ?? 'public'}:${cancelled}`}
@@ -69,10 +71,8 @@ function CalendarDownload({
     } catch (err) {
       if (!controller.signal.aborted) setError(messageFor(err))
     } finally {
-      if (!controller.signal.aborted) {
-        pending.current = null
-        setBusy(false)
-      }
+      pending.current = null
+      setBusy(false)
     }
   }
   return (

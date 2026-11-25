@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { api, BASE } from '../api'
+import { api, apiResponse } from '../api'
 import { useAuth } from '../auth'
 import { formatDate, formatStatus } from '../format'
 import CalendarButton from '../components/CalendarButton'
@@ -23,6 +23,38 @@ function eventEnded(ticket: MyTicket, asOf: number) {
 function TicketPreview({ ticket, pastEvent }: { ticket: MyTicket; pastEvent: boolean }) {
   const { t } = useI18n()
   const dialog = useRef<HTMLDialogElement>(null)
+  const pdfRequest = useRef<AbortController | null>(null)
+  const [pdfBusy, setPdfBusy] = useState(false)
+  const [pdfError, setPdfError] = useState('')
+  const path = `/api/tickets/${encodeURIComponent(ticket.id)}`
+  useEffect(() => () => pdfRequest.current?.abort(), [])
+
+  async function downloadPdf() {
+    if (pdfRequest.current) return
+    const controller = new AbortController()
+    pdfRequest.current = controller
+    setPdfBusy(true)
+    setPdfError('')
+    try {
+      const response = await apiResponse(`${path}/pdf`, { signal: controller.signal })
+      const blob = await response.blob()
+      if (controller.signal.aborted) return
+      if (blob.type !== 'application/pdf') throw new Error(t('BiletFlow did not return a ticket PDF.'))
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.download = `ticket-${ticket.id}.pdf`
+      link.href = url
+      document.body.append(link)
+      link.click()
+      link.remove()
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+    } catch (error) {
+      if (!controller.signal.aborted) setPdfError(error instanceof Error ? error.message : t('Try again'))
+    } finally {
+      pdfRequest.current = null
+      setPdfBusy(false)
+    }
+  }
   const title = ticket.event_title ?? ticket.event?.title ?? ticket.title ?? t('Event')
   const start = ticket.start_time ?? ticket.event?.start_time
   const venue = ticket.venue_name ?? ticket.event?.venue_name
@@ -49,7 +81,10 @@ function TicketPreview({ ticket, pastEvent }: { ticket: MyTicket; pastEvent: boo
           onClick={() => dialog.current?.showModal()}>
           <Icon name={status === 'valid' ? 'qr' : 'ticket'} size={18} />{t('Open ticket')}
         </button>
-        <a href={`${BASE}/api/tickets/${ticket.id}/pdf`} target="_blank" rel="noreferrer">{t('Download PDF')}</a>
+        <button className="btn secondary" onClick={downloadPdf} disabled={pdfBusy}>
+          {pdfBusy ? t('Preparing PDF…') : t('Download PDF')}
+        </button>
+        {pdfError && <p className="error" role="alert">{pdfError}</p>}
         {ticket.event_id && <CalendarButton eventId={ticket.event_id} cancelled={ticket.event_status === 'cancelled'} />}
         <Link to={`/support/new?ticket_id=${encodeURIComponent(ticket.id)}`}>{t('Get help with this ticket')}</Link>
       </div>
@@ -61,12 +96,47 @@ function TicketPreview({ ticket, pastEvent }: { ticket: MyTicket; pastEvent: boo
         <div className="ticket-dialog-content">
           {ticket.attendee_name && <p>{ticket.attendee_name}</p>}
           {status === 'valid'
-            ? <img className="qr" src={`${BASE}/api/tickets/${ticket.id}/qr.png`} alt={t('Admission QR for {v}', { v: title })} />
+            ? <AdmissionQr path={`${path}/qr.png`} title={title} />
             : <p>{t('Admission QR unavailable: {v}.', { v: eventBlocked ? t(`event ${status}`) : formatStatus(status ?? '') })}</p>}
         </div>
       </dialog>
     </article>
   )
+}
+
+function AdmissionQr({ path, title }: { path: string; title: string }) {
+  const { t } = useI18n()
+  const [attempt, setAttempt] = useState(0)
+  const [result, setResult] = useState<{ url?: string; error?: string }>()
+  useEffect(() => {
+    const controller = new AbortController()
+    let url: string | undefined
+    void apiResponse(path, { signal: controller.signal })
+      .then((response) => response.blob())
+      .then((blob) => {
+        if (controller.signal.aborted) return
+        if (blob.type !== 'image/png') throw new Error()
+        url = URL.createObjectURL(blob)
+        setResult({ url })
+      })
+      .catch((error) => {
+        if (!controller.signal.aborted) setResult({ error: error.message || 'Could not load the admission QR.' })
+      })
+    return () => {
+      controller.abort()
+      if (url) URL.revokeObjectURL(url)
+    }
+  }, [attempt, path])
+  if (result?.error) return <>
+    <p role="alert" className="error">{t(result.error)}</p>
+    <button className="btn secondary" onClick={() => { setResult(undefined); setAttempt((value) => value + 1) }}>
+      {t('Try again')}
+    </button>
+  </>
+  return result?.url
+    ? <img className="qr" src={result.url} alt={t('Admission QR for {v}', { v: title })}
+        onError={() => setResult({ error: 'Could not load the admission QR.' })} />
+    : <p role="status">{t('Loading…')}</p>
 }
 
 export default function MyTicketsPage() {

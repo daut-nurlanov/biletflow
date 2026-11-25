@@ -3,6 +3,8 @@ import smtplib
 import threading
 from contextlib import contextmanager
 from email.message import EmailMessage
+from pathlib import Path
+from tempfile import NamedTemporaryFile
 
 import psycopg2
 import psycopg2.extras
@@ -56,6 +58,31 @@ def audit(cur, actor_id, event_id, action, details, entity_type=None, entity_id=
         (actor_id, event_id, action, details, entity_type, str(entity_id) if entity_id else None))
 
 
+def _email_message(sender, to_address, subject, body, attachments):
+    msg = EmailMessage()
+    msg["From"] = sender
+    msg["To"] = to_address
+    msg["Subject"] = subject
+    msg.set_content(body + "\n\n-- BiletFlow (university project demo, no real payments)")
+    for filename, data in attachments:
+        msg.add_attachment(data, maintype="application", subtype="pdf", filename=filename)
+    return msg
+
+
+def _capture_email(outbox, to_address, subject, body, attachments):
+    try:
+        folder = Path(outbox)
+        folder.mkdir(mode=0o700, parents=True, exist_ok=True)
+        msg = _email_message("no-reply@biletflow.local", to_address, subject, body, attachments)
+        # Write atomically so a local viewer never opens a half-written PDF.
+        with NamedTemporaryFile(dir=folder, suffix=".tmp", delete=False) as file:
+            path = Path(file.name)
+            file.write(msg.as_bytes())
+        path.replace(path.with_suffix(".eml"))
+    except (OSError, ValueError):
+        print("[email capture FAILED]", flush=True)
+
+
 def _send_email(to_address, subject, body, attachments=()):
     #real email through any SMTP provider (Gmail app password, SendGrid, Mailgun,
     #a school mail server...). Runs in its own thread so a slow or broken mail
@@ -68,13 +95,7 @@ def _send_email(to_address, subject, body, attachments=()):
     use_ssl = os.environ.get("SMTP_SSL", "").strip().lower() in ("1", "true", "yes")
     use_starttls = os.environ.get("SMTP_STARTTLS", "true").strip().lower() not in ("0", "false", "no")
     try:
-        msg = EmailMessage()
-        msg["From"] = sender
-        msg["To"] = to_address
-        msg["Subject"] = subject
-        msg.set_content(body + "\n\n-- BiletFlow (university project demo, no real payments)")
-        for filename, data in attachments:
-            msg.add_attachment(data, maintype="application", subtype="pdf", filename=filename)
+        msg = _email_message(sender, to_address, subject, body, attachments)
         if use_ssl:
             server = smtplib.SMTP_SSL(host, port, timeout=15)
         else:
@@ -87,27 +108,25 @@ def _send_email(to_address, subject, body, attachments=()):
             server.send_message(msg)
         print(f"[email sent] {to_address}: {subject}", flush=True)
     except Exception as error:  # noqa: BLE001 - never let email problems reach the caller
-        print(f"[email FAILED] {to_address}: {subject}: {error}", flush=True)
+        print(f"[email FAILED] {type(error).__name__}", flush=True)
 
 
 def notify(cur, user_id, kind, subject, body, attachments=()):
-    #every message is stored as an in-app notification (GET /api/notifications)
-    #and printed to the server log. If SMTP_HOST is set it is ALSO sent as a real
-    #email. With SMTP_HOST empty (the default) nothing leaves the computer.
+    # An explicitly configured QA outbox takes precedence over SMTP.
     cur.execute(
         "INSERT INTO notifications (user_id, kind, subject, body) VALUES (%s, %s, %s, %s)",
         (user_id, kind, subject, body))
-    if os.environ.get("SMTP_HOST", "").strip():
+    outbox = os.environ.get("BILETFLOW_EMAIL_OUTBOX", "").strip()
+    if outbox or os.environ.get("SMTP_HOST", "").strip():
         cur.execute("SELECT email FROM users WHERE id = %s", (user_id,))
         row = cur.fetchone()
         if row and row["email"]:
-            threading.Thread(target=_send_email, args=(row["email"], subject, body, attachments), daemon=True).start()
-    print(f"[notification to user {user_id}] {kind}: {subject}", flush=True)
-    #demo outbox: there is no real email, so for the two account messages that
-    #carry a one-time code we also print the body. This is how someone who is
-    #signed out (forgot password) can read their code: docker compose logs backend
-    if kind in ("verify_email", "reset_password"):
-        print(f"[demo email body] {body}", flush=True)
+            address = row["email"]
+            if outbox:
+                _capture_email(outbox, address, subject, body, attachments)
+            else:
+                threading.Thread(target=_send_email, args=(address, subject, body, attachments), daemon=True).start()
+    print(f"[notification to user {user_id}] {kind}", flush=True)
 
 
 def get_setting(cur, key, default):

@@ -1,13 +1,14 @@
 import { useEffect, useState } from "react";
-import type { ImageURISource } from "react-native";
 import { Image, StyleSheet, View } from "react-native";
 
+import { getTicketQr } from "../api/tickets";
+import { useSession } from "../auth/SessionContext";
 import { theme } from "../theme";
 import { ErrorState } from "./ErrorState";
 import { LoadingState } from "./LoadingState";
 
 interface TicketQrCodeProps {
-  source: ImageURISource;
+  ticketId: string;
   accessibilityLabel: string;
 }
 
@@ -17,21 +18,43 @@ export function TicketQrCode(props: TicketQrCodeProps) {
   return (
     <QrImageAttempt
       {...props}
-      key={`${props.source.uri}:${attempt}`}
-      reload={attempt > 0}
+      key={`${props.ticketId}:${attempt}`}
       onRetry={() => setAttempt((previous) => previous + 1)}
     />
   );
 }
 
-// A fresh native image and load state for each retry or ticket URL.
+// Each attempt fetches the protected PNG through the session-aware API.
 function QrImageAttempt({
-  source,
+  ticketId,
   accessibilityLabel,
-  reload,
   onRetry,
-}: TicketQrCodeProps & { reload: boolean; onRetry: () => void }) {
+}: TicketQrCodeProps & { onRetry: () => void }) {
+  const { authed } = useSession();
+  const [uri, setUri] = useState<string>();
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const reader = new FileReader();
+    const fail = () => {
+      if (!controller.signal.aborted) setState("error");
+    };
+    reader.onload = () => {
+      if (controller.signal.aborted) return;
+      if (typeof reader.result === "string") setUri(reader.result);
+      else fail();
+    };
+    reader.onerror = fail;
+
+    void authed((token) => getTicketQr(ticketId, token, controller.signal))
+      .then((png) => { if (!controller.signal.aborted) reader.readAsDataURL(png); })
+      .catch(fail);
+    return () => {
+      controller.abort();
+      if (reader.readyState === FileReader.LOADING) reader.abort();
+    };
+  }, [authed, ticketId]);
 
   useEffect(() => {
     if (state !== "loading") return;
@@ -54,8 +77,8 @@ function QrImageAttempt({
   return (
     <View style={styles.frame}>
       <View style={styles.imageArea}>
-        <Image
-          source={reload ? { ...source, cache: "reload" } : source}
+        {uri ? <Image
+          source={{ uri }}
           resizeMode="contain"
           fadeDuration={0}
           accessible={state === "ready"}
@@ -64,7 +87,7 @@ function QrImageAttempt({
           style={[StyleSheet.absoluteFill, state !== "ready" && styles.hidden]}
           onLoad={() => setState((current) => current === "loading" ? "ready" : current)}
           onError={() => setState((current) => current === "loading" ? "error" : current)}
-        />
+        /> : null}
         {state === "loading" ? <LoadingState message="Loading admission QR…" /> : null}
       </View>
     </View>

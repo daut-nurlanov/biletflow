@@ -41,7 +41,7 @@ export function StaffToolsScreen({ route }: Props) {
   function search() {
     if (locked.current) return;
     const name = query.trim();
-    if (Array.from(name).length < 2) { setValidation("Enter at least two letters of a name or email."); return; }
+    if (Array.from(name).length < 2) { setValidation("Enter at least two characters to search."); return; }
     setValidation(null);
     setActionError(null);
     setMessage(null);
@@ -103,10 +103,10 @@ export function StaffToolsScreen({ route }: Props) {
           <View style={styles.header}>
             <Text accessibilityRole="header" style={sharedStyles.title}>{eventTitle}</Text>
             <AttendanceSummary key={revision} eventId={eventId} />
-            <Text style={sharedStyles.body}>Find a ticket by attendee name or email.</Text>
-            <TextInput accessibilityLabel="Attendee name or email" style={styles.input}
+            <Text style={sharedStyles.body}>Find a ticket by name, email, ticket ID, or its last 8 characters.</Text>
+            <TextInput accessibilityLabel="Name, email or ticket ID" style={styles.input}
               value={query} onChangeText={setQuery} autoCapitalize="none" autoCorrect={false}
-              placeholder="Name or email" placeholderTextColor={theme.colors.muted}
+              placeholder="Name, email or ticket ID" placeholderTextColor={theme.colors.muted}
               returnKeyType="search" onSubmitEditing={search} editable={!busyId} />
             <AppButton title="Search tickets" onPress={search} disabled={!!busyId} />
             {validation ? <Text accessibilityRole="alert" style={sharedStyles.body}>{validation}</Text> : null}

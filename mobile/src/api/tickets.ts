@@ -1,17 +1,15 @@
-import { environment } from "../config/environment";
 import type { Ticket } from "../types/ticket";
-import { apiRequest } from "./client";
+import { apiRequest, requestBlob, requestPdf } from "./client";
 
 /** The backend identifies the attendee from the bearer token; no demo ID is needed. */
 export function getMyTickets(token: string, signal?: AbortSignal): Promise<Ticket[]> {
   return apiRequest<Ticket[]>("/api/tickets/my-tickets", { token, signal });
 }
 
-/** Public ticket-link endpoint; no bearer token or QR hash is required. */
-export function getTicketQrImageUrl(ticketId: string): string {
-  return `${environment.apiBaseUrl}/api/tickets/${encodeURIComponent(ticketId)}/qr.png`;
+export function getTicketQr(ticketId: string, token: string, signal?: AbortSignal): Promise<Blob> {
+  return requestBlob(`/api/tickets/${encodeURIComponent(ticketId)}/qr.png`, "image/png", token, signal);
 }
 
-export function getTicketPdfUrl(ticketId: string): string {
-  return `${environment.apiBaseUrl}/api/tickets/${encodeURIComponent(ticketId)}/pdf`;
+export function getTicketPdf(ticketId: string, token: string, signal?: AbortSignal): Promise<Uint8Array> {
+  return requestPdf(`/api/tickets/${encodeURIComponent(ticketId)}/pdf`, token, signal);
 }

@@ -19,6 +19,20 @@ def upload(kit, user, event_id, data):
     return kit.client.post(f"/api/events/{event_id}/image", headers=user.h, content=data)
 
 
+def test_duplicated_events_keep_an_independent_uploaded_cover(kit):
+    organizer = kit.user("organizer")
+    event, _ = kit.event(organizer, publish=False)
+    cover = tiny_png()
+    assert upload(kit, organizer, event["id"], cover).status_code == 200
+    response = kit.client.post(f"/api/events/{event['id']}/duplicate", headers=organizer.h)
+    assert response.status_code == 201
+    copied = response.json()
+    assert copied["image_url"] == f"/api/events/{copied['id']}/image"
+    assert upload(kit, organizer, event["id"], cover + b"replacement").status_code == 200
+    image = kit.client.get(copied["image_url"])
+    assert image.status_code == 200 and image.content == cover
+
+
 def test_organizer_uploads_picture_and_anyone_can_load_it(kit):
     org = kit.user("organizer")
     event, _ = kit.event(org)
@@ -100,6 +114,28 @@ def test_send_email_swallows_connection_errors(monkeypatch, capsys):
     monkeypatch.setenv("SMTP_PORT", "1")  #nothing listens here
     db._send_email("someone@example.test", "Hello", "Body")  #must not raise
     assert "[email FAILED]" in capsys.readouterr().out
+
+
+def test_local_outbox_captures_reset_and_purchase_without_smtp(kit, monkeypatch, tmp_path, capsys):
+    from email import policy
+    from email.parser import BytesParser
+
+    organizer, buyer = kit.user("organizer"), kit.user()
+    event, ticket_type = kit.event(organizer)
+    monkeypatch.setenv("BILETFLOW_EMAIL_OUTBOX", str(tmp_path))
+    monkeypatch.setenv("SMTP_HOST", "mail.example.test")
+    sent = []
+    monkeypatch.setattr(db, "_send_email", lambda *args: sent.append(args))
+    assert kit.client.post("/api/auth/forgot-password", json={"email": buyer.email}).status_code == 200
+    assert kit.buy(buyer, event["id"], ticket_type["id"]).status_code == 201
+
+    messages = [BytesParser(policy=policy.default).parsebytes(path.read_bytes()) for path in tmp_path.glob("*.eml")]
+    reset = next(message for message in messages if message["Subject"] == "Reset your BiletFlow password")
+    reset_code = reset.get_body().get_content().splitlines()[0].split(": ")[-1]
+    assert reset_code and reset_code not in capsys.readouterr().out
+    pdfs = [part for message in messages for part in message.iter_attachments()]
+    assert len(pdfs) == 1 and pdfs[0].get_payload(decode=True).startswith(b"%PDF")
+    assert not sent
 
 
 def test_confirmation_email_has_link_ticket_ids_and_pdf_attachment(kit, monkeypatch):

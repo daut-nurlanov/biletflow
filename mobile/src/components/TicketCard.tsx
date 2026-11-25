@@ -1,4 +1,3 @@
-import type { ImageURISource } from "react-native";
 import { Text, View } from "react-native";
 
 import { sharedStyles } from "../theme";
@@ -10,9 +9,9 @@ import { AppButton } from "./AppButton";
 
 interface TicketCardProps {
   ticket: Ticket;
-  qrImageSource: ImageURISource;
   onSupport?: () => void;
   onPdf?: () => void;
+  pdfLoading?: boolean;
   pastEvent?: boolean;
 }
 
@@ -23,7 +22,7 @@ const admissionMessages = {
   refunded: "This ticket was refunded and cannot be used for admission.",
 };
 
-export function TicketCard({ ticket, qrImageSource, onSupport, onPdf, pastEvent }: TicketCardProps) {
+export function TicketCard({ ticket, onSupport, onPdf, pdfLoading, pastEvent }: TicketCardProps) {
   // The scanner rejects these events even when the ticket itself is still valid.
   const eventBlocked = ticket.event_status === "cancelled" || ticket.event_status === "suspended";
   const admissionStatus = ticket.status === "valid" && eventBlocked ? ticket.event_status : ticket.status;
@@ -54,11 +53,11 @@ export function TicketCard({ ticket, qrImageSource, onSupport, onPdf, pastEvent 
       </Text>
       {admissionStatus === "valid" ? (
         <TicketQrCode
-          source={qrImageSource}
+          ticketId={ticket.id}
           accessibilityLabel={`Admission QR code for ${ticket.event_title}, ${ticket.attendee_name}`}
         />
       ) : null}
-      {onPdf ? <AppButton title="Open ticket PDF" variant="secondary" onPress={onPdf} /> : null}
+      {onPdf ? <AppButton title="Open ticket PDF" variant="secondary" loading={pdfLoading} onPress={onPdf} /> : null}
       {onSupport ? <AppButton title="Get help with this ticket" variant="secondary" onPress={onSupport} /> : null}
     </View>
   );

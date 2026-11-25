@@ -74,8 +74,11 @@ test('attendee checkout quote safety, retries, simulated purchase and QR visibil
             { id: 'ticket-1', attendee_name: user.full_name, event_title: event.title, status: ticketStatus, event_status: eventStatus, start_time: ticketStart },
           ]
           else if (url.pathname.endsWith('/qr.png')) {
+            assert.equal(request.headers.Authorization, 'Bearer test-token')
             await browser.send('Fetch.fulfillRequest', { requestId, responseCode: 200,
-              responseHeaders: [{ name: 'Content-Type', value: 'image/png' }], body: '' })
+              responseHeaders: [{ name: 'Content-Type', value: 'image/png' },
+                { name: 'Access-Control-Allow-Origin', value: '*' }],
+              body: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jh6sAAAAASUVORK5CYII=' })
             return
           } else { status = 404; body = { detail: 'Not found' } }
           await browser.send('Fetch.fulfillRequest', { requestId, responseCode: status,
@@ -149,10 +152,13 @@ test('attendee checkout quote safety, retries, simulated purchase and QR visibil
             eventStatus = state
             await browser.navigate('/my-tickets')
             await browser.wait('Checkout event')
+            const usable = status === 'valid' && state === 'upcoming'
+            if (usable) await eventually(() => browser.evaluate('document.querySelector("img.qr")?.naturalWidth > 0'), 'QR image')
             assert.equal(await browser.evaluate('document.querySelectorAll("img.qr").length'),
-              status === 'valid' && state === 'upcoming' ? 1 : 0, `${status}/${state}`)
+              usable ? 1 : 0, `${status}/${state}`)
             await browser.click('Open ticket')
             await eventually(() => browser.evaluate('!!document.querySelector("dialog[open]")'), 'Expanded ticket')
+            if (usable) await eventually(() => browser.evaluate('document.querySelector("dialog[open] img.qr")?.naturalWidth > 0'), 'Expanded QR')
             assert.equal(await browser.evaluate('!!document.querySelector("dialog[open] img.qr")'),
               status === 'valid' && state === 'upcoming')
             const escape = { key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27, nativeVirtualKeyCode: 27 }
@@ -202,6 +208,7 @@ test('attendee checkout quote safety, retries, simulated purchase and QR visibil
         await browser.wait('Past and inactive tickets')
         assert.equal(await browser.has('Past event'), true)
         assert.equal(await browser.evaluate('document.querySelector(".ticket-status").textContent'), 'Valid')
+        await eventually(() => browser.evaluate('document.querySelector("img.qr")?.naturalWidth > 0'), 'Past ticket QR')
         assert.equal(await browser.evaluate('document.querySelectorAll("img.qr").length'), 1)
       })
       assert.deepEqual(errors, [])

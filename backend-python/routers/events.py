@@ -7,8 +7,8 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel
 
 from db import audit, notify, release_expired_holds, tx
-from security import (assert_manager, can_manage, check_number, day_range, load_event, optional_user, require_roles,
-                      resolve_actor)
+from security import (assert_manager, can_manage, check_number, current_user, day_range, load_event, optional_user,
+                      require_roles, resolve_actor)
 
 router = APIRouter()
 
@@ -399,18 +399,27 @@ def duplicate_event(event_id: str, user=Depends(require_roles("organizer"))):
     #copies the setup (details, ticket types, seats) into a fresh draft.
     #orders, tickets, payments, check-ins and support cases are never copied
     with tx() as cur:
-        event = assert_manager(cur, user, event_id)
+        event = assert_manager(cur, user, event_id, lock=True)
         if str(event["organizer_id"]) != str(user["id"]):
             raise HTTPException(status_code=403, detail="You can only duplicate your own events")
         cur.execute(
             """INSERT INTO events (organizer_id, title, venue_name, start_time, capacity, description, category,
                                    venue_address, end_time, visibility, has_assigned_seating,
-                                   image_url, refund_policy)
-               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING *""",
+                                   image_url, refund_policy, registration_opens_at, registration_closes_at)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING *""",
             (user["id"], event["title"] + " (copy)", event["venue_name"], event["start_time"], event["capacity"],
              event["description"], event["category"], event["venue_address"], event["end_time"],
-             event["visibility"], event["has_assigned_seating"], event["image_url"], event["refund_policy"]))
+             event["visibility"], event["has_assigned_seating"], event["image_url"], event["refund_policy"],
+             event["registration_opens_at"], event["registration_closes_at"]))
         new = cur.fetchone()
+        original_image_path = f"/api/events/{event_id}/image"
+        if (event["image_url"] or "").split("?", 1)[0] == original_image_path:
+            cur.execute("""INSERT INTO event_images (event_id, content_type, data)
+                           SELECT %s, content_type, data FROM event_images WHERE event_id = %s""",
+                        (new["id"], event_id))
+            image_url = f"/api/events/{new['id']}/image" if cur.rowcount else None
+            cur.execute("UPDATE events SET image_url = %s WHERE id = %s RETURNING *", (image_url, new["id"]))
+            new = cur.fetchone()
         cur.execute(
             """INSERT INTO ticket_types (event_id, name, description, price, total_quantity, quantity_available,
                                          seat_category, sales_start_time, sales_end_time, is_hidden, max_per_order)
@@ -582,8 +591,8 @@ def get_seats(event_id: str, user=Depends(optional_user)):
 
 
 @router.post("/api/seats/hold", status_code=201)
-def hold_seat(payload: SeatHoldRequest, user=Depends(optional_user)):
-    holder = resolve_actor(user, payload.held_by_user_id, "held_by_user_id")
+def hold_seat(payload: SeatHoldRequest, user=Depends(current_user)):
+    holder = resolve_actor(user, payload.held_by_user_id)
     with tx() as cur:
         release_expired_holds(cur)
         cur.execute("""SELECT e.* FROM seats s JOIN events e ON e.id = s.event_id WHERE s.id = %s""", (payload.seat_id,))

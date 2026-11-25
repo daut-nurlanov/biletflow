@@ -144,7 +144,7 @@ def quote(payload: QuoteRequest, user=Depends(optional_user)):
 
 
 @router.post("/api/orders/checkout", status_code=201)
-def checkout(payload: CheckoutRequest, user=Depends(optional_user),
+def checkout(payload: CheckoutRequest, user=Depends(current_user),
              idempotency_key: str | None = Header(default=None)):
     #send the same Idempotency-Key header when retrying or double-tapping "Pay": the second request gets
     #the first order back instead of buying everything twice (only successful orders are remembered,
@@ -281,8 +281,8 @@ def checkout(payload: CheckoutRequest, user=Depends(optional_user),
               f"Order of {quantity} ticket(s), {priced['total']} KZT (simulated payment {payment_ref})",
               "order", order["id"])
         attachments = []
-        if os.environ.get("SMTP_HOST", "").strip():
-            #real email is on: attach each ticket as a PDF with its QR code
+        if os.environ.get("BILETFLOW_EMAIL_OUTBOX", "").strip() or os.environ.get("SMTP_HOST", "").strip():
+            # The local outbox and SMTP use the same printable attachment.
             for ticket in tickets:
                 cur.execute(TICKET_DETAIL_SQL + " WHERE tickets.id = %s", (ticket["id"],))
                 detail = cur.fetchone()
@@ -317,8 +317,9 @@ TICKET_DETAIL_SQL = """
 #actual ticket's id and never let this one run at all.
 #always put the more specific, fixed-word route above the generic {id} one
 @router.get("/api/tickets/my-tickets")
-def my_tickets(attendee_id: str | None = None, user=Depends(optional_user)):
+def my_tickets(response: Response, attendee_id: str | None = None, user=Depends(current_user)):
     attendee = resolve_actor(user, attendee_id)
+    response.headers["Cache-Control"] = "private, no-store"
     with tx() as cur:
         cur.execute(
             TICKET_DETAIL_SQL + """JOIN orders ON tickets.order_id = orders.id
@@ -326,14 +327,23 @@ def my_tickets(attendee_id: str | None = None, user=Depends(optional_user)):
         return cur.fetchall()
 
 
-@router.get("/api/tickets/{ticket_id}")
-def get_ticket(ticket_id: str):
-    #ticket ids are long random values, so knowing one is what lets you open it
+def load_owned_ticket(ticket_id: str, user):
     with tx() as cur:
-        cur.execute(TICKET_DETAIL_SQL + " WHERE tickets.id = %s", (ticket_id,))
+        cur.execute(
+            TICKET_DETAIL_SQL + " JOIN orders ON tickets.order_id = orders.id"
+            " WHERE tickets.id = %s AND orders.attendee_id = %s",
+            (ticket_id, user["id"]),
+        )
         ticket = cur.fetchone()
     if not ticket:
         raise HTTPException(status_code=404, detail="Ticket not found")
+    return ticket
+
+
+@router.get("/api/tickets/{ticket_id}")
+def get_ticket(ticket_id: str, response: Response, user=Depends(current_user)):
+    ticket = load_owned_ticket(ticket_id, user)
+    response.headers["Cache-Control"] = "private, no-store"
     return ticket
 
 
@@ -344,25 +354,25 @@ def qr_png(text, scale=8, dark="black"):
 
 
 @router.get("/api/tickets/{ticket_id}/qr.png")
-def ticket_qr(ticket_id: str):
-    with tx() as cur:
-        cur.execute("SELECT qr_code_hash FROM tickets WHERE id = %s", (ticket_id,))
-        ticket = cur.fetchone()
-    if not ticket:
-        raise HTTPException(status_code=404, detail="Ticket not found")
-    return Response(content=qr_png(ticket["qr_code_hash"]), media_type="image/png")
+def ticket_qr(ticket_id: str, user=Depends(current_user)):
+    ticket = load_owned_ticket(ticket_id, user)
+    if not ticket_has_admission_qr(ticket):
+        raise HTTPException(status_code=409, detail="Admission QR unavailable for this ticket")
+    return Response(content=qr_png(ticket["qr_code_hash"]), media_type="image/png",
+                    headers={"Cache-Control": "private, no-store"})
 
 
 @router.get("/api/tickets/{ticket_id}/pdf")
-def ticket_pdf(ticket_id: str):
-    with tx() as cur:
-        cur.execute(TICKET_DETAIL_SQL + " WHERE tickets.id = %s", (ticket_id,))
-        t = cur.fetchone()
-    if not t:
-        raise HTTPException(status_code=404, detail="Ticket not found")
+def ticket_pdf(ticket_id: str, user=Depends(current_user)):
+    t = load_owned_ticket(ticket_id, user)
     return Response(
         content=render_ticket_pdf(t), media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="ticket-{ticket_id}.pdf"'})
+        headers={"Cache-Control": "private, no-store",
+                 "Content-Disposition": f'attachment; filename="ticket-{ticket_id}.pdf"'})
+
+
+def ticket_has_admission_qr(ticket):
+    return ticket["status"] == "valid" and ticket["event_status"] not in ("cancelled", "suspended")
 
 
 def render_ticket_pdf(t) -> bytes:
@@ -399,13 +409,17 @@ def render_ticket_pdf(t) -> bytes:
         line("Seat", f"Section {t['section']}, row {t['row_label']}, seat {t['seat_number']}")
     line("Status", t["status"])
     #one big black-on-white QR so it scans from paper, even printed in grayscale
-    pdf.image(io.BytesIO(qr_png(t["qr_code_hash"], scale=10)), x=55, y=pdf.get_y() + 8, w=100)
-    pdf.set_y(pdf.get_y() + 112)
+    if ticket_has_admission_qr(t):
+        pdf.image(io.BytesIO(qr_png(t["qr_code_hash"], scale=10)), x=55, y=pdf.get_y() + 8, w=100)
+        pdf.set_y(pdf.get_y() + 112)
+    else:
+        line("Admission", "Admission QR unavailable for this ticket")
     pdf.set_font("Courier", "", 9)
     pdf.cell(0, 6, "Ticket ID: " + str(t["id"]), align="C", new_x="LMARGIN", new_y="NEXT")
     pdf.set_font(family, "", 9)
-    pdf.cell(0, 6, "Digital and printed copies of this ticket are the same ticket and admit one person once.",
-             align="C", new_x="LMARGIN", new_y="NEXT")
+    if ticket_has_admission_qr(t):
+        pdf.cell(0, 6, "Digital and printed copies of this ticket are the same ticket and admit one person once.",
+                 align="C", new_x="LMARGIN", new_y="NEXT")
     return bytes(pdf.output())
 
 

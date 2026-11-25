@@ -393,22 +393,22 @@ The **Who** column uses these words:
 
 Checkout enforces: event is upcoming or active, paid sales are active (and not frozen by an admin) for priced tickets, sale window is open, quantity is within `max_per_order` and what is left, seat category matches the ticket type, the seat is not sold or held by someone else, and the promo code is valid, not used up, and allowed for that ticket type. Everything happens in one database transaction with row locks, so two people cannot get the same seat or the last ticket.
 
-> **Weak spot, on purpose:** `checkout`, `seats/hold` and `tickets/my-tickets` still accept the old `attendee_id` instead of a token, so the early mobile prototype keeps working. The mobile app is expected to switch to token login. If a token is sent, the token wins and a different `attendee_id` is rejected. Before a real launch, make the token compulsory.
+Checkout, seat holds and the ticket wallet require a bearer token. Optional identity fields must match the signed-in user.
 
 ### 📥 Tickets, Orders & Refunds
 
 | Method and path | Who | What it does |
 |---|---|---|
 | `GET /api/tickets/my-tickets` | Buyer | All your tickets with event and seat info. |
-| `GET /api/tickets/{id}` | Public* | One ticket, including `qr_code_hash`. |
-| `GET /api/tickets/{id}/qr.png` | Public* | The QR code as a PNG image. |
-| `GET /api/tickets/{id}/pdf` | Public* | Printable PDF ticket with the QR code. Kazakh and Russian text work. |
+| `GET /api/tickets/{id}` | Ticket owner | One owned ticket, including `qr_code_hash`. |
+| `GET /api/tickets/{id}/qr.png` | Ticket owner | Admission PNG for a valid ticket with an eligible event. Returns 409 for unavailable admission QR images. |
+| `GET /api/tickets/{id}/pdf` | Ticket owner | Printable PDF. Includes the QR for eligible admission, with support for Kazakh and Russian text. |
 | `GET /api/orders/my-orders` | Token | Your orders. |
 | `GET /api/orders/{id}` | Token | One order with its tickets (buyer, event organizer or admin). |
 | `POST /api/orders/{id}/refund` | Token | Organizer of the event only. Full refund of a paid order: tickets are cancelled, seats and ticket stock are released, a refund record is written, buyer gets a simulated email. Refused if any ticket was already scanned. |
 | `POST /api/orders/{id}/cancel` | Token | Buyer cancels a **free** registration. Paid orders must go through a refund. |
 
-\* *Public because ticket ids are random and unguessable; anyone holding the link can open the ticket, like a ticket link in an email. Another deliberate simplification.*
+Ticket details, admission PNGs and PDFs return 401 without a session and 404 for tickets outside that session's ownership. Wallet and download responses use `Cache-Control: private, no-store`. Confirmation emails can still carry attached PDFs.
 
 ### 📱 Door Scanner (Staff)
 
@@ -418,7 +418,7 @@ Checkout enforces: event is upcoming or active, paid sales are active (and not f
 | `POST /api/checkin/verify-qr` | Staff | Body: `qr_code_hash` and (recommended) `event_id`, the event the scanner is open on. Result is one of `valid`, `wrong_event` (the ticket belongs to another event; nothing is checked in and no attendee details are returned), `already_checked_in`, `cancelled`, `refunded`, `event_cancelled`, `event_suspended`. A wrong code gives 404 "Not a valid ticket". A **promo campaign QR** is rejected with 400 and never admits anyone. Staff of a different event get 403. |
 | `POST /api/checkin/undo` | Staff | Body: `ticket_id`. Reverses a scan by mistake. |
 | `GET /api/events/{id}/checkin-stats` | Staff | `registered`, `checked_in`, `not_arrived`, `percent_checked_in`. |
-| `POST /api/checkin/manual-search` | Staff | Body: `event_id`, `name`. Finds tickets by attendee name or email when a QR will not scan. |
+| `POST /api/checkin/manual-search` | Staff | Body: `event_id`, `name`. Searches the assigned event by attendee name, email, exact ticket ID, or the ticket ID's last 8 characters. |
 
 ### 👥 Staff Management
 

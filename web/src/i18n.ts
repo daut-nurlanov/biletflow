@@ -26,6 +26,9 @@ export const dateLocale = (lang: Lang = currentLang()) =>
 
 type Entry = { ru: string; kk: string }
 const dict: Record<string, Entry> = {
+  'Preparing PDF…': { ru: 'Подготовка PDF…', kk: 'PDF дайындалуда…' },
+  'BiletFlow did not return a ticket PDF.': { ru: 'BiletFlow не вернул PDF билета.', kk: 'BiletFlow билет PDF файлын қайтармады.' },
+  'Could not load the admission QR.': { ru: 'Не удалось загрузить QR-код для прохода.', kk: 'Кіру QR кодын жүктеу мүмкін болмады.' },
   'This is a draft preview. Tickets go on sale after publication.': { ru: 'Это предварительный просмотр черновика. Продажа билетов начнётся после публикации.', kk: 'Бұл жарияланбаған нұсқаның алдын ала көрінісі. Билеттер жарияланғаннан кейін сатылымға шығады.' },
   'This event was cancelled.': { ru: 'Это событие отменено.', kk: 'Бұл іс-шара тоқтатылды.' },
   'This event has ended.': { ru: 'Это событие завершилось.', kk: 'Бұл іс-шара аяқталды.' },
@@ -106,6 +109,7 @@ const dict: Record<string, Entry> = {
   'Could not verify your email': { ru: 'Не удалось подтвердить электронную почту', kk: 'Электрондық поштаны растау мүмкін болмады' },
   'Could not send a new verification code': { ru: 'Не удалось отправить новый код подтверждения', kk: 'Жаңа растау кодын жіберу мүмкін болмады' },
   'Back to events': { ru: 'Вернуться к событиям', kk: 'Іс-шараларға оралу' },
+  'Page not found.': { ru: 'Страница не найдена.', kk: 'Бет табылмады.' },
   'Verification code': { ru: 'Код подтверждения', kk: 'Растау коды' },
   'Verifying…': { ru: 'Проверка…', kk: 'Тексерілуде…' },
   'Send a new code': { ru: 'Отправить новый код', kk: 'Жаңа код жіберу' },
