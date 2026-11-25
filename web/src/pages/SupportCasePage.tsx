@@ -184,7 +184,7 @@ function CaseView({ id, user }: { id: string; user: User }) {
   return (
     <>
       <div className="support-heading">
-        <Link to={back}>← All support requests</Link>
+        <Link className="support-back" to={back}>← All support requests</Link>
         <button
           className="btn secondary"
           disabled={busy}

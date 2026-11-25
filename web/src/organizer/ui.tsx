@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { Skeleton } from '../components/Surface'
 
 import { statusLabels } from './format'
 
@@ -34,7 +35,7 @@ export function ResourceState({
   error?: string
   retry: () => void
 }) {
-  if (loading) return <Notice>Loading data…</Notice>
+  if (loading) return <Skeleton label="Loading data…" />
   if (error)
     return (
       <Notice error>

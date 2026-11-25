@@ -1,7 +1,7 @@
 import { moment, money, seatLabel } from './format'
 import { useRef, useState, type FormEvent } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
-import { api } from '../api'
+import { api, ApiError } from '../api'
 import { useManagedEvent } from './Layout'
 import { messageFor, query, useResource } from './data'
 import type { Order, OrderDetail } from './types'
@@ -103,6 +103,7 @@ function OrderView({ orderId }: { orderId: string }) {
   const [busy, setBusy] = useState(false)
   const [actionError, setActionError] = useState('')
   const [success, setSuccess] = useState('')
+  const [uncertain, setUncertain] = useState(false)
   const submitting = useRef(false)
   const order = resource.data
   const hasUsedTickets = order?.tickets.some(
@@ -110,7 +111,7 @@ function OrderView({ orderId }: { orderId: string }) {
   )
   const paid = Number(order?.total_amount) > 0
   const canChange =
-    order?.status === 'paid' && !hasUsedTickets && order.tickets.length > 0
+    order?.status === 'paid' && !hasUsedTickets && order.tickets.length > 0 && !uncertain
 
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -139,6 +140,10 @@ function OrderView({ orderId }: { orderId: string }) {
       resource.refresh()
     } catch (error) {
       setActionError(messageFor(error))
+      if (!(error instanceof ApiError) || error.status >= 500 || error.status === 408) {
+        setConfirming(false)
+        setUncertain(true)
+      }
     } finally {
       submitting.current = false
       setBusy(false)
@@ -152,6 +157,15 @@ function OrderView({ orderId }: { orderId: string }) {
         Order <span className="org-id">{orderId}</span>
       </h2>
       {success && <Notice>{success}</Notice>}
+      {uncertain && <Notice error>
+        <p>{actionError}</p>
+        <p>The server may have completed the request. Refresh the order to check its status.</p>
+        <button className="btn secondary" onClick={() => {
+          setActionError('')
+          setUncertain(false)
+          resource.refresh()
+        }}>Refresh status</button>
+      </Notice>}
       <ResourceState {...resource} retry={resource.refresh} />
       {order &&
         (order.event_id !== event.id ? (

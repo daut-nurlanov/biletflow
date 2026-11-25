@@ -96,6 +96,7 @@ export function StaffToolsScreen({ route }: Props) {
         keyExtractor={(ticket) => ticket.id}
         contentContainerStyle={sharedStyles.listContent}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
         refreshing={results.refreshing}
         onRefresh={results.refresh}
         ListHeaderComponent={
@@ -129,7 +130,7 @@ export function StaffToolsScreen({ route }: Props) {
               <StatusBadge status={item.status} />
               {item.status === "valid" ? <AppButton title="Check in" accessibilityLabel={`Check in ${ticketLabel}`}
                 onPress={() => { void act(item, false); }} disabled={!!busyId} loading={busyId === item.id} /> : null}
-              {item.status === "checked_in" ? <AppButton title="Undo check-in" accessibilityLabel={`Undo check-in for ${ticketLabel}`}
+              {item.status === "checked_in" ? <AppButton title="Undo check-in" variant="secondary" accessibilityLabel={`Undo check-in for ${ticketLabel}`}
                 onPress={() => confirmUndo(item)} disabled={!!busyId} loading={busyId === item.id} /> : null}
             </View>
           );
@@ -143,7 +144,7 @@ const styles = StyleSheet.create({
   header: { gap: theme.spacing.md },
   input: {
     minHeight: 48, paddingHorizontal: theme.spacing.md, borderWidth: 1,
-    borderColor: theme.colors.border, borderRadius: theme.radius.sm,
+    borderColor: theme.colors.fieldBorder, borderRadius: theme.radius.sm,
     color: theme.colors.text, backgroundColor: theme.colors.surface, fontSize: theme.fontSize.body,
   },
 });

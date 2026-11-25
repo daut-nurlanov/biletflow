@@ -75,7 +75,7 @@ const styles = StyleSheet.create({
   frame: {
     alignSelf: "center",
     width: "100%",
-    maxWidth: 280,
+    maxWidth: 326,
     aspectRatio: 1,
     // Extra white space around the server's QR border; never crop or tint it.
     padding: theme.spacing.sm,

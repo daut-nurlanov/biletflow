@@ -79,7 +79,11 @@ export default function Events() {
                 ) : (
                   e.status !== 'cancelled' &&
                   e.status !== 'completed' && (
-                    <button className="btn org-danger" disabled={busy} onClick={() => run(`${e.title} was suspended.`, `/api/admin/events/${e.id}/suspend`)}>
+                    <button className="btn org-danger" disabled={busy} onClick={() => {
+                      if (window.confirm(`Suspend “${e.title}”? This stops ticket sales and blocks admission.`)) {
+                        void run(`${e.title} was suspended.`, `/api/admin/events/${e.id}/suspend`)
+                      }
+                    }}>
                       Suspend
                     </button>
                   )
@@ -90,7 +94,11 @@ export default function Events() {
                       Restore paid sales
                     </button>
                   ) : (
-                    <button className="btn secondary" disabled={busy} onClick={() => run('Paid sales frozen. Free tickets still work.', `/api/admin/events/${e.id}/suspend-paid-sales`)}>
+                    <button className="btn secondary" disabled={busy} onClick={() => {
+                      if (window.confirm(`Freeze paid sales for “${e.title}”? Free registrations can continue.`)) {
+                        void run('Paid sales frozen. Free tickets still work.', `/api/admin/events/${e.id}/suspend-paid-sales`)
+                      }
+                    }}>
                       Freeze paid sales
                     </button>
                   ))}

@@ -53,7 +53,11 @@ export default function Users() {
                       Unsuspend
                     </button>
                   ) : (
-                    <button className="btn org-danger" disabled={busy} onClick={() => run(`${u.email} was suspended.`, `/api/admin/users/${u.id}/suspend`)}>
+                    <button className="btn org-danger" disabled={busy} onClick={() => {
+                      if (window.confirm(`Suspend ${u.email}? This blocks the account from signing in or using its current session.`)) {
+                        void run(`${u.email} was suspended.`, `/api/admin/users/${u.id}/suspend`)
+                      }
+                    }}>
                       Suspend
                     </button>
                   ))}

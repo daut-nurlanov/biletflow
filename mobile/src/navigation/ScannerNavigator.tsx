@@ -46,7 +46,7 @@ export function ScannerNavigator() {
             <Stack.Screen
               name="Scan"
               component={ScanScreen}
-              options={({ route }) => ({ title: route.params.eventTitle })}
+              options={{ title: "Scan tickets" }}
             />
             <Stack.Screen name="StaffTools" component={StaffToolsScreen} options={{ title: "Attendees" }} />
           </>

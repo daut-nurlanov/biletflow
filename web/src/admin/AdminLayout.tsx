@@ -1,5 +1,7 @@
-import { Link, NavLink, Navigate, Outlet, useLocation } from 'react-router-dom'
+import type { ReactNode } from 'react'
+import { Link, Navigate, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '../auth'
+import { WorkspaceNav } from '../components/Surface'
 import { Notice } from '../organizer/ui'
 import '../organizer/organizer.css'
 
@@ -28,7 +30,7 @@ export function AdminGuard() {
       </Notice>
     )
   return (
-    <section className="org">
+    <AdminWorkspace>
       <div className="org-heading">
         <div>
           <p className="org-eyebrow">Platform administration</p>
@@ -36,19 +38,25 @@ export function AdminGuard() {
           <p className="muted">All money is simulated. Actions are recorded in the audit log.</p>
         </div>
       </div>
-      <nav className="org-tabs" aria-label="Admin sections">
-        <NavLink to="/admin" end>
-          Overview
-        </NavLink>
-        <NavLink to="/admin/users">Users</NavLink>
-        <NavLink to="/admin/events">Events</NavLink>
-        <NavLink to="/admin/orders">Orders</NavLink>
-        <NavLink to="/admin/payment-failures">Payment failures</NavLink>
-        <NavLink to="/admin/moderation">Reports and promos</NavLink>
-        <NavLink to="/admin/money">Fees and refunds</NavLink>
-        <Link to="/support">Support cases</Link>
-      </nav>
       <Outlet />
+    </AdminWorkspace>
+  )
+}
+
+export function AdminWorkspace({ children }: { children: ReactNode }) {
+  return (
+    <section className="org workspace">
+      <WorkspaceNav label="Admin sections" links={[
+        { to: '/admin', label: 'Overview', icon: 'grid', end: true },
+        { to: '/admin/users', label: 'Users', icon: 'user' },
+        { to: '/admin/events', label: 'Events', icon: 'calendar' },
+        { to: '/admin/orders', label: 'Orders', icon: 'receipt' },
+        { to: '/admin/payment-failures', label: 'Payment failures', icon: 'shield' },
+        { to: '/admin/moderation', label: 'Reports and promos', icon: 'tag' },
+        { to: '/admin/money', label: 'Fees and refunds', icon: 'chart' },
+        { to: '/support', label: 'Support cases', icon: 'chat' },
+      ]} />
+      <div className="workspace-content">{children}</div>
     </section>
   )
 }

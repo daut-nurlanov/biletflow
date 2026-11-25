@@ -65,11 +65,13 @@ export function EventDashboardScreen({ route, navigation }: Props) {
         onRefresh={refresh}
         ListHeaderComponent={
           <View style={styles.header}>
-            <Text accessibilityRole="header" style={styles.heading}>{event.title}</Text>
+            <View style={[sharedStyles.card, sharedStyles.accentCard]}>
+            <Text accessibilityRole="header" style={sharedStyles.heading}>{event.title}</Text>
             <StatusBadge status={eventDisplayStatus(event)} />
             <Text style={sharedStyles.body}>{event.venue_name}</Text>
             <Text style={sharedStyles.muted}>{formatDateTime(event.start_time)}</Text>
             <AppButton title="Event setup" onPress={() => navigation.navigate("EventSetup", { eventId })} />
+            </View>
 
             <View style={[sharedStyles.card, styles.summary]}>
               <Text accessibilityRole="header" style={sharedStyles.title}>Ticket sales</Text>
@@ -102,14 +104,18 @@ export function EventDashboardScreen({ route, navigation }: Props) {
               {`Paid sales: ${event.paid_sales_suspended ? "Suspended by platform" : event.is_paid_sales_active ? "Activated" : "Not activated yet"}`}
             </Text>
             <AppButton
+              variant="secondary"
               title={event.is_paid_sales_active || event.paid_sales_suspended ? "Paid sales details" : "Activate paid sales"}
               onPress={() => navigation.navigate("PaidSalesActivation", { eventId, eventTitle: event.title })}
             />
-            <AppButton title="Attendees" onPress={() => navigation.navigate("EventAttendees", { eventId, eventTitle: event.title })} />
-            <AppButton title="Orders and refunds" onPress={() => navigation.navigate("EventOrders", { eventId, eventTitle: event.title })} />
-            <AppButton title="Promotions" onPress={() => navigation.navigate("EventPromotions", { eventId, eventTitle: event.title })} />
-            <AppButton title="Event activity" onPress={() => navigation.navigate("EventActivity", { eventId, eventTitle: event.title })} />
-            <AppButton title="Door staff" onPress={() => navigation.navigate("EventStaff", { eventId, eventTitle: event.title })} />
+            <View style={sharedStyles.card}>
+              <Text accessibilityRole="header" style={sharedStyles.title}>Manage event</Text>
+              <AppButton variant="secondary" title="Attendees" onPress={() => navigation.navigate("EventAttendees", { eventId, eventTitle: event.title })} />
+              <AppButton variant="secondary" title="Orders and refunds" onPress={() => navigation.navigate("EventOrders", { eventId, eventTitle: event.title })} />
+              <AppButton variant="secondary" title="Promotions" onPress={() => navigation.navigate("EventPromotions", { eventId, eventTitle: event.title })} />
+              <AppButton variant="secondary" title="Event activity" onPress={() => navigation.navigate("EventActivity", { eventId, eventTitle: event.title })} />
+              <AppButton variant="secondary" title="Door staff" onPress={() => navigation.navigate("EventStaff", { eventId, eventTitle: event.title })} />
+            </View>
             <Text style={sharedStyles.muted}>Campaign dates and detailed analytics are on the BiletFlow website.</Text>
             <Text accessibilityRole="header" style={[sharedStyles.title, styles.sectionTitle]}>
               Sales by ticket type
@@ -156,7 +162,6 @@ function TicketTypeSalesCard({ ticketType }: { ticketType: TicketType }) {
 
 const styles = StyleSheet.create({
   header: { gap: theme.spacing.sm },
-  heading: { fontSize: theme.fontSize.heading, fontWeight: "700", color: theme.colors.text },
   summary: { marginVertical: theme.spacing.sm },
   statRow: { flexDirection: "row", flexWrap: "wrap", gap: theme.spacing.sm },
   sectionTitle: { marginTop: theme.spacing.sm },

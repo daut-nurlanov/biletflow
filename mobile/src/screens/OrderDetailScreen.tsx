@@ -158,11 +158,11 @@ export function OrderDetailScreen({ route }: Props) {
                 placeholder="For example: attendee can't come"
                 placeholderTextColor={theme.colors.muted}
               />
-              <AppButton title={busy ? "Refunding…" : "Refund order"} onPress={confirm} disabled={actionsDisabled} loading={busy} />
+              <AppButton title={busy ? "Refunding…" : "Refund order"} variant="danger" onPress={confirm} disabled={actionsDisabled} loading={busy} />
             </View>
           ) : null}
           {action.kind === "cancel" ? (
-            <AppButton title={busy ? "Cancelling…" : "Cancel registration"} onPress={confirm}
+            <AppButton title={busy ? "Cancelling…" : "Cancel registration"} variant="danger" onPress={confirm}
               disabled={actionsDisabled} loading={busy} />
           ) : null}
 

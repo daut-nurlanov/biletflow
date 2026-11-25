@@ -34,7 +34,7 @@ const AUTO_DISMISS_MS = 2500;
 const SAME_CODE_COOLDOWN_MS = 3000;
 
 export function ScanScreen({ route, navigation }: Props) {
-  const { eventId } = route.params;
+  const { eventId, eventTitle } = route.params;
   const { authed } = useSession();
   const isFocused = useIsFocused();
   const insets = useSafeAreaInsets();
@@ -168,6 +168,7 @@ export function ScanScreen({ route, navigation }: Props) {
       )}
 
       <View style={styles.overlay}>
+        <Text style={[styles.hint, styles.eventName]} accessibilityRole="header">{eventTitle}</Text>
         <View style={styles.frame} />
         <Text style={styles.hint}>
           {cameraError ? `Camera couldn't start: ${cameraError}` : "Point the camera at the ticket's QR code"}
@@ -198,13 +199,11 @@ export function ScanScreen({ route, navigation }: Props) {
       )}
 
       {phase.kind === "result" && (
-        <ScanResultPanel outcome={phase.outcome} onScanNext={scanNext} onRetry={retry} />
+        <ScanResultPanel eventTitle={eventTitle} outcome={phase.outcome} onScanNext={scanNext} onRetry={retry} />
       )}
     </View>
   );
 }
-
-const FRAME_SIZE = 240;
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#000000" },
@@ -216,9 +215,11 @@ const styles = StyleSheet.create({
     pointerEvents: "none",
   },
   frame: {
-    width: FRAME_SIZE,
-    height: FRAME_SIZE,
-    borderWidth: 4,
+    width: "76%",
+    maxWidth: 360,
+    maxHeight: "65%",
+    aspectRatio: 1,
+    borderWidth: 3,
     borderColor: "#FFFFFF",
     borderRadius: theme.radius.md,
   },
@@ -227,10 +228,13 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSize.body,
     fontWeight: "600",
     textAlign: "center",
-    paddingHorizontal: theme.spacing.lg,
-    textShadowColor: "rgba(0,0,0,0.8)",
-    textShadowRadius: 4,
+    marginHorizontal: theme.spacing.lg,
+    backgroundColor: "#1B1641E6",
+    borderRadius: theme.radius.sm,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
   },
+  eventName: { position: "absolute", top: theme.spacing.md, fontWeight: "700" },
   bottomBar: {
     position: "absolute",
     left: 0,

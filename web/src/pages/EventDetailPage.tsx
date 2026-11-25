@@ -1,9 +1,11 @@
+import { EventCover } from '../components/EventCover'
+import { Icon } from '../components/Icon'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import CalendarButton from '../components/CalendarButton'
-import { api, getToken, imageSrc } from '../api'
+import { api, getToken } from '../api'
 import { useAuth } from '../auth'
-import { formatDate, formatPrice } from '../format'
+import { formatDate, formatMoney, formatPrice } from '../format'
 import type { EventItem, Quote, TicketType } from '../types'
 import { useI18n } from '../i18n'
 
@@ -17,6 +19,7 @@ export default function EventDetailPage() {
   const { user } = useAuth()
 
   const [event, setEvent] = useState<EventItem | null>(null)
+  const [availabilityTime, setAvailabilityTime] = useState(0)
   const [tickets, setTickets] = useState<TicketType[]>([])
   const [error, setError] = useState('')
 
@@ -27,6 +30,7 @@ export default function EventDetailPage() {
   const [promo, setPromo] = useState('') // the promo code that is applied
   const [promoNote, setPromoNote] = useState('')
   const [quoteResult, setQuoteResult] = useState<{ selection: string; value: Quote } | null>(null)
+  const [lastSelection, setLastSelection] = useState('')
   const [quoteError, setQuoteError] = useState('')
   const [quoteAttempt, setQuoteAttempt] = useState(0)
   const [buying, setBuying] = useState(false)
@@ -50,6 +54,7 @@ export default function EventDetailPage() {
       .then(([ev, tt]) => {
         setEvent(ev)
         setTickets(tt)
+        setAvailabilityTime(Date.now())
         setError('')
       })
       .catch((e) => { if (!controller.signal.aborted) setError(e.message) })
@@ -81,7 +86,14 @@ export default function EventDetailPage() {
   const selected = tickets.find((t) => t.id === ticketId && t.event_id === id) ?? null
   const name = attendeeName || user?.full_name || ''
   const selection = JSON.stringify([id, selected?.id, quantity, promo, user?.id])
+  // Returning to an earlier selection still requires a new quote.
+  if (selection !== lastSelection) {
+    setLastSelection(selection)
+    setQuoteResult(null)
+    setQuoteError('')
+  }
   const quote = quoteResult?.selection === selection ? quoteResult.value : null
+  const promoRejected = !!promo && /promo code/i.test(quoteError)
 
     // recalculate the price whenever the choice changes
   useEffect(() => {
@@ -174,20 +186,43 @@ export default function EventDetailPage() {
   if (error) return <p className="error">{error}</p>
   if (!event || event.id !== id) return <p>{tr('Loading…')}</p>
 
-  const paidBlocked = (t: TicketType) => Number(t.price) > 0 && !event.is_paid_sales_active
+  const paidBlocked = (t: TicketType) => Number(t.price) > 0 && (!event.is_paid_sales_active || event.paid_sales_suspended)
   const soldOut = (t: TicketType) => t.quantity_available <= 0
+  const end = event.end_time ? Date.parse(event.end_time) : Date.parse(event.start_time) + 2 * 60 * 60 * 1000
+  const eventUnavailable = event.status === 'draft' ? tr('This is a draft preview. Tickets go on sale after publication.')
+    : event.status === 'cancelled' ? tr('This event was cancelled.')
+      : event.status === 'completed' || end < availabilityTime ? tr('This event has ended.')
+        : event.status === 'suspended' || event.visibility === 'private' ? tr('Tickets are unavailable for this event.')
+          : event.registration_opens_at && Date.parse(event.registration_opens_at) > availabilityTime
+            ? tr('Registration opens {v}.', { v: formatDate(event.registration_opens_at) })
+            : event.registration_closes_at && Date.parse(event.registration_closes_at) < availabilityTime
+              ? tr('Registration is closed.') : ''
+  const typeUnavailable = (t: TicketType) => t.is_hidden ? tr('Hidden from buyers')
+    : t.sales_start_time && Date.parse(t.sales_start_time) > availabilityTime
+      ? tr('Ticket sales open {v}.', { v: formatDate(t.sales_start_time) })
+      : t.sales_end_time && Date.parse(t.sales_end_time) < availabilityTime
+        ? tr('Sales have ended.')
+        : paidBlocked(t) ? tr('paid sales not available') : ''
   const maxQty = selected ? Math.min(selected.max_per_order, selected.quantity_available) : 1
 
   return (
     <>
-      <h1>{event.title}</h1>
-      <p className="muted">
-        {formatDate(event.start_time)} · {event.venue_name}
-        {event.venue_address ? `, ${event.venue_address}` : ''}
-      </p>
-      {event.image_url && <img src={imageSrc(event.image_url)} alt="" className="cover" />}
-      {event.description && <p>{event.description}</p>}
-      {event.refund_policy && <p className="muted">{tr('Refund policy: {v}', { v: event.refund_policy })}</p>}
+      <section className="event-lead">
+        <div className="event-lead-copy">
+          {event.category && <span className="event-category">{event.category}</span>}
+          <h1>{event.title}</h1>
+          <p className="event-meta"><Icon name="calendar" size={18} />{formatDate(event.start_time)}</p>
+          <p className="event-meta"><Icon name="pin" size={18} /><span>{event.venue_name}
+            {event.venue_address ? `, ${event.venue_address}` : ''}</span></p>
+          <a className="btn" href="#ticket-options">{tr('View tickets')} <Icon name="arrow" size={18} /></a>
+        </div>
+        <EventCover image={event.image_url} category={event.category} />
+      </section>
+      <section className="event-information">
+        {event.description && <><h2>{tr('About the event')}</h2><p>{event.description}</p></>}
+        {event.refund_policy && <p className="muted">{tr('Refund policy: {v}', { v: event.refund_policy })}</p>}
+        <CalendarButton key={event.id} eventId={event.id} cancelled={event.status === 'cancelled'} />
+      </section>
       <div className="event-report">
         {!reportOpen && !reportSuccess && (
           <button
@@ -251,16 +286,19 @@ export default function EventDetailPage() {
         )}
       </div>
 
-      <CalendarButton key={event.id} eventId={event.id} cancelled={event.status === 'cancelled'} />
-      <h2>{tr('Tickets')}</h2>
-      <div className="grid">
+      <section className="event-checkout" aria-labelledby="ticket-options">
+      <h2 id="ticket-options" tabIndex={-1}>{tr('Tickets')}</h2>
+      {eventUnavailable && <p className="muted" role="status">{eventUnavailable}</p>}
+      <div className="ticket-options">
         {tickets.map((t) => {
-          const disabled = buying || soldOut(t) || paidBlocked(t) || event.has_assigned_seating
+          const unavailable = typeUnavailable(t)
+          const disabled = buying || soldOut(t) || !!unavailable || !!eventUnavailable || event.has_assigned_seating
           return (
             <button
               key={t.id}
               type="button"
               disabled={disabled}
+              aria-pressed={ticketId === t.id}
               className={`card choice ${ticketId === t.id ? 'selected' : ''}`}
               onClick={() => {
                 setTicketId(t.id)
@@ -274,7 +312,7 @@ export default function EventDetailPage() {
               {t.description && <div className="muted">{t.description}</div>}
               <div className="muted">
                 {soldOut(t) ? tr('Sold out') : tr('{n} left', { n: t.quantity_available })}
-                {paidBlocked(t) ? ` · ${tr('paid sales not available')}` : ''}
+                {unavailable ? ` · ${unavailable}` : ''}
               </div>
             </button>
           )
@@ -287,9 +325,9 @@ export default function EventDetailPage() {
         </p>
       )}
 
-      {selected && !event.has_assigned_seating && (
+      {selected && !eventUnavailable && !typeUnavailable(selected) && !event.has_assigned_seating && (
         <div className="card buy">
-          <h2>{tr('Checkout')}</h2>
+          <h3>{tr('Checkout')}</h3>
           <div className="form">
             <label htmlFor="attendee-name" className="muted">{tr('Name on the ticket')}</label>
             <input id="attendee-name" maxLength={120} disabled={buying} value={name} onChange={(e) => setAttendeeName(e.target.value)} />
@@ -308,7 +346,9 @@ export default function EventDetailPage() {
 
             <label htmlFor="promo" className="muted">{tr('Promo code')}</label>
             <div className="row">
-              <input id="promo" disabled={buying} value={promoInput} onChange={(e) => setPromoInput(e.target.value.toUpperCase())} />
+              <input id="promo" aria-invalid={promoRejected || undefined}
+                aria-describedby={promoRejected ? 'quote-error' : promoNote ? 'promo-note' : undefined} disabled={buying}
+                value={promoInput} onChange={(e) => setPromoInput(e.target.value.toUpperCase())} />
               <button
                 type="button"
                 className="btn secondary"
@@ -321,18 +361,33 @@ export default function EventDetailPage() {
                 {tr('Apply')}
               </button>
             </div>
-            {promoNote && <div className="muted">{promoNote}</div>}
+            {promoNote && <div id="promo-note" role="status" className="muted">{promoNote}</div>}
+            {(promoInput || promo) && (
+              <button type="button" className="btn secondary promo-clear" disabled={buying} onClick={() => {
+                setPromoInput('')
+                setPromo('')
+                setPromoNote('')
+                setQuoteError('')
+              }}>{tr('Remove promotion')}</button>
+            )}
           </div>
 
           {!quote && !quoteError && <p role="status">{tr('Calculating price…')}</p>}
-          {quoteError && <p className="error" role="alert">{quoteError} <button type="button" className="btn secondary" onClick={() => { setQuoteError(''); setQuoteAttempt((attempt) => attempt + 1) }}>{tr('Retry quote')}</button></p>}
+          {quoteError && <div className="quote-error error" role="alert"><span id="quote-error">{quoteError}</span>
+            {!promoRejected && <button type="button" className="btn secondary" onClick={() => {
+              setQuoteError('')
+              setQuoteAttempt((attempt) => attempt + 1)
+            }}>{tr('Retry quote')}</button>}
+          </div>}
           {quote && (
             <div className="totals">
-              <div className="row"><span>{tr('Subtotal')}</span><span>{formatPrice(quote.subtotal)}</span></div>
+              <div className="row"><span>{tr('Subtotal')}</span><span>{formatMoney(quote.subtotal)}</span></div>
               {Number(quote.discount) > 0 && (
                 <div className="row"><span>{tr('Discount')}</span><span>−{formatPrice(quote.discount)}</span></div>
               )}
-              <div className="row"><strong>{tr('Total')}</strong><strong>{formatPrice(quote.total)}</strong></div>
+              {Number(quote.processing_fee) > 0 && quote.processing_fee !== undefined &&
+                <div className="row muted"><span>{tr('Fee paid by organizer')}</span><span>{formatPrice(quote.processing_fee)}</span></div>}
+              <div className="row"><strong>{tr('Total')}</strong><strong>{formatMoney(quote.total)}</strong></div>
             </div>
           )}
 
@@ -343,6 +398,7 @@ export default function EventDetailPage() {
           </button>
         </div>
       )}
+      </section>
     </>
   )
 }

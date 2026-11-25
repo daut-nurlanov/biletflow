@@ -10,6 +10,7 @@ import {
   useParams,
 } from 'react-router-dom'
 import { useAuth } from '../auth'
+import { WorkspaceNav } from '../components/Surface'
 import { useResource } from './data'
 import type { ManagedEvent } from './types'
 import { Notice, ResourceState, Status } from './ui'
@@ -44,8 +45,13 @@ export function OrganizerGuard() {
       </Notice>
     )
   return (
-    <section className="org">
-      <Outlet />
+    <section className="org workspace">
+      <WorkspaceNav label="Organizer" links={[
+        { to: '/organizer', label: 'My events', icon: 'calendar', end: true },
+        { to: '/organizer/new', label: 'New event', icon: 'ticket' },
+        { to: '/organizer/profile', label: 'Organizer profile', icon: 'user' },
+      ]} />
+      <div className="workspace-content"><Outlet /></div>
     </section>
   )
 }

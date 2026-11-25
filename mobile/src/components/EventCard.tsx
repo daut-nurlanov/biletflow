@@ -1,9 +1,11 @@
-import { Pressable, StyleSheet, Text } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { sharedStyles, theme } from "../theme";
 import type { Event } from "../types/event";
 import { formatDateTime } from "../utils/formatting";
 import { StatusBadge } from "./StatusBadge";
+import { EventImage } from "./EventImage";
+import { BrandIcon } from "./BrandIcon";
 
 interface EventCardProps {
   event: Event;
@@ -12,6 +14,7 @@ interface EventCardProps {
   actionLabel?: string;
   /** What screen readers say the card opens. Defaults to the attendee wording. */
   accessibilityHint?: string;
+  showCover?: boolean;
 }
 
 export function EventCard({
@@ -19,6 +22,7 @@ export function EventCard({
   onPress,
   actionLabel = "View details →",
   accessibilityHint = "Opens event details and ticket types",
+  showCover = false,
 }: EventCardProps) {
   return (
     <Pressable
@@ -27,11 +31,22 @@ export function EventCard({
       onPress={onPress}
       style={({ pressed }) => [sharedStyles.card, pressed && styles.pressed]}
     >
+      {showCover ? <EventImage key={event.image_url} uri={event.image_url} title={event.title} category={event.category} /> : null}
+      {showCover && event.category ? <Text style={styles.category}>{event.category}</Text> : null}
       <Text style={sharedStyles.title}>{event.title}</Text>
-      <Text style={sharedStyles.body}>{event.venue_name}</Text>
-      <Text style={sharedStyles.muted}>{formatDateTime(event.start_time)}</Text>
+      <View style={styles.action}>
+        <BrandIcon name="pin" size={16} />
+        <Text style={[sharedStyles.body, styles.meta]}>{event.venue_name}</Text>
+      </View>
+      <View style={styles.action}>
+        <BrandIcon name="calendar" size={16} />
+        <Text style={[sharedStyles.muted, styles.meta]}>{formatDateTime(event.start_time)}</Text>
+      </View>
       <StatusBadge status={event.status} />
-      <Text style={styles.link}>{actionLabel}</Text>
+      <View style={styles.action}>
+        <Text style={styles.link}>{actionLabel}</Text>
+        <BrandIcon name="arrow" size={18} />
+      </View>
     </Pressable>
   );
 }
@@ -39,4 +54,7 @@ export function EventCard({
 const styles = StyleSheet.create({
   pressed: { opacity: 0.65 },
   link: { color: theme.colors.primary, fontSize: theme.fontSize.small, fontWeight: "600" },
+  category: { color: theme.colors.accentInk, fontSize: 13, fontWeight: "700" },
+  action: { flexDirection: "row", gap: 6, alignItems: "center" },
+  meta: { flexShrink: 1 },
 });

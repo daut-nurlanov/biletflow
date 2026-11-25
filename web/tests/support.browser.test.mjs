@@ -288,7 +288,7 @@ test(
           await browser.wait('Manage request')
           assert.equal(
             await browser.evaluate(
-              'document.querySelector("main a").getAttribute("href")',
+              'document.querySelector("main .support-back").getAttribute("href")',
             ),
             `/organizer/events/${eventId}/support?status=open&escalated=false`,
           )

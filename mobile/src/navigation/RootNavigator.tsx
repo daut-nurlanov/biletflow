@@ -30,6 +30,7 @@ import { SupportListScreen } from "../screens/SupportListScreen";
 import { SupportNewScreen } from "../screens/SupportNewScreen";
 import { SupportThreadScreen } from "../screens/SupportThreadScreen";
 import { theme } from "../theme";
+import { BrandIcon, type BrandIconName } from "../components/BrandIcon";
 import type {
   EventsStackParamList, OrganizerStackParamList, RootTabParamList, ScannerStackParamList, SupportStackParamList, TicketsStackParamList,
 } from "./types";
@@ -40,6 +41,10 @@ const OrganizerStack = createNativeStackNavigator<OrganizerStackParamList>();
 const StaffStack = createNativeStackNavigator<ScannerStackParamList>();
 const SupportStack = createNativeStackNavigator<SupportStackParamList>();
 const TicketsStack = createNativeStackNavigator<TicketsStackParamList>();
+const tabIcons: Record<keyof RootTabParamList, BrandIconName> = {
+  EventsTab: "calendar", MyTickets: "ticket", OrganizerTab: "grid", StaffTab: "scan",
+  SupportTab: "chat", NotificationsTab: "bell",
+};
 
 const navigationTheme = {
   ...DefaultTheme,
@@ -135,7 +140,7 @@ function StaffNavigator() {
   return (
     <StaffStack.Navigator screenOptions={{ headerTintColor: theme.colors.primary }}>
       <StaffStack.Screen name="StaffEvents" component={StaffEventsScreen} options={{ title: "Assigned events" }} />
-      <StaffStack.Screen name="Scan" component={ScanScreen} options={({ route }) => ({ title: route.params.eventTitle })} />
+      <StaffStack.Screen name="Scan" component={ScanScreen} options={{ title: "Scan tickets" }} />
       <StaffStack.Screen name="StaffTools" component={StaffToolsScreen} options={{ title: "Attendees" }} />
     </StaffStack.Navigator>
   );
@@ -145,17 +150,16 @@ export function RootNavigator({ role }: { role: "attendee" | "organizer" }) {
   return (
     <NavigationContainer theme={navigationTheme}>
       <Tabs.Navigator
-        screenOptions={{
+        screenOptions={({ route }) => ({
           tabBarActiveTintColor: theme.colors.primary,
           tabBarInactiveTintColor: theme.colors.muted,
-          tabBarIcon: () => null,
-          tabBarIconStyle: { display: "none" },
-          tabBarLabelStyle: { fontSize: theme.fontSize.body, fontWeight: "600" },
-          tabBarItemStyle: { minHeight: 48 },
+          tabBarIcon: ({ color }) => <BrandIcon name={tabIcons[route.name]} color={color} size={22} />,
+          tabBarLabelStyle: { fontSize: 12, fontWeight: "700" },
+          tabBarItemStyle: { minHeight: 52 },
           headerTintColor: theme.colors.text,
           headerRight: () => <SignOutButton />,
           headerRightContainerStyle: { paddingEnd: theme.spacing.md },
-        }}
+        })}
       >
         {role === "attendee" ? (
           <>

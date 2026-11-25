@@ -1,11 +1,12 @@
 import { useCallback } from "react";
-import { Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 
 import { getAttendanceStats } from "../api/checkin";
 import { useSession } from "../auth/SessionContext";
 import { useApiResource } from "../hooks/useApiResource";
-import { sharedStyles } from "../theme";
+import { sharedStyles, theme } from "../theme";
 import { AppButton } from "./AppButton";
+import { StatTile } from "./StatTile";
 
 export function AttendanceSummary({ eventId }: { eventId: string }) {
   const { authed } = useSession();
@@ -19,13 +20,19 @@ export function AttendanceSummary({ eventId }: { eventId: string }) {
       {loading ? <Text style={sharedStyles.muted}>Loading attendance…</Text> : error ? (
         <Text accessibilityRole="alert" style={sharedStyles.body}>{error}</Text>
       ) : data ? (
-        <Text style={sharedStyles.body} accessibilityLiveRegion="polite">
-          {data.checked_in} checked in · {data.not_arrived} not arrived · {data.registered} registered
-        </Text>
+        <View style={styles.counters} accessibilityLiveRegion="polite">
+          <StatTile label="Checked in" value={String(data.checked_in)} />
+          <StatTile label="Not arrived" value={String(data.not_arrived)} />
+          <StatTile label="Registered" value={String(data.registered)} />
+        </View>
       ) : null}
       <Text style={sharedStyles.muted}>Updates every 15 seconds while this screen is open.</Text>
-      <AppButton title={refreshing ? "Refreshing attendance…" : error ? "Retry attendance" : "Refresh attendance"}
+      <AppButton variant="secondary" title={refreshing ? "Refreshing attendance…" : error ? "Retry attendance" : "Refresh attendance"}
         onPress={error ? retry : refresh} disabled={loading || refreshing} />
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  counters: { flexDirection: "row", flexWrap: "wrap", gap: theme.spacing.sm },
+});

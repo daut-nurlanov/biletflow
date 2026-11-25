@@ -51,13 +51,16 @@ export function EventDetailsScreen({ route, navigation }: Props) {
         onRefresh={refresh}
         ListHeaderComponent={
           <View style={styles.header}>
-            <Text accessibilityRole="header" style={styles.heading}>{event.title}</Text>
+            <EventImage key={event.image_url} uri={event.image_url} title={event.title} category={event.category} />
+            <View style={sharedStyles.card}>
+            {event.category ? <Text style={styles.category}>{event.category}</Text> : null}
+            <Text accessibilityRole="header" style={sharedStyles.heading}>{event.title}</Text>
             <StatusBadge status={status} />
             <Text style={sharedStyles.body}>{event.venue_name}</Text>
             {event.venue_address ? <Text style={sharedStyles.body}>{event.venue_address}</Text> : null}
             <Text style={sharedStyles.body}>{formatDateTime(event.start_time)}</Text>
             {event.end_time ? <Text style={sharedStyles.muted}>Ends: {formatDateTime(event.end_time)}</Text> : null}
-            {event.image_url ? <EventImage key={event.image_url} uri={event.image_url} title={event.title} /> : null}
+            </View>
             {event.description ? <Text style={sharedStyles.body}>{event.description}</Text> : null}
             {event.refund_policy ? <Text style={sharedStyles.body}>Refund policy: {event.refund_policy}</Text> : null}
             {event.registration_opens_at ? <Text style={sharedStyles.muted}>Registration opens: {formatDateTime(event.registration_opens_at)}</Text> : null}
@@ -65,7 +68,8 @@ export function EventDetailsScreen({ route, navigation }: Props) {
             <Text style={sharedStyles.muted}>Buy tickets here or on the website using the same account. Your tickets appear in My Tickets.</Text>
             {event.has_assigned_seating ? <Text style={sharedStyles.body}>This mobile checkout supports general admission. Assigned-seat checkout is not available in this app.</Text> : null}
             <ReportEvent eventId={eventId} />
-            <AppButton title="Get help with this event" onPress={() => navigation.navigate("SupportTab", { screen: "SupportNew", params: { eventId } })} />
+            <AppButton title="Get help with this event" variant="secondary"
+              onPress={() => navigation.navigate("SupportTab", { screen: "SupportNew", params: { eventId } })} />
             <Text style={sharedStyles.muted}>Capacity: {event.capacity.toLocaleString()} people</Text>
             <Text style={sharedStyles.muted}>
               {event.has_assigned_seating ? "Assigned seating" : "General admission seating"}
@@ -142,7 +146,7 @@ function ReportEvent({ eventId }: { eventId: string }) {
           <AppButton title="Cancel" onPress={() => { setOpen(false); setError(null); }} disabled={busy} />
         </>
       ) : (
-        <AppButton title="Report this event" onPress={() => { setOpen(true); setMessage(null); }} />
+        <AppButton title="Report this event" variant="secondary" onPress={() => { setOpen(true); setMessage(null); }} />
       )}
     </View>
   );
@@ -150,7 +154,7 @@ function ReportEvent({ eventId }: { eventId: string }) {
 
 const styles = StyleSheet.create({
   header: { gap: theme.spacing.sm },
-  heading: { fontSize: theme.fontSize.heading, fontWeight: "700", color: theme.colors.text },
+  category: { color: theme.colors.accentInk, fontSize: theme.fontSize.small, fontWeight: "700" },
   sectionTitle: { marginTop: theme.spacing.md },
   price: { fontSize: theme.fontSize.title, fontWeight: "600", color: theme.colors.primary },
 });

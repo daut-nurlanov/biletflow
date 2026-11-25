@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { apiResponse } from '../api'
 import { useAuth } from '../auth'
+import { useI18n } from '../i18n'
 import { messageFor } from '../organizer/data'
 
 export default function CalendarButton({
@@ -27,6 +28,7 @@ function CalendarDownload({
   eventId: string
   cancelled: boolean
 }) {
+  const { t } = useI18n()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [done, setDone] = useState(false)
@@ -83,10 +85,10 @@ function CalendarDownload({
         }}
       >
         {busy
-          ? 'Preparing calendar…'
+          ? t('Preparing calendar…')
           : cancelled
-            ? 'Download calendar cancellation (.ics)'
-            : 'Add to calendar (.ics)'}
+            ? t('Download calendar cancellation (.ics)')
+            : t('Add to calendar (.ics)')}
       </button>
       {error && (
         <p className="error" role="alert">
@@ -95,8 +97,9 @@ function CalendarDownload({
       )}
       {done && (
         <p className="muted" role="status">
-          Calendar file prepared. Open the downloaded .ics file in your calendar
-          app{cancelled ? ' to update the cancelled event' : ''}.
+          {t(cancelled
+            ? 'Calendar file prepared. Open the downloaded .ics file in your calendar app to update the cancelled event.'
+            : 'Calendar file prepared. Open the downloaded .ics file in your calendar app.')}
         </p>
       )}
     </div>

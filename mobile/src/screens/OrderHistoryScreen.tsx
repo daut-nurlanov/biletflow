@@ -14,7 +14,7 @@ import { Screen } from "../components/Screen";
 import { StatusBadge } from "../components/StatusBadge";
 import { useApiResource } from "../hooks/useApiResource";
 import type { RootTabParamList, TicketsStackParamList } from "../navigation/types";
-import { sharedStyles } from "../theme";
+import { sharedStyles, theme } from "../theme";
 import { formatDateTime, formatMoney } from "../utils/formatting";
 
 type Props = CompositeScreenProps<NativeStackScreenProps<TicketsStackParamList, "OrderHistory">, BottomTabScreenProps<RootTabParamList, "MyTickets">>;
@@ -62,15 +62,20 @@ export function OrderHistoryScreen({ navigation }: Props) {
             <View style={sharedStyles.card}>
               <Text style={sharedStyles.title}>{item.event_title}</Text>
               <StatusBadge status={item.status} />
-              <Text style={sharedStyles.body}>{item.ticket_count} {item.ticket_count === 1 ? "ticket" : "tickets"} · Order total {formatMoney(item.total_amount)}</Text>
+              <View style={[sharedStyles.card, sharedStyles.accentCard]}>
+                <Text style={sharedStyles.title}>{formatMoney(item.total_amount)}</Text>
+                <Text style={sharedStyles.muted}>{item.ticket_count} {item.ticket_count === 1 ? "ticket" : "tickets"}</Text>
+              </View>
               {item.promo_code_applied ? <Text style={sharedStyles.body}>Promotion: {item.promo_code_applied}</Text> : null}
               <Text style={sharedStyles.muted}>Ordered {formatDateTime(item.created_at)}</Text>
               <Text selectable style={sharedStyles.muted}>Order reference: {item.id}</Text>
               {item.status === "paid" && Number(item.total_amount) === 0
-                ? <AppButton title={cancelling === item.id ? "Cancelling…" : "Cancel registration"} loading={cancelling === item.id}
+                ? <AppButton title={cancelling === item.id ? "Cancelling…" : "Cancel registration"} variant="danger" loading={cancelling === item.id}
                     onPress={() => askCancel(item.id, item.event_title)} />
                 : item.status === "paid" ? <Text style={sharedStyles.muted}>Paid orders are refunded by the organizer. Ask through support.</Text> : null}
-              <AppButton title="Get help with this order" onPress={() => navigation.navigate("SupportTab", { screen: "SupportNew", params: { orderId: item.id } })} />
+              <View style={{ marginTop: theme.spacing.xs }}>
+                <AppButton title="Get help with this order" variant="secondary" onPress={() => navigation.navigate("SupportTab", { screen: "SupportNew", params: { orderId: item.id } })} />
+              </View>
             </View>
           )}
         />

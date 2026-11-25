@@ -32,7 +32,7 @@ test('live Docker: attendee purchase, organizer support, staff and history',
     const verification = notifications.find((item) => item.kind === 'verify_email').body.split(': ').at(-1)
     await request('/api/auth/verify-email', { body: { token: verification } })
     await request('/api/organizer/profile', { token: org, method: 'PUT',
-      body: { contact_phone: 'demo contact', payout_account_details: 'Simulated payout account' } })
+      body: { contact_phone: '+7 701 000 0000', payout_account_details: 'Simulated payout account' } })
     await request('/api/organizer/profile/verify', { token: org, method: 'POST' })
     const event = await request('/api/events', { token: org, body: { title: `Audit live ${suffix}`,
       venue_name: 'Audit Hall', start_time: '2030-11-20T18:00:00+05:00', capacity: 20 } })

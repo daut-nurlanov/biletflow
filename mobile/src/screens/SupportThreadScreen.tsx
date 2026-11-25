@@ -46,7 +46,7 @@ export function SupportThreadScreen({ route }: Props) {
   const handler = data.your_role_in_case === "handler" || data.your_role_in_case === "admin";
   return <Screen><KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
     <FlatList data={data.messages ?? []} keyExtractor={(item) => item.id} contentContainerStyle={styles.content}
-      keyboardShouldPersistTaps="handled" refreshing={resource.refreshing} onRefresh={resource.refresh}
+      keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" refreshing={resource.refreshing} onRefresh={resource.refresh}
       ListHeaderComponent={<View style={{ gap: 12 }}>
         <Text style={sharedStyles.title}>{supportLabel(data.category)}</Text>
         <Text style={sharedStyles.body}>{supportLabel(data.status)}{data.escalated ? " · Escalated to platform" : ""}</Text>
@@ -60,11 +60,16 @@ export function SupportThreadScreen({ route }: Props) {
             { text: "Cancel", style: "cancel" }, { text: "Escalate", onPress: () => { void act((token) => escalateSupportCase(token, caseId)); } },
           ])} /> : null}
       </View>}
-      renderItem={({ item }) => <View style={sharedStyles.card}>
-        <Text style={sharedStyles.title}>{item.sender_id === (state.status === "signedIn" ? state.user.id : "") ? "You" : item.sender_name ?? "Support"}</Text>
-        <Text style={sharedStyles.body}>{item.message}</Text>
-        <Text style={sharedStyles.muted}>{formatDateTime(item.created_at)}</Text>
-      </View>}
+      renderItem={({ item }) => {
+        const mine = state.status === "signedIn" && item.sender_id === state.user.id;
+        return <View style={[sharedStyles.card, mine && sharedStyles.accentCard, {
+          alignSelf: mine ? "flex-end" : "flex-start", maxWidth: "94%", minWidth: "56%",
+        }]}>
+          <Text style={sharedStyles.title}>{mine ? "You" : item.sender_name ?? "Support"}</Text>
+          <Text style={sharedStyles.body}>{item.message}</Text>
+          <Text style={sharedStyles.muted}>{formatDateTime(item.created_at)}</Text>
+        </View>;
+      }}
       ListFooterComponent={<View style={{ gap: 12 }}>
         <TextInput accessibilityLabel="Reply message" style={[styles.input, styles.message]} multiline value={message}
           onChangeText={setMessage} editable={!busy} placeholder="Write a reply" />

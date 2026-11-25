@@ -11,13 +11,14 @@ const TONES: Record<OutcomeTone, { background: string; symbol: string }> = {
 };
 
 interface ScanResultPanelProps {
+  eventTitle: string;
   outcome: ScanOutcome;
   onScanNext: () => void;
   onRetry: () => void;
 }
 
 /** Full-screen colored answer, readable at arm's length in a dark doorway. */
-export function ScanResultPanel({ outcome, onScanNext, onRetry }: ScanResultPanelProps) {
+export function ScanResultPanel({ eventTitle, outcome, onScanNext, onRetry }: ScanResultPanelProps) {
   const insets = useSafeAreaInsets();
   const tone = TONES[outcome.tone];
   const details = [outcome.ticketType, outcome.seat && `Seat ${outcome.seat}`].filter(Boolean).join(" · ");
@@ -27,6 +28,7 @@ export function ScanResultPanel({ outcome, onScanNext, onRetry }: ScanResultPane
       style={[styles.panel, { backgroundColor: tone.background, paddingBottom: insets.bottom + theme.spacing.lg }]}
       accessibilityViewIsModal
     >
+      <Text style={styles.eventName}>{eventTitle}</Text>
       <View style={styles.body}>
         <View style={styles.symbolCircle}>
           <Text style={styles.symbol} accessibilityElementsHidden importantForAccessibility="no">
@@ -87,6 +89,7 @@ const styles = StyleSheet.create({
   details: { color: "#FFFFFF", fontSize: 18, fontWeight: "600", textAlign: "center", opacity: 0.95 },
   message: { color: "#FFFFFF", fontSize: 17, lineHeight: 24, textAlign: "center", opacity: 0.95 },
   actions: { gap: theme.spacing.sm },
+  eventName: { color: "#FFFFFF", textAlign: "center", fontSize: theme.fontSize.body, fontWeight: "600" },
   button: {
     minHeight: 56,
     borderRadius: theme.radius.md,

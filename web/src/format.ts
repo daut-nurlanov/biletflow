@@ -28,15 +28,17 @@ export const formatDate = (iso: string) => {
   })
 }
 
-export const formatPrice = (value: string | number) => {
+export const formatMoney = (value: string | number) => {
   const n = Number(value)
-  if (n === 0) return 'Free'
   const whole = Number.isInteger(n)
-  return `${n.toLocaleString('en-US', {
+  return `${n.toLocaleString(currentLang() === 'en' ? 'en-US' : dateLocale(), {
     minimumFractionDigits: whole ? 0 : 2,
     maximumFractionDigits: whole ? 0 : 2,
   })} KZT`
 }
+
+export const formatPrice = (value: string | number) =>
+  Number(value) === 0 ? translate('Free', currentLang()) : formatMoney(value)
 
 const ticketStatusLabels: Record<string, string> = {
   valid: 'Valid',

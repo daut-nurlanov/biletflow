@@ -78,7 +78,9 @@ export function EventSetupScreen({ route, navigation }: Props) {
           {editable ? <AppButton title="Edit event details" disabled={disabled}
             onPress={() => { setError(null); navigation.navigate("EditEvent", { eventId }); }} /> : null}
           {lifecycleActions(phase).map((action) => (
-            <AppButton key={action} title={actions[action].label} disabled={disabled} onPress={() => confirm(action)} />
+            <AppButton key={action} title={actions[action].label} disabled={disabled}
+              variant={action === "cancel" ? "danger" : action === "unpublish" ? "secondary" : "primary"}
+              onPress={() => confirm(action)} />
           ))}
         </View>
         <Text accessibilityRole="header" style={sharedStyles.title}>Ticket types</Text>
@@ -93,7 +95,7 @@ export function EventSetupScreen({ route, navigation }: Props) {
               <Text style={sharedStyles.body}>{formatPrice(type.price)} · {type.quantity_available} left of {type.total_quantity}</Text>
               <Text style={sharedStyles.muted}>Maximum {type.max_per_order} per order · {type.is_hidden ? "Hidden from buyers" : "Visible to buyers"}</Text>
               {salesWindow ? <Text style={sharedStyles.muted}>{salesWindow}</Text> : null}
-              {editable ? <AppButton title="Edit ticket type" accessibilityLabel={`Edit ${type.name}`} disabled={disabled}
+              {editable ? <AppButton title="Edit ticket type" variant="secondary" accessibilityLabel={`Edit ${type.name}`} disabled={disabled}
                 onPress={() => { setError(null); navigation.navigate("TicketTypeForm", { eventId, ticketTypeId: type.id }); }} /> : null}
             </View>
           );

@@ -21,6 +21,9 @@ export interface Event {
   has_assigned_seating: boolean;
   is_paid_sales_active: boolean;
   created_at: string;
+  category?: string | null;
+  image_url?: string | null;
+  venue_address?: string | null;
 }
 
 export interface OrganizerEvent extends Event {

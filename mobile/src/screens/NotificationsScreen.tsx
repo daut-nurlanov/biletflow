@@ -10,7 +10,7 @@ import { ErrorState } from "../components/ErrorState";
 import { LoadingState } from "../components/LoadingState";
 import { Screen } from "../components/Screen";
 import { useApiResource } from "../hooks/useApiResource";
-import { sharedStyles } from "../theme";
+import { sharedStyles, theme } from "../theme";
 import { formStyles as styles } from "../theme/forms";
 import { formatDateTime } from "../utils/formatting";
 
@@ -63,7 +63,7 @@ export function NotificationsScreen() {
           })} />
         </View>
       )}
-      <AppButton title="Mark all as read" disabled={busy || !(resource.data ?? []).some((n) => !n.is_read)}
+      <AppButton title="Mark all as read" variant="secondary" disabled={busy || !(resource.data ?? []).some((n) => !n.is_read)}
         onPress={() => run(async () => { await authed((token) => markAllNotificationsRead(token)); resource.refresh(); })} />
     </View>
   );
@@ -77,7 +77,7 @@ export function NotificationsScreen() {
         refreshing={resource.refreshing} onRefresh={resource.refresh} ListHeaderComponent={header}
         ListEmptyComponent={<EmptyState title="No notifications" message="Purchases, refunds, event changes and codes appear here." />}
         renderItem={({ item }) => (
-          <View style={sharedStyles.card}>
+          <View style={[sharedStyles.card, !item.is_read && { borderLeftColor: theme.colors.primary, borderLeftWidth: 4 }]}>
             <Text style={sharedStyles.title}>{item.subject}{item.is_read ? "" : " · new"}</Text>
             <Text selectable style={sharedStyles.body}>{item.body}</Text>
             <Text style={sharedStyles.muted}>{formatDateTime(item.created_at)}</Text>
