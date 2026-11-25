@@ -81,12 +81,12 @@ export default function MyOrdersPage() {
           {t('You have no orders yet.')} <Link to="/">{t('Browse events')}</Link>
         </p>
       )}
-      <div className="grid">
+      <div className="grid wallet-grid">
         {orders.map((o) => {
           const free = Number(o.total_amount) === 0
           const active = o.status === 'paid'
           return (
-            <div className="card" key={o.id}>
+            <article className="card purchase-card" key={o.id}>
               <h3>{o.event_title}</h3>
               <div className="muted">{formatDate(o.start_time)}</div>
               <div className="row">
@@ -105,7 +105,7 @@ export default function MyOrdersPage() {
                 confirming === o.id ? (
                   <p>
                     {t('Cancel this registration? Your tickets stop working.')}{' '}
-                    <button className="btn" onClick={() => cancel(o)} disabled={busy === o.id}>
+                    <button className="btn danger" onClick={() => cancel(o)} disabled={busy === o.id}>
                       {busy === o.id ? t('Cancelling…') : t('Yes, cancel')}
                     </button>{' '}
                     <button className="btn secondary" onClick={() => setConfirming(null)} disabled={busy === o.id}>
@@ -128,7 +128,7 @@ export default function MyOrdersPage() {
               <p>
                 <Link to={`/support/new?order_id=${encodeURIComponent(o.id)}`}>{t('Get help with this order')}</Link>
               </p>
-            </div>
+            </article>
           )
         })}
       </div>

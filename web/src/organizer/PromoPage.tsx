@@ -4,10 +4,12 @@ import { messageFor, useResource } from './data'
 import { useManagedEvent } from './Layout'
 import { toApiTime, type Campaign, type TicketType } from './setup'
 import { Notice, ResourceState, Table } from './ui'
+import { useI18n } from "../i18n"
 
 // The campaign QR needs the organizer's sign-in, so it is fetched with the
 // token and shown from a local blob instead of a plain <img src>.
 function CampaignQr({ id, code }: { id: string; code: string }) {
+  const { t: localize } = useI18n()
   const [url, setUrl] = useState('')
   const [failed, setFailed] = useState(false)
   useEffect(() => {
@@ -28,14 +30,14 @@ function CampaignQr({ id, code }: { id: string; code: string }) {
       if (objectUrl) URL.revokeObjectURL(objectUrl)
     }
   }, [id])
-  if (failed) return <p className="muted">QR could not be loaded.</p>
-  if (!url) return <p className="muted">Loading QR…</p>
+  if (failed) return <p className="muted">{localize("QR could not be loaded.")}</p>
+  if (!url) return <p className="muted">{localize("Loading QR…")}</p>
   return (
     <figure className="org-qr">
       <img src={url} alt={`Campaign QR for ${code}`} />
       <figcaption>
         <a href={url} download={`promo-${code}.png`}>
-          Download QR
+          {localize("Download QR")}
         </a>
       </figcaption>
     </figure>
@@ -43,6 +45,7 @@ function CampaignQr({ id, code }: { id: string; code: string }) {
 }
 
 export default function PromoPage() {
+  const { t: localize } = useI18n()
   const event = useManagedEvent()
   const list = useResource<Campaign[]>(`/api/events/${event.id}/promo-campaigns`)
   const types = useResource<TicketType[]>(`/api/events/${event.id}/ticket-types`)
@@ -102,47 +105,46 @@ export default function PromoPage() {
   return (
     <>
       <p className="muted">
-        A campaign gives buyers a discount through a code or a QR link. The
-        server always calculates the discount, so a link can never change a price.
+        {localize("A campaign gives buyers a discount through a code or a QR link. The server always calculates the discount, so a link can never change a price.")}
       </p>
       {message && <Notice error={message.error}>{message.text}</Notice>}
 
       <form className="org-panel org-form" onSubmit={create}>
-        <h3>New campaign</h3>
+        <h3>{localize("New campaign")}</h3>
         <div className="org-form-row">
           <label className="org-field">
-            Code (leave empty to generate)
+            {localize("Code (leave empty to generate)")}
             <input maxLength={40} value={code} onChange={(e) => setCode(e.target.value)} />
           </label>
           <label className="org-field">
-            Discount type
+            {localize("Discount type")}
             <select value={type} onChange={(e) => setType(e.target.value)}>
-              <option value="percentage">Percentage (%)</option>
-              <option value="fixed">Fixed amount (KZT)</option>
+              <option value="percentage">{localize("Percentage (%)")}</option>
+              <option value="fixed">{localize("Fixed amount (KZT)")}</option>
             </select>
           </label>
           <label className="org-field">
-            Discount
+            {localize("Discount")}
             <input required type="number" min={1} step="any" value={value} onChange={(e) => setValue(e.target.value)} />
           </label>
           <label className="org-field">
-            Max uses
+            {localize("Max uses")}
             <input required type="number" min={1} value={max} onChange={(e) => setMax(e.target.value)} />
           </label>
         </div>
         <div className="org-form-row">
           <label className="org-field">
-            Valid from (optional)
+            {localize("Valid from (optional)")}
             <input type="datetime-local" value={from} onChange={(e) => setFrom(e.target.value)} />
           </label>
           <label className="org-field">
-            Valid until (optional)
+            {localize("Valid until (optional)")}
             <input type="datetime-local" value={until} onChange={(e) => setUntil(e.target.value)} />
           </label>
         </div>
         {types.data && types.data.length > 0 && (
           <fieldset className="org-field">
-            <legend>Applies to (leave all unchecked for every ticket type)</legend>
+            <legend>{localize("Applies to (leave all unchecked for every ticket type)")}</legend>
             {types.data.map((t) => (
               <label key={t.id} style={{ display: 'block' }}>
                 <input
@@ -159,16 +161,16 @@ export default function PromoPage() {
         )}
         <div className="org-actions">
           <button className="btn" disabled={busy}>
-            {busy ? 'Creating…' : 'Create campaign'}
+            {busy ? localize("Creating…") : localize("Create campaign")}
           </button>
         </div>
       </form>
 
-      <h2>Campaigns</h2>
+      <h2>{localize("Campaigns")}</h2>
       <ResourceState {...list} retry={list.refresh} />
-      {list.data?.length === 0 && <Notice>No campaigns yet.</Notice>}
+      {list.data?.length === 0 && <Notice>{localize("No campaigns yet.")}</Notice>}
       {list.data && list.data.length > 0 && (
-        <Table caption="Promo campaigns" headings={['Code', 'Discount', 'Used', 'Status', 'Link and QR']}>
+        <Table caption={localize("Promo campaigns")} headings={['Code', 'Discount', 'Used', 'Status', 'Link and QR']}>
           {list.data.map((c) => (
             <tr key={c.id}>
               <td>{c.code}</td>
@@ -181,21 +183,21 @@ export default function PromoPage() {
                     ? `Only: ${c.ticket_type_ids
                         .map((id) => types.data?.find((t) => t.id === id)?.name ?? 'a ticket type')
                         .join(', ')}`
-                    : 'All ticket types'}
+                    : localize("All ticket types")}
                 </div>
               </td>
               <td>
                 {c.redemptions_count ?? 0} / {c.max_redemptions}
               </td>
               <td>
-                {c.is_active ? 'Active' : 'Disabled'}{' '}
+                {c.is_active ? localize("Active") : localize("Disabled")}{' '}
                 <button className="btn secondary" onClick={() => toggle(c)}>
-                  {c.is_active ? 'Disable' : 'Enable'}
+                  {c.is_active ? localize("Disable") : localize("Enable")}
                 </button>
               </td>
               <td>
                 <button className="btn secondary" onClick={() => setShown(shown === c.id ? '' : c.id)}>
-                  {shown === c.id ? 'Hide QR' : 'Show QR'}
+                  {shown === c.id ? localize("Hide QR") : localize("Show QR")}
                 </button>
                 {shown === c.id && (
                   <>

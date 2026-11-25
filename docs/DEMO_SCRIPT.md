@@ -34,8 +34,8 @@ BiletFlow lets an organizer sell tickets without a ticketing company: create an 
 
 ### 2. Attendee buys a ticket (2 min), window 2 (private)
 1. Open the event list, sign in as **dana@example.com**, open your new event (use code `DEMO20`) or Almaty Jazz Night (use code `SUMMER20`). A code only works on its own event.
-2. Choose a ticket type and quantity, enter the code (or open the campaign link from the QR). Show the quote: the price is calculated by the server.
-3. Buy it (simulated payment). Go to **My tickets** and show the QR code and the PDF link.
+2. Choose a ticket type and quantity, enter the code (or open the campaign link from the QR). Show the server-calculated price and the reservation countdown. Change the quantity and verify the countdown keeps its original deadline. To show expiration on a disposable event, wait for the countdown and the 30-second cooldown, then refresh availability.
+3. Buy it (simulated payment). Go to **My tickets** and show the QR code and the PDF link. To demonstrate recovery, interrupt the checkout response and retry the saved purchase. Verify there is one order in the attendee history.
 4. Optional, show a failed payment is handled: the order is marked failed and nobody is charged.
 
 ### 3. Door staff scans (1.5 min), phone
@@ -49,7 +49,7 @@ BiletFlow lets an organizer sell tickets without a ticketing company: create an 
 
 ### 5. Support (1 min)
 1. As Dana (window 2): **Support**, **New request**, write a question about an order.
-2. As Aigerim (window 1): **Support**, open it, reply, change status. Click **Escalate to platform**.
+2. As Aigerim (window 1): **Support**, open it, reply, change status. Click **Escalate to platform**. As Dana, open the unread notification to go directly to the conversation and check that the item was marked read.
 
 ### 6. Admin (1.5 min), sign out and sign in as **admin@example.com**
 1. **Overview**: platform totals, and the settings (activation fee, processing fee). Download the orders CSV.

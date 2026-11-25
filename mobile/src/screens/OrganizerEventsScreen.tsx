@@ -13,10 +13,12 @@ import { Screen } from "../components/Screen";
 import { useApiResource } from "../hooks/useApiResource";
 import type { OrganizerStackParamList } from "../navigation/types";
 import { sharedStyles } from "../theme";
+import { useLocale } from "../i18n/LocaleContext";
 
 type Props = NativeStackScreenProps<OrganizerStackParamList, "OrganizerEvents">;
 
 export function OrganizerEventsScreen({ navigation }: Props) {
+  const { t: localize } = useLocale();
   const { authed } = useSession();
   const loadOrganizerEvents = useCallback(
     (signal: AbortSignal) => authed((token) => getOrganizerEvents(token, signal)),
@@ -26,8 +28,8 @@ export function OrganizerEventsScreen({ navigation }: Props) {
 
   return (
     <Screen>
-      {loading ? <LoadingState message="Loading your events…" /> : error ? (
-        <ErrorState title="Couldn't load your events" message={error} onRetry={retry} />
+      {loading ? <LoadingState message={localize("Loading your events…")} /> : error ? (
+        <ErrorState title={localize("Couldn't load your events")} message={error} onRetry={retry} />
       ) : (
         <FlatList
           data={data ?? []}
@@ -35,19 +37,19 @@ export function OrganizerEventsScreen({ navigation }: Props) {
           contentContainerStyle={sharedStyles.listContent}
           refreshing={refreshing}
           onRefresh={refresh}
-          ListHeaderComponent={<AppButton title="New event" onPress={() => navigation.navigate("NewEvent")} />}
+          ListHeaderComponent={<AppButton title={localize("New event")} onPress={() => navigation.navigate("NewEvent")} />}
           renderItem={({ item }) => (
             <EventCard
               event={{ ...item, status: item.phase ?? item.status }}
-              actionLabel="View dashboard →"
-              accessibilityHint="Opens ticket sales for this event"
+              actionLabel={localize("View dashboard →")}
+              accessibilityHint={localize("Opens ticket sales for this event")}
               onPress={() => navigation.navigate("EventDashboard", { eventId: item.id })}
             />
           )}
           ListEmptyComponent={
             <EmptyState
-              title="No events yet"
-              message="Events you organize will appear here. Pull down to refresh."
+              title={localize("No events yet")}
+              message={localize("Events you organize will appear here. Pull down to refresh.")}
             />
           }
         />

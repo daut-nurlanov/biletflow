@@ -21,7 +21,7 @@ function localTime(value?: string | null): string {
   return `${part("year")}-${part("month")}-${part("day")} ${part("hour")}:${part("minute")}`;
 }
 
-function eventTime(value: string, label: string, original?: string | null): string | undefined {
+export function eventTime(value: string, label: string, original?: string | null): string | undefined {
   const time = value.trim();
   // PUT omits blank optional fields. Also keep the original seconds and offset
   // when the organizer hasn't changed the displayed minute.

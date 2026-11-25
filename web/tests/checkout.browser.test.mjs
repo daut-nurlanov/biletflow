@@ -40,9 +40,12 @@ test('attendee checkout quote safety, retries, simulated purchase and QR visibil
       const user = { id: 'buyer-1', full_name: 'Test Attendee', email: 'buyer@example.com', role: 'attendee' }
       let quoteDelay = 0
       let quoteFailure = false
+      let reservationSeconds = 300
+      let checkoutFailure = false
       let purchases = []
       let ticketStatus = 'valid'
       let eventStatus = 'upcoming'
+      let ticketStart
       browser.events.set('Fetch.requestPaused', (params) => {
         void (async () => {
           const { requestId, request } = params
@@ -58,22 +61,27 @@ test('attendee checkout quote safety, retries, simulated purchase and QR visibil
             const input = JSON.parse(request.postData)
             await pause(quoteDelay)
             if (quoteFailure) { status = 500; body = { detail: 'Quote temporarily unavailable' } }
+            else if (input.promo_code === 'REJECTED') { status = 404; body = { detail: 'Invalid promo code' } }
             else {
               const subtotal = (input.ticket_type_id === 'paid' ? 1000 : 0) * input.quantity
               const discount = input.promo_code === 'SAVE20' ? subtotal * .2 : 0
-              body = { subtotal, discount, total: subtotal - discount }
+              body = { subtotal, discount, total: subtotal - discount,
+                reservation: input.reserve_inventory ? { id: 'held-cart', remaining_seconds: reservationSeconds } : undefined }
             }
           } else if (url.pathname === '/api/orders/checkout') {
             purchases.push(request)
             await pause(300)
-            status = 201
-            body = { order: { id: 'order-1' } }
+            status = checkoutFailure ? 500 : 201
+            body = checkoutFailure ? { detail: 'Checkout confirmation lost' } : { order: { id: 'order-1' } }
           } else if (url.pathname === '/api/tickets/my-tickets') body = [
-            { id: 'ticket-1', attendee_name: user.full_name, event_title: event.title, status: ticketStatus, event_status: eventStatus },
+            { id: 'ticket-1', attendee_name: user.full_name, event_title: event.title, status: ticketStatus, event_status: eventStatus, start_time: ticketStart },
           ]
           else if (url.pathname.endsWith('/qr.png')) {
+            assert.equal(request.headers.Authorization, 'Bearer test-token')
             await browser.send('Fetch.fulfillRequest', { requestId, responseCode: 200,
-              responseHeaders: [{ name: 'Content-Type', value: 'image/png' }], body: '' })
+              responseHeaders: [{ name: 'Content-Type', value: 'image/png' },
+                { name: 'Access-Control-Allow-Origin', value: '*' }],
+              body: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jh6sAAAAASUVORK5CYII=' })
             return
           } else { status = 404; body = { detail: 'Not found' } }
           await browser.send('Fetch.fulfillRequest', { requestId, responseCode: status,
@@ -136,9 +144,36 @@ test('attendee checkout quote safety, retries, simulated purchase and QR visibil
           await browser.wait('Purchase successful')
           assert.equal(purchases.length, before + 1)
           assert.equal(JSON.parse(purchases.at(-1).postData).ticket_type_id, type)
+          assert.equal(JSON.parse(purchases.at(-1).postData).reservation_id, 'held-cart')
           assert.equal(purchases.at(-1).headers.Authorization, 'Bearer test-token')
           assert.ok(purchases.at(-1).headers['Idempotency-Key'])
         }
+      })
+      await t.test('expiration disables checkout and a fresh reservation makes it available', async () => {
+        reservationSeconds = 1.5
+        await browser.navigate('/events/event-1')
+        await browser.wait('Standard')
+        await browser.evaluate(`document.querySelector('button.choice').click()`)
+        await browser.wait('Tickets reserved for')
+        await eventually(() => browser.evaluate(`${buyButton}?.disabled`), 'Checkout disabled on expiration')
+        reservationSeconds = 300
+        await browser.click('Refresh availability')
+        await browser.wait('Tickets reserved for')
+        assert.equal(await browser.evaluate(`${buyButton}.disabled`), false)
+      })
+      await t.test('reloading after a lost checkout confirmation retries the same key and body', async () => {
+        checkoutFailure = true
+        await browser.click('Buy')
+        await browser.wait('Checkout confirmation lost')
+        const first = purchases.at(-1)
+        await browser.navigate('/events/event-1')
+        await browser.wait('Retry saved purchase')
+        checkoutFailure = false
+        await browser.click('Retry saved purchase')
+        await browser.wait('Purchase successful')
+        const retry = purchases.at(-1)
+        assert.equal(retry.headers['Idempotency-Key'], first.headers['Idempotency-Key'])
+        assert.equal(retry.postData, first.postData)
       })
       await t.test('QR is displayed only for usable tickets and events', async () => {
         for (const status of ['valid', 'checked_in', 'cancelled', 'refunded']) {
@@ -147,10 +182,64 @@ test('attendee checkout quote safety, retries, simulated purchase and QR visibil
             eventStatus = state
             await browser.navigate('/my-tickets')
             await browser.wait('Checkout event')
+            const usable = status === 'valid' && state === 'upcoming'
+            if (usable) await eventually(() => browser.evaluate('document.querySelector("img.qr")?.naturalWidth > 0'), 'QR image')
             assert.equal(await browser.evaluate('document.querySelectorAll("img.qr").length'),
-              status === 'valid' && state === 'upcoming' ? 1 : 0, `${status}/${state}`)
+              usable ? 1 : 0, `${status}/${state}`)
+            await browser.click('Open ticket')
+            await eventually(() => browser.evaluate('!!document.querySelector("dialog[open]")'), 'Expanded ticket')
+            if (usable) await eventually(() => browser.evaluate('document.querySelector("dialog[open] img.qr")?.naturalWidth > 0'), 'Expanded QR')
+            assert.equal(await browser.evaluate('!!document.querySelector("dialog[open] img.qr")'),
+              status === 'valid' && state === 'upcoming')
+            const escape = { key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27, nativeVirtualKeyCode: 27 }
+            await browser.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', ...escape })
+            await browser.send('Input.dispatchKeyEvent', { type: 'keyUp', ...escape })
+            await eventually(() => browser.evaluate('!document.querySelector("dialog[open]")'), 'Escape closes ticket')
           }
         }
+      })
+      await t.test('removing a rejected promo requires a fresh regular-price quote', async () => {
+        await browser.navigate('/events/event-1')
+        await browser.wait('Standard')
+        await browser.evaluate('document.querySelector("button.choice").click()')
+        await browser.wait('Total')
+        await browser.evaluate(`(() => {
+          const input = document.querySelector('#promo')
+          Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'REJECTED')
+          input.dispatchEvent(new Event('input',{bubbles:true}))
+        })()`)
+        await browser.click('Apply')
+        await browser.wait('Invalid promo code')
+        assert.equal(await browser.evaluate('document.querySelector("#promo").getAttribute("aria-invalid")'), 'true')
+        assert.equal(await browser.evaluate(`${buyButton}.disabled`), true)
+        quoteDelay = 450
+        await browser.click('Remove promotion')
+        await browser.wait('Calculating price')
+        assert.equal(await browser.evaluate(`${buyButton}.disabled`), true)
+        await browser.wait('Total')
+        assert.equal(await browser.evaluate(`${buyButton}.disabled`), false)
+      })
+      await t.test('a draft preview and closed registration disable selection', async () => {
+        event.status = 'draft'
+        await browser.navigate('/events/event-1')
+        await browser.wait('This is a draft preview')
+        assert.ok(await browser.evaluate('[...document.querySelectorAll(".choice")].every(b => b.disabled)'))
+        event.status = 'upcoming'
+        event.registration_closes_at = '2000-01-01T01:00:00Z'
+        await browser.navigate('/events/event-1')
+        await browser.wait('Registration is closed.')
+        assert.ok(await browser.evaluate('[...document.querySelectorAll(".choice")].every(b => b.disabled)'))
+      })
+      await t.test('past events are labelled separately from ticket status', async () => {
+        eventStatus = 'completed'
+        ticketStatus = 'valid'
+        ticketStart = '2000-01-01T01:00:00Z'
+        await browser.navigate('/my-tickets')
+        await browser.wait('Past and inactive tickets')
+        assert.equal(await browser.has('Past event'), true)
+        assert.equal(await browser.evaluate('document.querySelector(".ticket-status").textContent'), 'Valid')
+        await eventually(() => browser.evaluate('document.querySelector("img.qr")?.naturalWidth > 0'), 'Past ticket QR')
+        assert.equal(await browser.evaluate('document.querySelectorAll("img.qr").length'), 1)
       })
       assert.deepEqual(errors, [])
     } finally {

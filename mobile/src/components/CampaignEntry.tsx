@@ -5,8 +5,10 @@ import { campaignTokenFromInput, resolveCampaign } from "../api/promotions";
 import { sharedStyles } from "../theme";
 import { formStyles } from "../theme/forms";
 import { AppButton } from "./AppButton";
+import { useLocale } from "../i18n/LocaleContext";
 
 export function CampaignEntry({ onOpen }: { onOpen: (eventId: string, campaignToken: string) => void }) {
+  const { t: localize } = useLocale();
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -23,10 +25,10 @@ export function CampaignEntry({ onOpen }: { onOpen: (eventId: string, campaignTo
     finally { locked.current = false; setBusy(false); }
   }
   return <View style={sharedStyles.card}>
-    <Text style={sharedStyles.title}>Have a campaign link?</Text>
-    <TextInput accessibilityLabel="Campaign link" style={formStyles.input} value={input} onChangeText={setInput}
-      autoCapitalize="none" autoCorrect={false} editable={!busy} placeholder="Paste your campaign link" />
+    <Text style={sharedStyles.title}>{localize("Have a campaign link?")}</Text>
+    <TextInput accessibilityLabel={localize("Campaign link")} style={formStyles.input} value={input} onChangeText={setInput}
+      autoCapitalize="none" autoCorrect={false} editable={!busy} placeholder={localize("Paste your campaign link")} />
     {error ? <Text accessibilityRole="alert" style={formStyles.error}>{error}</Text> : null}
-    <AppButton title="Open campaign offer" onPress={() => { void open(); }} disabled={busy || !input.trim()} loading={busy} />
+    <AppButton title={localize("Open campaign offer")} onPress={() => { void open(); }} disabled={busy || !input.trim()} loading={busy} />
   </View>;
 }

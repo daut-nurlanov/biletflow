@@ -45,7 +45,7 @@ def check_email(email: str) -> str:
 ALMATY = ZoneInfo("Asia/Almaty")
 
 
-def _parse_moment(text, name, end_of_range):
+def parse_almaty_moment(text, name, end_of_range=False):
     text = text.strip()
     try:
         if len(text) == 10:
@@ -62,8 +62,8 @@ def _parse_moment(text, name, end_of_range):
 def day_range(date_from, date_to):
     """Turns the ?date_from / ?date_to filters into exact moments. Both ends are INCLUDED:
     date_to=2026-11-30 covers all of the 30th (Almaty time)."""
-    start = _parse_moment(date_from, "date_from", False) if date_from else None
-    end = _parse_moment(date_to, "date_to", True) if date_to else None
+    start = parse_almaty_moment(date_from, "date_from") if date_from else None
+    end = parse_almaty_moment(date_to, "date_to", True) if date_to else None
     return start, end
 
 
@@ -183,17 +183,7 @@ def assert_event_staff(cur, user, event_id):
     raise HTTPException(status_code=403, detail="You are not assigned to this event")
 
 
-def resolve_actor(user, claimed_id, what="attendee_id"):
-    #attendee-facing endpoints (buying, holding seats, my tickets) work two ways:
-    #  - signed in: the person is taken from the token. if the request also
-    #    names somebody, it has to be that same person
-    #  - not signed in (older clients): the request must name the person.
-    #    this is the one deliberately weak spot, kept so the mobile app that
-    #    already exists keeps working. it goes away once every client sends a token
-    if user:
-        if claimed_id and str(claimed_id) != str(user["id"]):
-            raise HTTPException(status_code=403, detail="You can only act as yourself")
-        return str(user["id"])
-    if not claimed_id:
-        raise HTTPException(status_code=401, detail=f"Sign in, or send {what}")
-    return str(claimed_id)
+def resolve_actor(user, claimed_id):
+    if claimed_id and str(claimed_id) != str(user["id"]):
+        raise HTTPException(status_code=403, detail="You can only act as yourself")
+    return str(user["id"])

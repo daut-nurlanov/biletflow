@@ -120,9 +120,12 @@ def verify_email(payload: TokenRequest):
     if not data:
         raise HTTPException(status_code=400, detail="That verification code is invalid or has expired")
     with tx() as cur:
-        cur.execute("UPDATE users SET is_email_verified = true WHERE id = %s RETURNING id", (data["u"],))
+        cur.execute(
+            "UPDATE users SET is_email_verified = true WHERE id = %s AND NOT is_email_verified RETURNING id",
+            (data["u"],),
+        )
         if not cur.fetchone():
-            raise HTTPException(status_code=404, detail="Account not found")
+            raise HTTPException(status_code=400, detail="That verification code has already been used or is invalid")
     return {"message": "Email verified"}
 
 
@@ -158,7 +161,7 @@ def reset_password(payload: ResetRequest):
     if not data:
         raise HTTPException(status_code=400, detail="That reset code is invalid or has expired")
     with tx() as cur:
-        cur.execute("SELECT id, password_hash FROM users WHERE id = %s", (data["u"],))
+        cur.execute("SELECT id, password_hash FROM users WHERE id = %s FOR UPDATE", (data["u"],))
         user = cur.fetchone()
         if not user or (user["password_hash"] or "")[7:23] != data["x"]:
             raise HTTPException(status_code=400, detail="That reset code is invalid or has expired")

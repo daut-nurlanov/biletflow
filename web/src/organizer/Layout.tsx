@@ -10,21 +10,24 @@ import {
   useParams,
 } from 'react-router-dom'
 import { useAuth } from '../auth'
+import { WorkspaceNav } from '../components/Surface'
 import { useResource } from './data'
 import type { ManagedEvent } from './types'
 import { Notice, ResourceState, Status } from './ui'
 import './organizer.css'
+import { useI18n } from "../i18n"
 
 export function OrganizerGuard() {
+  const { t: localize } = useI18n()
   const { user, loading, error } = useAuth()
   const location = useLocation()
-  if (loading) return <Notice>Restoring your session…</Notice>
+  if (loading) return <Notice>{localize("Restoring your session…")}</Notice>
   if (error)
     return (
       <Notice error>
         <p>{error}</p>
         <button className="btn" onClick={() => window.location.reload()}>
-          Try again
+          {localize("Try again")}
         </button>
       </Notice>
     )
@@ -39,17 +42,23 @@ export function OrganizerGuard() {
   if (user.role !== 'organizer')
     return (
       <Notice error>
-        This dashboard is only available to organizers.{' '}
-        <Link to="/">Browse events</Link>
+        {localize("This dashboard is only available to organizers.")}{' '}
+        <Link to="/">{localize("Browse events")}</Link>
       </Notice>
     )
   return (
-    <section className="org">
-      <Outlet />
+    <section className="org workspace">
+      <WorkspaceNav label={localize("Organizer")} links={[
+        { to: '/organizer', label: 'My events', icon: 'calendar', end: true },
+        { to: '/organizer/new', label: 'New event', icon: 'ticket' },
+        { to: '/organizer/profile', label: 'Organizer profile', icon: 'user' },
+      ]} />
+      <div className="workspace-content"><Outlet /></div>
     </section>
   )
 }
 export function EventLayout() {
+  const { t: localize } = useI18n()
   const { eventId } = useParams()
   const resource = useResource<ManagedEvent[]>('/api/organizer/events')
   // Keep the last list on screen while it refreshes (after publish, cancel,
@@ -63,38 +72,38 @@ export function EventLayout() {
   if (!event)
     return (
       <Notice error>
-        Event not found or unavailable to your account.{' '}
-        <Link to="/organizer">My events</Link>
+        {localize("Event not found or unavailable to your account.")}{' '}
+        <Link to="/organizer">{localize("My events")}</Link>
       </Notice>
     )
   const base = `/organizer/events/${event.id}`
   return (
     <>
       <Link className="org-back" to="/organizer">
-        ← My events
+        {localize("← My events")}
       </Link>
       <div className="org-heading">
         <div>
-          <p className="org-eyebrow">Organizer dashboard</p>
+          <p className="org-eyebrow">{localize("Organizer dashboard")}</p>
           <h1>{event.title}</h1>
           <p className="muted">
-            {moment(event.start_time)} · {event.venue_name} · Almaty time
+            {moment(event.start_time)} · {event.venue_name} {localize("· Almaty time")}
           </p>
         </div>
         <Status value={event.phase} />
       </div>
-      <nav className="org-tabs" aria-label="Event management">
+      <nav className="org-tabs" aria-label={localize("Event management")}>
         <NavLink to={base} end>
-          Overview
+          {localize("Overview")}
         </NavLink>
-        <NavLink to={`${base}/setup`}>Set-up</NavLink>
-        <NavLink to={`${base}/promotions`}>Promotions</NavLink>
-        <NavLink to={`${base}/attendees`}>Attendees</NavLink>
-        <NavLink to={`${base}/orders`}>Orders</NavLink>
-        <NavLink to={`${base}/analytics`}>Analytics</NavLink>
-        <NavLink to={`${base}/staff`}>Staff</NavLink>
-        <NavLink to={`${base}/history`}>History</NavLink>
-        <NavLink to={`${base}/support`}>Support</NavLink>
+        <NavLink to={`${base}/setup`}>{localize("Set-up")}</NavLink>
+        <NavLink to={`${base}/promotions`}>{localize("Promotions")}</NavLink>
+        <NavLink to={`${base}/attendees`}>{localize("Attendees")}</NavLink>
+        <NavLink to={`${base}/orders`}>{localize("Orders")}</NavLink>
+        <NavLink to={`${base}/analytics`}>{localize("Analytics")}</NavLink>
+        <NavLink to={`${base}/staff`}>{localize("Staff")}</NavLink>
+        <NavLink to={`${base}/history`}>{localize("History")}</NavLink>
+        <NavLink to={`${base}/support`}>{localize("Support")}</NavLink>
       </nav>
       <Outlet context={{ ...event, refresh: resource.refresh }} />
     </>

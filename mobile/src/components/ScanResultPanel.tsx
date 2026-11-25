@@ -3,6 +3,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { theme } from "../theme";
 import type { OutcomeTone, ScanOutcome } from "../utils/scanOutcome";
+import { useLocale } from "../i18n/LocaleContext";
 
 const TONES: Record<OutcomeTone, { background: string; symbol: string }> = {
   success: { background: "#15803D", symbol: "✓" },
@@ -11,32 +12,35 @@ const TONES: Record<OutcomeTone, { background: string; symbol: string }> = {
 };
 
 interface ScanResultPanelProps {
+  eventTitle: string;
   outcome: ScanOutcome;
   onScanNext: () => void;
   onRetry: () => void;
 }
 
 /** Full-screen colored answer, readable at arm's length in a dark doorway. */
-export function ScanResultPanel({ outcome, onScanNext, onRetry }: ScanResultPanelProps) {
+export function ScanResultPanel({ eventTitle, outcome, onScanNext, onRetry }: ScanResultPanelProps) {
+  const { t: localize } = useLocale();
   const insets = useSafeAreaInsets();
   const tone = TONES[outcome.tone];
-  const details = [outcome.ticketType, outcome.seat && `Seat ${outcome.seat}`].filter(Boolean).join(" · ");
+  const details = [outcome.ticketType, outcome.seat && `${localize("Seat")} ${outcome.seat}`].filter(Boolean).join(" · ");
 
   return (
     <View
       style={[styles.panel, { backgroundColor: tone.background, paddingBottom: insets.bottom + theme.spacing.lg }]}
       accessibilityViewIsModal
     >
+      <Text style={styles.eventName}>{eventTitle}</Text>
       <View style={styles.body}>
         <View style={styles.symbolCircle}>
           <Text style={styles.symbol} accessibilityElementsHidden importantForAccessibility="no">
             {tone.symbol}
           </Text>
         </View>
-        <Text accessibilityRole="alert" style={styles.headline}>{outcome.headline}</Text>
+        <Text accessibilityRole="alert" style={styles.headline}>{localize(outcome.headline)}</Text>
         {outcome.attendeeName ? <Text style={styles.name}>{outcome.attendeeName}</Text> : null}
         {details ? <Text style={styles.details}>{details}</Text> : null}
-        <Text style={styles.message}>{outcome.message}</Text>
+        <Text style={styles.message}>{localize(outcome.message)}</Text>
       </View>
 
       <View style={styles.actions}>
@@ -46,7 +50,7 @@ export function ScanResultPanel({ outcome, onScanNext, onRetry }: ScanResultPane
             onPress={onRetry}
             style={({ pressed }) => [styles.button, styles.secondaryButton, pressed && styles.pressed]}
           >
-            <Text style={styles.secondaryLabel}>Try again</Text>
+            <Text style={styles.secondaryLabel}>{localize("Try again")}</Text>
           </Pressable>
         )}
         <Pressable
@@ -54,10 +58,10 @@ export function ScanResultPanel({ outcome, onScanNext, onRetry }: ScanResultPane
           onPress={onScanNext}
           style={({ pressed }) => [styles.button, styles.primaryButton, pressed && styles.pressed]}
         >
-          <Text style={[styles.primaryLabel, { color: tone.background }]}>Scan next ticket</Text>
+          <Text style={[styles.primaryLabel, { color: tone.background }]}>{localize("Scan next ticket")}</Text>
         </Pressable>
         {outcome.autoDismiss && (
-          <Text style={styles.hint}>Scanning again in a moment…</Text>
+          <Text style={styles.hint}>{localize("Scanning again in a moment…")}</Text>
         )}
       </View>
     </View>
@@ -87,6 +91,7 @@ const styles = StyleSheet.create({
   details: { color: "#FFFFFF", fontSize: 18, fontWeight: "600", textAlign: "center", opacity: 0.95 },
   message: { color: "#FFFFFF", fontSize: 17, lineHeight: 24, textAlign: "center", opacity: 0.95 },
   actions: { gap: theme.spacing.sm },
+  eventName: { color: "#FFFFFF", textAlign: "center", fontSize: theme.fontSize.body, fontWeight: "600" },
   button: {
     minHeight: 56,
     borderRadius: theme.radius.md,

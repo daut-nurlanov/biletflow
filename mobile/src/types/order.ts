@@ -5,11 +5,14 @@ export interface QuoteInput {
   ticket_type_id: string;
   quantity: number;
   promo_code?: string;
+  reserve_inventory?: boolean;
 }
 
 export interface CheckoutInput extends QuoteInput {
   attendee_name: string;
   simulate_payment?: "success" | "fail";
+  reservation_id?: string;
+  expected_total?: number | string;
 }
 
 export interface OrderQuote {
@@ -22,6 +25,7 @@ export interface OrderQuote {
   processing_fee: number | string;
   processing_fee_note: string;
   currency: string;
+  reservation?: { id: string; expires_at: string; remaining_seconds: number };
 }
 
 export interface Order {

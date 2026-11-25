@@ -23,10 +23,12 @@ import {
   formatPercentSold,
   summarizeInventory,
 } from "../utils/ticketSales";
+import { useLocale } from "../i18n/LocaleContext";
 
 type Props = NativeStackScreenProps<OrganizerStackParamList, "EventDashboard">;
 
 export function EventDashboardScreen({ route, navigation }: Props) {
+  const { lang, t: localize } = useLocale();
   const { eventId } = route.params;
   const { authed } = useSession();
   const loadEvent = useCallback(
@@ -40,20 +42,21 @@ export function EventDashboardScreen({ route, navigation }: Props) {
   );
   const { data: event, loading, refreshing, error, retry, refresh } = useApiResource(loadEvent);
 
-  if (loading) return <Screen><LoadingState message="Loading ticket sales…" /></Screen>;
+  if (loading) return <Screen><LoadingState message={localize("Loading ticket sales…")} /></Screen>;
   if (error || !event) {
     return (
       <Screen>
-        <ErrorState title="Couldn't load ticket sales" message={error ?? "Event not found."} onRetry={retry} />
+        <ErrorState title={localize("Couldn't load ticket sales")} message={error ?? "Event not found."} onRetry={retry} />
       </Screen>
     );
   }
 
+  const held = event.analytics.inventory.general_admission_reserved ?? 0;
   const sales = {
-    sold: event.analytics.inventory.sold, remaining: event.analytics.inventory.remaining,
+    sold: event.analytics.inventory.sold, remaining: event.analytics.inventory.remaining - held,
     total: event.analytics.inventory.total, percentSold: event.analytics.inventory.percent_sold };
-  const soldText = `${sales.sold.toLocaleString()} of ${sales.total.toLocaleString()} tickets sold`;
-  const seating = event.has_assigned_seating ? "Assigned seating" : "General admission";
+  const soldText = localize("{sold} of {total} tickets sold", { sold: sales.sold.toLocaleString(), total: sales.total.toLocaleString() });
+  const seating = localize(event.has_assigned_seating ? "Assigned seating" : "General admission");
 
   return (
     <Screen>
@@ -65,62 +68,71 @@ export function EventDashboardScreen({ route, navigation }: Props) {
         onRefresh={refresh}
         ListHeaderComponent={
           <View style={styles.header}>
-            <Text accessibilityRole="header" style={styles.heading}>{event.title}</Text>
+            <View style={[sharedStyles.card, sharedStyles.accentCard]}>
+            <Text accessibilityRole="header" style={sharedStyles.heading}>{event.title}</Text>
             <StatusBadge status={eventDisplayStatus(event)} />
             <Text style={sharedStyles.body}>{event.venue_name}</Text>
-            <Text style={sharedStyles.muted}>{formatDateTime(event.start_time)}</Text>
-            <AppButton title="Event setup" onPress={() => navigation.navigate("EventSetup", { eventId })} />
+            <Text style={sharedStyles.muted}>{formatDateTime(event.start_time, lang)}</Text>
+            <AppButton title={localize("Event setup")} onPress={() => navigation.navigate("EventSetup", { eventId })} />
+            </View>
 
             <View style={[sharedStyles.card, styles.summary]}>
-              <Text accessibilityRole="header" style={sharedStyles.title}>Ticket sales</Text>
+              <Text accessibilityRole="header" style={sharedStyles.title}>{localize("Ticket sales")}</Text>
               <View style={styles.statRow}>
-                <StatTile label="Sold" value={sales.sold.toLocaleString()} />
-                <StatTile label="Remaining" value={sales.remaining.toLocaleString()} />
-                <StatTile label="Percent sold" value={formatPercentSold(sales)} />
+                <StatTile label={localize("Sold")} value={sales.sold.toLocaleString()} />
+                <StatTile label={localize("Available")} value={sales.remaining.toLocaleString()} />
+                <StatTile label={localize("Percent sold")} value={formatPercentSold(sales)} />
               </View>
               <ProgressMeter
                 percent={sales.percentSold}
-                accessibilityLabel="Tickets sold for this event"
+                accessibilityLabel={localize("Tickets sold for this event")}
                 valueText={soldText}
               />
-              <Text style={sharedStyles.muted}>{soldText}, across all ticket types</Text>
+              <Text style={sharedStyles.muted}>{localize("{sold} · All ticket types", { sold: soldText })}</Text>
+              <Text style={sharedStyles.muted}>{localize("General-admission tickets held: {count}", { count: held })}</Text>
             </View>
 
             <View style={sharedStyles.card}>
-              <Text accessibilityRole="header" style={sharedStyles.title}>Sales and attendance</Text>
-              <Text style={sharedStyles.body}>Revenue after discounts and refunds: {formatMoney(event.analytics.money.net_revenue)}</Text>
-              <Text style={sharedStyles.body}>Refunds: {formatMoney(event.analytics.money.refunds)}</Text>
-              <Text style={sharedStyles.body}>Estimated payout: {formatMoney(event.analytics.money.estimated_payout)}</Text>
-              <Text style={sharedStyles.body}>{event.analytics.attendance.checked_in} checked in of {event.analytics.attendance.registered} registered</Text>
-              <Text style={sharedStyles.muted}>Demo payments. Revenue is before processing fees; estimated payout subtracts simulated fees.</Text>
+              <Text accessibilityRole="header" style={sharedStyles.title}>{localize("Sales and attendance")}</Text>
+              <Text style={sharedStyles.body}>{localize("Revenue after discounts and refunds:")} {formatMoney(event.analytics.money.net_revenue, lang)}</Text>
+              <Text style={sharedStyles.body}>{localize("Refunds:")} {formatMoney(event.analytics.money.refunds, lang)}</Text>
+              <Text style={sharedStyles.body}>{localize("Estimated payout:")} {formatMoney(event.analytics.money.estimated_payout, lang)}</Text>
+              <Text style={sharedStyles.body}>{localize("{admitted} checked in of {registered} registered", {
+                admitted: event.analytics.attendance.checked_in, registered: event.analytics.attendance.registered,
+              })}</Text>
+              <Text style={sharedStyles.muted}>{localize("Demo payments. Revenue is before processing fees; estimated payout subtracts simulated fees.")}</Text>
             </View>
 
             <Text style={sharedStyles.muted}>
-              {`Capacity: ${event.capacity.toLocaleString()} people · ${seating}`}
+              {localize("Capacity: {count} people · {seating}", { count: event.capacity.toLocaleString(), seating })}
             </Text>
             <Text style={sharedStyles.muted}>
-              {`Paid sales: ${event.paid_sales_suspended ? "Suspended by platform" : event.is_paid_sales_active ? "Activated" : "Not activated yet"}`}
+              {localize("Paid sales:")} {localize(event.paid_sales_suspended ? "Suspended by platform" : event.is_paid_sales_active ? "Activated" : "Not activated yet")}
             </Text>
             <AppButton
-              title={event.is_paid_sales_active || event.paid_sales_suspended ? "Paid sales details" : "Activate paid sales"}
+              variant="secondary"
+              title={event.is_paid_sales_active || event.paid_sales_suspended ? localize("Paid sales details") : localize("Activate paid sales")}
               onPress={() => navigation.navigate("PaidSalesActivation", { eventId, eventTitle: event.title })}
             />
-            <AppButton title="Attendees" onPress={() => navigation.navigate("EventAttendees", { eventId, eventTitle: event.title })} />
-            <AppButton title="Orders and refunds" onPress={() => navigation.navigate("EventOrders", { eventId, eventTitle: event.title })} />
-            <AppButton title="Promotions" onPress={() => navigation.navigate("EventPromotions", { eventId, eventTitle: event.title })} />
-            <AppButton title="Event activity" onPress={() => navigation.navigate("EventActivity", { eventId, eventTitle: event.title })} />
-            <AppButton title="Door staff" onPress={() => navigation.navigate("EventStaff", { eventId, eventTitle: event.title })} />
-            <Text style={sharedStyles.muted}>Campaign dates and detailed analytics are on the BiletFlow website.</Text>
+            <View style={sharedStyles.card}>
+              <Text accessibilityRole="header" style={sharedStyles.title}>{localize("Manage event")}</Text>
+              <AppButton variant="secondary" title={localize("Attendees")} onPress={() => navigation.navigate("EventAttendees", { eventId, eventTitle: event.title })} />
+              <AppButton variant="secondary" title={localize("Orders and refunds")} onPress={() => navigation.navigate("EventOrders", { eventId, eventTitle: event.title })} />
+              <AppButton variant="secondary" title={localize("Promotions")} onPress={() => navigation.navigate("EventPromotions", { eventId, eventTitle: event.title })} />
+              <AppButton variant="secondary" title={localize("Event activity")} onPress={() => navigation.navigate("EventActivity", { eventId, eventTitle: event.title })} />
+              <AppButton variant="secondary" title={localize("Door staff")} onPress={() => navigation.navigate("EventStaff", { eventId, eventTitle: event.title })} />
+            </View>
+              <Text style={sharedStyles.muted}>{localize("Detailed analytics are available on the BiletFlow website.")}</Text>
             <Text accessibilityRole="header" style={[sharedStyles.title, styles.sectionTitle]}>
-              Sales by ticket type
+              {localize("Sales by ticket type")}
             </Text>
           </View>
         }
         renderItem={({ item }) => <TicketTypeSalesCard ticketType={item} />}
         ListEmptyComponent={
           <EmptyState
-            title="No ticket types yet"
-            message="Sales will appear here once this event has ticket types."
+            title={localize("No ticket types yet")}
+            message={localize("Sales will appear here once this event has ticket types.")}
           />
         }
       />
@@ -129,6 +141,7 @@ export function EventDashboardScreen({ route, navigation }: Props) {
 }
 
 function TicketTypeSalesCard({ ticketType }: { ticketType: TicketType }) {
+  const { lang } = useLocale();
   const sales = summarizeInventory(ticketType);
   const soldText = `${sales.sold.toLocaleString()} of ${sales.total.toLocaleString()} sold`;
   const remainingText = sales.total > 0 && sales.remaining === 0
@@ -140,7 +153,7 @@ function TicketTypeSalesCard({ ticketType }: { ticketType: TicketType }) {
     <View style={sharedStyles.card}>
       <View style={styles.cardHeader}>
         <Text style={[sharedStyles.title, styles.cardTitle]}>{ticketType.name}</Text>
-        <Text style={sharedStyles.body}>{formatPrice(ticketType.price)}</Text>
+        <Text style={sharedStyles.body}>{formatPrice(ticketType.price, lang)}</Text>
       </View>
       {ticketType.description ? <Text style={sharedStyles.muted}>{ticketType.description}</Text> : null}
       <ProgressMeter
@@ -156,7 +169,6 @@ function TicketTypeSalesCard({ ticketType }: { ticketType: TicketType }) {
 
 const styles = StyleSheet.create({
   header: { gap: theme.spacing.sm },
-  heading: { fontSize: theme.fontSize.heading, fontWeight: "700", color: theme.colors.text },
   summary: { marginVertical: theme.spacing.sm },
   statRow: { flexDirection: "row", flexWrap: "wrap", gap: theme.spacing.sm },
   sectionTitle: { marginTop: theme.spacing.sm },

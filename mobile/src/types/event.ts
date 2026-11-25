@@ -21,6 +21,9 @@ export interface Event {
   has_assigned_seating: boolean;
   is_paid_sales_active: boolean;
   created_at: string;
+  category?: string | null;
+  image_url?: string | null;
+  venue_address?: string | null;
 }
 
 export interface OrganizerEvent extends Event {
@@ -65,7 +68,7 @@ export interface EventDetails extends Event {
 
 /** Mobile summary of the current, unfiltered organizer analytics response. */
 export interface EventAnalytics {
-  inventory: { total: number; sold: number; remaining: number; percent_sold: number; reserved: number };
+  inventory: { total: number; sold: number; remaining: number; percent_sold: number; reserved: number; general_admission_reserved?: number };
   money: {
     net_revenue: number | string;
     refunds: number | string;

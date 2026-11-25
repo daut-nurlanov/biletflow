@@ -64,6 +64,44 @@ def test_context_names_are_available_without_broadening_case_access(kit):
         assert kit.client.put(url, headers=outsider.h, json={"status": "resolved"}).status_code == 404
 
 
+def test_notification_links_to_support_and_can_only_be_read_by_recipient(kit):
+    organizer, buyer, admin, _, case, url = setup_case(kit)
+    assert kit.client.put(url, headers=organizer.h, json={"status": "in_progress"}).is_success
+    unread = kit.client.get("/api/notifications?unread_only=true", headers=buyer.h).json()
+    notification = next(n for n in unread if n["subject"] == "Your support case changed status")
+    assert notification["target_type"] == "support"
+    assert notification["target_id"] == case["id"]
+    target = f"/api/notifications/{notification['id']}/read"
+    assert kit.client.post(target, headers=admin.h).status_code == 404
+    assert kit.client.post(target).status_code == 401
+    for _ in range(2):
+        assert kit.client.post(target, headers=buyer.h).json()["is_read"] is True
+    remaining = kit.client.get("/api/notifications?unread_only=true", headers=buyer.h).json()
+    assert notification["id"] not in {item["id"] for item in remaining}
+    assert kit.client.get(url, headers=buyer.h).is_success
+    assert kit.client.get(url, headers=admin.h).status_code == 404
+
+
+def test_parallel_support_retry_returns_one_case_and_one_reply(kit):
+    organizer, buyer = kit.user("organizer"), kit.user()
+    event, _ = kit.event(organizer)
+    payload = {"event_id": event["id"], "category": "payment", "message": "A single question"}
+    headers = {**buyer.h, "Idempotency-Key": str(uuid4())}
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        created = list(pool.map(lambda _: kit.client.post("/api/support/cases", headers=headers, json=payload), range(2)))
+    assert [response.status_code for response in created] == [201, 201]
+    case_id = created[0].json()["id"]
+    assert case_id == created[1].json()["id"]
+    url = f"/api/support/cases/{case_id}/messages"
+    headers = {**organizer.h, "Idempotency-Key": str(uuid4())}
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        replies = list(pool.map(lambda _: kit.client.post(url, headers=headers, json={"message": "One reply"}), range(2)))
+    assert [response.status_code for response in replies] == [201, 201]
+    assert replies[0].json()["id"] == replies[1].json()["id"]
+    assert len(notifications_for(buyer.id, "support")) == 1
+    assert len(notifications_for(organizer.id, "support")) == 1
+
+
 def test_assignment_notifies_once_and_rejects_unauthorized_or_suspended_assignees(kit):
     org, buyer, admin, event, case, url = setup_case(kit)
     for _ in range(2):

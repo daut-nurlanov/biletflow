@@ -14,9 +14,11 @@ import { sharedStyles } from "../theme";
 import { formStyles as styles } from "../theme/forms";
 import { SUPPORT_CATEGORIES, supportLabel, type SupportCategory } from "../types/support";
 import { formatDateTime } from "../utils/formatting";
+import { useLocale } from "../i18n/LocaleContext";
 
 type Props = NativeStackScreenProps<SupportStackParamList, "SupportNew">;
 export function SupportNewScreen({ route, navigation }: Props) {
+  const { lang, t: localize } = useLocale();
   const { state, authed } = useSession();
   const context = route.params ?? {};
   const hasContext = !!(context.eventId || context.orderId || context.ticketId);
@@ -27,6 +29,7 @@ export function SupportNewScreen({ route, navigation }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const locked = useRef(false);
+  const draftAttempt = useRef<{ input: string; key: string } | null>(null);
   const load = useCallback((signal: AbortSignal) => authed((token) => getMyOrders(token, signal)), [authed]);
   const orders = useApiResource(load);
 
@@ -36,37 +39,45 @@ export function SupportNewScreen({ route, navigation }: Props) {
     if (!hasContext && !organizer && !orderId) { setError("Choose one of your orders, or open help from an event or ticket."); return; }
     locked.current = true; setBusy(true); setError(null);
     try {
-      const created = await authed((token) => createSupportCase(token, category, message,
-        hasContext ? context : orderId ? { orderId } : {}));
+      const linked = hasContext ? context : orderId ? { orderId } : {};
+      const input = JSON.stringify([category, message.trim(), linked]);
+      if (draftAttempt.current?.input !== input) {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const { randomUUID } = require("expo-crypto") as typeof import("expo-crypto");
+        draftAttempt.current = { input, key: randomUUID() };
+      }
+      const key = draftAttempt.current.key;
+      const created = await authed((token) => createSupportCase(token, category, message, linked, key));
+      draftAttempt.current = null;
       navigation.replace("SupportThread", { caseId: created.id });
     } catch (caught) {
-      setError(`${caught instanceof Error ? caught.message : "Couldn't create the request."} If the connection was lost, refresh your request list before resending; it may have been received.`);
+      setError(caught instanceof Error ? caught.message : "Couldn't create the request.");
     } finally { locked.current = false; setBusy(false); }
   }
   return <Screen><KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
     <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-      <Text style={sharedStyles.body}>{hasContext ? "Your event, ticket or order will be linked automatically." : organizer ? "Ask the platform for help with your organizer account." : "Choose the order you need help with."}</Text>
+      <Text style={sharedStyles.body}>{hasContext ? localize("Your event, ticket or order will be linked automatically.") : organizer ? "Ask the platform for help with your organizer account." : "Choose the order you need help with."}</Text>
       {!hasContext && !organizer ? orders.error ? <ErrorState message={orders.error} onRetry={orders.retry} /> : orders.loading ? (
-        <Text style={sharedStyles.muted}>Loading your orders…</Text>
+        <Text style={sharedStyles.muted}>{localize("Loading your orders…")}</Text>
       ) : <View style={styles.row}>
-        {orders.data?.length === 0 ? <Text style={sharedStyles.muted}>No orders yet. Open help from an event instead.</Text> : null}
+        {orders.data?.length === 0 ? <Text style={sharedStyles.muted}>{localize("No orders yet. Open help from an event instead.")}</Text> : null}
         {orders.data?.map((order) => <Pressable key={order.id} accessibilityRole="radio" accessibilityState={{ checked: orderId === order.id }}
           disabled={busy} onPress={() => setOrderId(order.id)} style={[styles.choice, orderId === order.id && styles.selected]}>
-          <Text style={sharedStyles.body}>{order.event_title ?? "Order"} · {formatDateTime(order.created_at)}</Text>
+          <Text style={sharedStyles.body}>{order.event_title ?? "Order"} · {formatDateTime(order.created_at, lang)}</Text>
         </Pressable>)}
       </View> : null}
-      <Text style={sharedStyles.title}>Category</Text>
+      <Text style={sharedStyles.title}>{localize("Category")}</Text>
       <View style={styles.row}>{SUPPORT_CATEGORIES.filter((c) => organizer || c !== "activation").map((value) => (
         <Pressable key={value} accessibilityRole="radio" accessibilityState={{ checked: category === value }} disabled={busy}
           onPress={() => setCategory(value)} style={[styles.choice, category === value && styles.selected]}>
-          <Text style={sharedStyles.body}>{supportLabel(value)}</Text>
+          <Text style={sharedStyles.body}>{localize(supportLabel(value))}</Text>
         </Pressable>
       ))}</View>
-      <TextInput accessibilityLabel="Support message" style={[styles.input, styles.message]} multiline value={message}
-        editable={!busy} onChangeText={setMessage} placeholder="How can we help?" />
+      <TextInput accessibilityLabel={localize("Support message")} style={[styles.input, styles.message]} multiline value={message}
+        editable={!busy} onChangeText={setMessage} placeholder={localize("How can we help?")} />
       <Text style={sharedStyles.muted}>{Array.from(message).length} / 4,000 characters</Text>
-      {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
-      <AppButton title={busy ? "Sending request…" : "Send support request"} onPress={() => { void submit(); }} loading={busy}
+      {error ? <Text accessibilityRole="alert" style={styles.error}>{localize(error)}</Text> : null}
+      <AppButton title={busy ? localize("Sending request…") : localize("Send support request")} onPress={() => { void submit(); }} loading={busy}
         disabled={busy || (!hasContext && !organizer && !orderId)} />
     </ScrollView>
   </KeyboardAvoidingView></Screen>;

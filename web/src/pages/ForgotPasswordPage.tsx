@@ -10,21 +10,23 @@ export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('')
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
+  const [error, setError] = useState('')
 
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
     if (busy) return
     setBusy(true)
     setMessage('')
+    setError('')
     try {
       await api('/api/auth/forgot-password', {
         method: 'POST',
         body: { email: email.trim() },
       })
-    } catch {
-      // Keep the same neutral response so this page never reveals account status.
-    } finally {
       setMessage(neutralMessage)
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Could not request a reset code.')
+    } finally {
       setBusy(false)
     }
   }
@@ -52,6 +54,7 @@ export default function ForgotPasswordPage() {
           </button>
         </form>
       )}
+      {error && <p className="error" role="alert">{t(error)}</p>}
       {message && (
         <p className="success" role="status">
           {t(message)}

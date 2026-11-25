@@ -57,6 +57,7 @@ For a locally run Python API, set the same `DB_*` variables for both commands,
 then run `python migrate.py` before `python -m uvicorn main:app ...` from
 `backend-python`. Compose exposes its database on `127.0.0.1:5433`, so local Python
 needs `DB_PORT=5433`. A new empty database still needs `docs/schema.sql` first.
+The migrations create temporary general-admission reservations, optional notification targets, and support request retry keys. Apply them before starting the updated API so checkout, notifications and support can access the new fields.
 The upgrade supports the existing base schema; installations older than the base
 tables need a reviewed schema comparison, not a destructive reset.
 
@@ -203,7 +204,7 @@ This section is checked against `docs/DATA_MODELS_AND_APIS.md`, which lists ever
 
 - **Payment is simulated.** Orders are marked paid immediately with a fake reference (or fail on request, with `simulate_payment: "fail"`, to demo the failure path). The processing fee is a stored stand-in charged to the organizer, not added to the buyer's price. Refunds, activation fees and identity verification are simulated too.
 - **Emails are simulated.** They are saved in the `notifications` table and printed in the server log. Nothing is sent.
-- **Buying still accepts the old `attendee_id`** instead of a token (`checkout`, `seats/hold`, `tickets/my-tickets`). This keeps the early mobile prototype working. The mobile app should move to token login (see `docs/TASKS.md`). A real launch would make the token compulsory.
+- **Buyer authentication.** Checkout, seat holds and ticket wallets require a bearer token. Ticket details, QR images and PDFs require the owner's token. Both current clients send it from the signed-in session.
 - **Ticket links are open.** `GET /api/tickets/{id}`, its `.png` and `.pdf` need no login; the random id is the secret.
 - **Tokens are simple signed strings** (7 days, no refresh, no server-side logout). If `BILETFLOW_SECRET` is not set, the server makes a random signing secret each time it starts (so everyone must sign in again after a restart). Set it to keep logins across restarts. The database port is only open on your own computer, not to the WiFi.
 - **No rate limiting, no real password-strength rules** beyond 8 characters.

@@ -42,8 +42,11 @@ test('mobile modules share website purchases, scanner state, organizer analytics
     const list = await tickets.getMyTickets(attendee.token);
     assert.equal(list.length, 1); assert.equal(list[0].id, purchase.ticket.id);
     assert.equal(list[0].status, 'valid'); assert.equal(list[0].ticket_type_name, 'Free admission');
-    const png = await fetch(tickets.getTicketQrImageUrl(list[0].id));
-    assert.equal(png.status, 200); assert.equal(png.headers.get('content-type'), 'image/png');
+    const png = await tickets.getTicketQr(list[0].id, attendee.token);
+    assert.equal(png.type, 'image/png');
+    assert.equal(Buffer.from(await png.arrayBuffer()).subarray(1, 4).toString('ascii'), 'PNG');
+    const pdf = await tickets.getTicketPdf(list[0].id, attendee.token);
+    assert.equal(Buffer.from(pdf).subarray(0, 4).toString('ascii'), '%PDF');
     assert.equal((await events.getEvents(undefined, attendee.token)).some((e) => e.id === event.id), true);
     const detail = await events.getEvent(event.id, undefined, attendee.token);
     assert.equal(detail.refund_policy, 'Demo policy'); assert.equal(detail.venue_address, 'Test address');
@@ -55,6 +58,7 @@ test('mobile modules share website purchases, scanner state, organizer analytics
     assert.equal((await checkin.verifyQr(door.token, matches[0].qr_code_hash, event.id)).result, 'valid');
     assert.equal((await checkin.verifyQr(door.token, matches[0].qr_code_hash, event.id)).result, 'already_checked_in');
     assert.equal((await tickets.getMyTickets(attendee.token))[0].status, 'checked_in');
+    await assert.rejects(tickets.getTicketQr(list[0].id, attendee.token), (error) => error.status === 409);
     assert.equal((await checkin.getAttendanceStats(door.token, event.id)).checked_in, 1);
     const analytics = await events.getEventAnalytics(event.id, organizer.token);
     assert.equal(analytics.attendance.checked_in, 1); assert.equal(analytics.inventory.sold, 1);

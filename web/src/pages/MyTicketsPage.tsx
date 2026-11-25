@@ -1,74 +1,217 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { api, BASE, getToken } from '../api'
+import { api, apiResponse } from '../api'
+import { useAuth } from '../auth'
 import { formatDate, formatStatus } from '../format'
 import CalendarButton from '../components/CalendarButton'
+import { Icon } from '../components/Icon'
+import { EmptyPanel, Skeleton } from '../components/Surface'
 import type { MyTicket } from '../types'
 import { useI18n } from '../i18n'
 
+function admissionStatus(ticket: MyTicket) {
+  return ticket.status === 'valid' && (ticket.event_status === 'cancelled' || ticket.event_status === 'suspended')
+    ? ticket.event_status : ticket.status
+}
+
+function eventEnded(ticket: MyTicket, asOf: number) {
+  const start = ticket.start_time ?? ticket.event?.start_time
+  const end = ticket.end_time ? Date.parse(ticket.end_time) : start ? Date.parse(start) + 2 * 60 * 60 * 1000 : NaN
+  return ticket.event_status === 'completed' || end < asOf
+}
+
+function TicketPreview({ ticket, pastEvent }: { ticket: MyTicket; pastEvent: boolean }) {
+  const { t } = useI18n()
+  const dialog = useRef<HTMLDialogElement>(null)
+  const pdfRequest = useRef<AbortController | null>(null)
+  const [pdfBusy, setPdfBusy] = useState(false)
+  const [pdfError, setPdfError] = useState('')
+  const path = `/api/tickets/${encodeURIComponent(ticket.id)}`
+  useEffect(() => () => pdfRequest.current?.abort(), [])
+
+  async function downloadPdf() {
+    if (pdfRequest.current) return
+    const controller = new AbortController()
+    pdfRequest.current = controller
+    setPdfBusy(true)
+    setPdfError('')
+    try {
+      const response = await apiResponse(`${path}/pdf`, { signal: controller.signal })
+      const blob = await response.blob()
+      if (controller.signal.aborted) return
+      if (blob.type !== 'application/pdf') throw new Error(t('BiletFlow did not return a ticket PDF.'))
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.download = `ticket-${ticket.id}.pdf`
+      link.href = url
+      document.body.append(link)
+      link.click()
+      link.remove()
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+    } catch (error) {
+      if (!controller.signal.aborted) setPdfError(error instanceof Error ? error.message : t('Try again'))
+    } finally {
+      pdfRequest.current = null
+      setPdfBusy(false)
+    }
+  }
+  const title = ticket.event_title ?? ticket.event?.title ?? ticket.title ?? t('Event')
+  const start = ticket.start_time ?? ticket.event?.start_time
+  const venue = ticket.venue_name ?? ticket.event?.venue_name
+  const status = admissionStatus(ticket)
+  const eventBlocked = ticket.status === 'valid' && (ticket.event_status === 'cancelled' || ticket.event_status === 'suspended')
+  return (
+    <article className="card digital-ticket">
+      <div className="digital-ticket-header"><Icon name="ticket" size={24} /><h3>{title}</h3></div>
+      <div className="digital-ticket-body">
+        {start && <p className="event-meta"><Icon name="calendar" size={16} />{formatDate(start)}</p>}
+        {venue && <p className="event-meta"><Icon name="pin" size={16} />{venue}</p>}
+        {pastEvent && <p className="event-meta">{t('Past event')}</p>}
+        <div className="row">
+          <strong>{ticket.ticket_type_name ?? ticket.attendee_name}</strong>
+          {status && <span className={`ticket-status ticket-status-${status}`}>{eventBlocked ? t(`event ${status}`) : formatStatus(status)}</span>}
+        </div>
+        {ticket.section && <span className="muted">{t('Section {s}, row {r}, seat {n}', {
+          s: ticket.section, r: ticket.row_label ?? '', n: ticket.seat_number ?? '',
+        })}</span>}
+      </div>
+      <div className="digital-ticket-actions">
+        <button className={`btn${status === 'valid' ? '' : ' secondary'}`}
+          aria-label={t('Open ticket for {v}, ending {n}', { v: title, n: ticket.id.slice(-8) })}
+          onClick={() => dialog.current?.showModal()}>
+          <Icon name={status === 'valid' ? 'qr' : 'ticket'} size={18} />{t('Open ticket')}
+        </button>
+        <button className="btn secondary" onClick={downloadPdf} disabled={pdfBusy}>
+          {pdfBusy ? t('Preparing PDF…') : t('Download PDF')}
+        </button>
+        {pdfError && <p className="error" role="alert">{pdfError}</p>}
+        {ticket.event_id && <CalendarButton eventId={ticket.event_id} cancelled={ticket.event_status === 'cancelled'} />}
+        <Link to={`/support/new?ticket_id=${encodeURIComponent(ticket.id)}`}>{t('Get help with this ticket')}</Link>
+      </div>
+      <dialog className="ticket-dialog" ref={dialog} aria-labelledby={`ticket-${ticket.id}`}>
+        <div className="ticket-dialog-heading">
+          <h2 id={`ticket-${ticket.id}`}>{title}</h2>
+          <button className="btn secondary" aria-label={t('Close')} onClick={() => dialog.current?.close()}><Icon name="close" /></button>
+        </div>
+        <div className="ticket-dialog-content">
+          {ticket.attendee_name && <p>{ticket.attendee_name}</p>}
+          {status === 'valid'
+            ? <AdmissionQr path={`${path}/qr.png`} title={title} />
+            : <p>{t('Admission QR unavailable: {v}.', { v: eventBlocked ? t(`event ${status}`) : formatStatus(status ?? '') })}</p>}
+        </div>
+      </dialog>
+    </article>
+  )
+}
+
+function AdmissionQr({ path, title }: { path: string; title: string }) {
+  const { t } = useI18n()
+  const [attempt, setAttempt] = useState(0)
+  const [result, setResult] = useState<{ url?: string; error?: string }>()
+  useEffect(() => {
+    const controller = new AbortController()
+    let url: string | undefined
+    void apiResponse(path, { signal: controller.signal })
+      .then((response) => response.blob())
+      .then((blob) => {
+        if (controller.signal.aborted) return
+        if (blob.type !== 'image/png') throw new Error()
+        url = URL.createObjectURL(blob)
+        setResult({ url })
+      })
+      .catch((error) => {
+        if (!controller.signal.aborted) setResult({ error: error.message || 'Could not load the admission QR.' })
+      })
+    return () => {
+      controller.abort()
+      if (url) URL.revokeObjectURL(url)
+    }
+  }, [attempt, path])
+  if (result?.error) return <>
+    <p role="alert" className="error">{t(result.error)}</p>
+    <button className="btn secondary" onClick={() => { setResult(undefined); setAttempt((value) => value + 1) }}>
+      {t('Try again')}
+    </button>
+  </>
+  return result?.url
+    ? <img className="qr" src={result.url} alt={t('Admission QR for {v}', { v: title })}
+        onError={() => setResult({ error: 'Could not load the admission QR.' })} />
+    : <p role="status">{t('Loading…')}</p>
+}
+
 export default function MyTicketsPage() {
-  const { t: tr } = useI18n()
+  const { t } = useI18n()
+  const { user, loading, error } = useAuth()
+  return (
+    <div className="wallet">
+      <h1>{t('My tickets')}</h1>
+      {loading ? <Skeleton label={t('Loading…')} /> :
+        error ? <EmptyPanel icon="ticket"><p role="alert">{error}</p>
+          <button className="btn secondary" onClick={() => window.location.reload()}>{t('Try again')}</button>
+        </EmptyPanel> :
+          user ? <TicketWallet key={user.id} /> :
+            <EmptyPanel icon="ticket"><p><Link to="/login" state={{ from: '/my-tickets' }}>{t('Sign in')}</Link> {t('to see your tickets.')}</p></EmptyPanel>}
+    </div>
+  )
+}
+
+function TicketWallet() {
+  const { t } = useI18n()
   const location = useLocation()
   const justBought = (location.state as { justBought?: boolean } | null)?.justBought
-  const [tickets, setTickets] = useState<MyTicket[] | null>(null)
+  const [wallet, setWallet] = useState<{ tickets: MyTicket[]; asOf: number }>()
+  const tickets = wallet?.tickets
   const [error, setError] = useState('')
-  const signedIn = !!getToken()
+  const [attempt, setAttempt] = useState(0)
 
   useEffect(() => {
-    if (!signedIn) return
-    api<MyTicket[]>('/api/tickets/my-tickets')
-      .then(setTickets)
-      .catch((e) => setError(e.message))
-  }, [signedIn])
+    let pending: AbortController | undefined
+    function reload() {
+      if (pending || document.visibilityState === 'hidden') return
+      const controller = new AbortController()
+      pending = controller
+      api<MyTicket[]>('/api/tickets/my-tickets', { signal: controller.signal })
+        .then((rows) => {
+          if (controller.signal.aborted) return
+          setWallet({ tickets: rows, asOf: Date.now() })
+          setError('')
+        })
+        .catch((e) => { if (!controller.signal.aborted) setError(e.message) })
+        .finally(() => { if (pending === controller) pending = undefined })
+    }
+    reload()
+    window.addEventListener('focus', reload)
+    document.addEventListener('visibilitychange', reload)
+    return () => {
+      pending?.abort()
+      window.removeEventListener('focus', reload)
+      document.removeEventListener('visibilitychange', reload)
+    }
+  }, [attempt])
 
-  if (!signedIn) {
-    return (
-      <p>
-        <Link to="/login" state={{ from: '/my-tickets' }}>{tr('Sign in')}</Link> {tr('to see your tickets.')}
-      </p>
-    )
+  const groups = { upcoming: [] as MyTicket[], past: [] as MyTicket[] }
+  const now = wallet?.asOf ?? 0
+  for (const ticket of tickets ?? []) {
+    groups[admissionStatus(ticket) === 'valid' && !eventEnded(ticket, now) ? 'upcoming' : 'past'].push(ticket)
   }
-  if (error) return <p className="error">{error}</p>
-  if (!tickets) return <p>{tr('Loading…')}</p>
 
   return (
     <>
-      <h1>{tr('My tickets')}</h1>
-      {justBought && <p className="success">{tr('Purchase successful. Your ticket is below.')}</p>}
-      {tickets.length === 0 && <p className="muted">{tr('You have no tickets yet.')}</p>}
-      <div className="grid">
-        {tickets.map((t) => {
-          const title = t.event_title ?? t.event?.title ?? t.title ?? 'Event'
-          const start = t.start_time ?? t.event?.start_time
-          const seat = t.section ? tr('Section {s}, row {r}, seat {n}', { s: t.section, r: t.row_label ?? '', n: t.seat_number ?? '' }) : ''
-          return (
-            <div className="card" key={t.id}>
-              <h3>{title}</h3>
-              {start && <div className="muted">{formatDate(start)}</div>}
-              {t.ticket_type_name && <div className="muted">{t.ticket_type_name}</div>}
-              {seat && <div className="muted">{seat}</div>}
-              <div className="row">
-                <span className="muted">{t.attendee_name}</span>
-                {t.status && (
-                  <span className={`ticket-status ticket-status-${t.status}`}>
-                    {formatStatus(t.status)}
-                  </span>
-                )}
-              </div>
-              {t.status === 'valid' && t.event_status !== 'cancelled' && t.event_status !== 'suspended' ? (
-                <img className="qr" src={`${BASE}/api/tickets/${t.id}/qr.png`} alt={`Admission QR for ${title}`} />
-              ) : <p className="muted">{tr('Admission QR unavailable: {v}.', { v: t.event_status === 'cancelled' || t.event_status === 'suspended' ? tr(`event ${t.event_status}`) : formatStatus(t.status ?? '') })}</p>}
-              <a href={`${BASE}/api/tickets/${t.id}/pdf`} target="_blank" rel="noreferrer">{tr('Download PDF')}</a>
-              {t.event_id && <CalendarButton eventId={t.event_id} cancelled={t.event_status === 'cancelled'} />}
-              <p>
-                <Link to={`/support/new?ticket_id=${encodeURIComponent(t.id)}`}>
-                  {tr('Get help with this ticket')}
-                </Link>
-              </p>
-            </div>
-          )
-        })}
-      </div>
+      {justBought && <p className="success" role="status">{t('Purchase successful. Your ticket is below.')}</p>}
+      {error ? <EmptyPanel icon="ticket"><p role="alert">{error}</p><button className="btn secondary" onClick={() => {
+          setError('')
+          setAttempt((value) => value + 1)
+        }}>{t('Try again')}</button></EmptyPanel> :
+          !tickets ? <Skeleton label={t('Loading…')} /> : !tickets.length ? <EmptyPanel icon="ticket">
+            <p>{t('You have no tickets yet.')}</p><Link className="btn" to="/">{t('Browse events')}</Link>
+          </EmptyPanel> : ([
+            ['upcoming', 'Upcoming tickets'],
+            ['past', 'Past and inactive tickets'],
+          ] as const).map(([group, title]) => groups[group].length > 0 && <section className="wallet-group" key={group}>
+            <h2>{t(title)}</h2>
+            <div className="grid wallet-grid">{groups[group].map((ticket) =>
+              <TicketPreview key={ticket.id} ticket={ticket} pastEvent={eventEnded(ticket, now)} />)}</div>
+          </section>)}
     </>
   )
 }

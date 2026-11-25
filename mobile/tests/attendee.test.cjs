@@ -14,7 +14,13 @@ function load(file, mocks) {
   }).outputText;
   const module = { exports: {} };
   vm.runInNewContext(code, { module, exports: module.exports,
-    require: (name) => Object.hasOwn(mocks, name) ? mocks[name] : require(name) });
+    require: (name) => {
+      if (Object.hasOwn(mocks, name)) return mocks[name];
+      if (name === '../i18n/LocaleContext') return require('./runtime.cjs').localeMock;
+      if (name === '../i18n/messages') return require('./runtime.cjs').messages;
+      if (name === '../components/LanguagePicker') return { LanguagePicker: 'LanguagePicker' };
+      return require(name);
+    } });
   return module.exports;
 }
 
@@ -37,7 +43,13 @@ test('attendee registration validation matches Unicode and bcrypt limits', () =>
 
 test('registration forces attendee role and My Tickets sends the current token and signal', async () => {
   const calls = [];
-  const client = { apiRequest: (path, options) => { calls.push({ path, options }); return Promise.resolve([]); } };
+  const client = {
+    apiRequest: (path, options) => { calls.push({ path, options }); return Promise.resolve([]); },
+    requestBlob: (path, mime, token, signal) => {
+      calls.push({ path, mime, token, signal });
+      return Promise.resolve(new Blob());
+    },
+  };
   const { registerAttendee } = load('src/api/auth.ts', { './client': client });
   await registerAttendee({ full_name: '  Attendee  ', email: ' ATTENDEE@EXAMPLE.COM ', password: ' space123 ', role: 'platform_admin' });
   assert.equal(calls[0].path, '/api/auth/register');
@@ -45,15 +57,15 @@ test('registration forces attendee role and My Tickets sends the current token a
   assert.equal(calls[0].options.body.email, 'attendee@example.com');
   assert.equal(calls[0].options.body.full_name, 'Attendee');
   assert.equal(calls[0].options.body.password, ' space123 ');
-  const { getMyTickets, getTicketQrImageUrl } = load('src/api/tickets.ts', {
-    './client': client, '../config/environment': { environment: { apiBaseUrl: 'https://test.invalid' } },
-  });
+  const { getMyTickets, getTicketQr } = load('src/api/tickets.ts', { './client': client });
   const signal = new AbortController().signal;
   await getMyTickets('current-attendee-token', signal);
   assert.equal(calls[1].path, '/api/tickets/my-tickets');
   assert.equal(calls[1].options.token, 'current-attendee-token');
   assert.equal(calls[1].options.signal, signal);
-  assert.equal(getTicketQrImageUrl('ticket/unsafe?'), 'https://test.invalid/api/tickets/ticket%2Funsafe%3F/qr.png');
+  await getTicketQr('ticket/unsafe?', 'current-attendee-token', signal);
+  assert.deepEqual(calls[2], { path: '/api/tickets/ticket%2Funsafe%3F/qr.png', mime: 'image/png',
+    token: 'current-attendee-token', signal });
 });
 
 test('admission badge and QR visibility cover all ticket and event status combinations', () => {
@@ -71,8 +83,7 @@ test('admission badge and QR visibility cover all ticket and event status combin
   }
   for (const status of ['valid', 'checked_in', 'cancelled', 'refunded']) {
     for (const event_status of ['draft', 'upcoming', 'active', 'completed', 'cancelled', 'suspended']) {
-      const tree = TicketCard({ ticket: { id: 'ticket-id', status, event_status, event_title: 'Event', attendee_name: 'Attendee' },
-        qrImageSource: { uri: 'https://test.invalid/qr.png' } });
+      const tree = TicketCard({ ticket: { id: 'ticket-id', status, event_status, event_title: 'Event', attendee_name: 'Attendee' } });
       const cardNodes = nodes(tree);
       const context = `${status}/${event_status}`;
       const blocked = ['cancelled', 'suspended'].includes(event_status);

@@ -11,11 +11,13 @@ import type { ScannerStackParamList } from "../navigation/types";
 import { sharedStyles, theme } from "../theme";
 import type { AttendeeRegistration } from "../types/auth";
 import { validateRegistration } from "../utils/registration";
+import { useLocale } from "../i18n/LocaleContext";
 
 type Props = NativeStackScreenProps<ScannerStackParamList, "Register">;
 type Form = AttendeeRegistration & { confirmPassword: string };
 
 export function RegisterScreen({ navigation }: Props) {
+  const { t: localize } = useLocale();
   const { signUp } = useSession();
   const [form, setForm] = useState<Form>({
     full_name: "", email: "", password: "", confirmPassword: "",
@@ -75,21 +77,21 @@ export function RegisterScreen({ navigation }: Props) {
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
           <View style={styles.header}>
             <Text style={styles.brand}>BiletFlow</Text>
-            <Text accessibilityRole="header" style={styles.heading}>Create an account</Text>
+            <Text accessibilityRole="header" style={styles.heading}>{localize("Create an account")}</Text>
             <Text style={sharedStyles.muted}>
-              Create an attendee account to browse events and view your tickets.
+              {localize("Create an attendee account to browse events and view your tickets.")}
             </Text>
           </View>
 
           <View style={sharedStyles.card}>
-            <Text style={styles.label}>Full name</Text>
+            <Text style={styles.label}>{localize("Full name")}</Text>
             <TextInput
               ref={nameInput}
-              accessibilityLabel="Full name"
+              accessibilityLabel={localize("Full name")}
               style={styles.input}
               value={form.full_name}
               onChangeText={(value) => update("full_name", value)}
-              placeholder="Your full name"
+              placeholder={localize("Your full name")}
               placeholderTextColor={theme.colors.muted}
               autoCapitalize="words"
               autoComplete="name"
@@ -101,10 +103,10 @@ export function RegisterScreen({ navigation }: Props) {
             />
             <FieldError message={errors.full_name} />
 
-            <Text style={styles.label}>Email</Text>
+            <Text style={styles.label}>{localize("Email")}</Text>
             <TextInput
               ref={emailInput}
-              accessibilityLabel="Email"
+              accessibilityLabel={localize("Email")}
               style={styles.input}
               value={form.email}
               onChangeText={(value) => update("email", value)}
@@ -123,25 +125,25 @@ export function RegisterScreen({ navigation }: Props) {
             <FieldError message={errors.email} />
 
             <View style={styles.passwordHeading}>
-              <Text style={styles.label}>Password</Text>
+              <Text style={styles.label}>{localize("Password")}</Text>
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={showPasswords ? "Hide passwords" : "Show passwords"}
+                accessibilityLabel={showPasswords ? localize("Hide passwords") : localize("Show passwords")}
                 accessibilityState={{ disabled: submitting }}
                 onPress={() => setShowPasswords((shown) => !shown)}
                 disabled={submitting}
                 style={styles.toggle}
               >
-                <Text style={styles.linkText}>{showPasswords ? "Hide" : "Show"}</Text>
+                <Text style={styles.linkText}>{showPasswords ? localize("Hide") : localize("Show")}</Text>
               </Pressable>
             </View>
             <TextInput
               ref={passwordInput}
-              accessibilityLabel="Password"
+              accessibilityLabel={localize("Password")}
               style={styles.input}
               value={form.password}
               onChangeText={(value) => update("password", value)}
-              placeholder="At least 8 characters"
+              placeholder={localize("At least 8 characters")}
               placeholderTextColor={theme.colors.muted}
               secureTextEntry={!showPasswords}
               autoCapitalize="none"
@@ -155,14 +157,14 @@ export function RegisterScreen({ navigation }: Props) {
             />
             <FieldError message={errors.password} />
 
-            <Text style={styles.label}>Confirm password</Text>
+            <Text style={styles.label}>{localize("Confirm password")}</Text>
             <TextInput
               ref={confirmationInput}
-              accessibilityLabel="Confirm password"
+              accessibilityLabel={localize("Confirm password")}
               style={styles.input}
               value={form.confirmPassword}
               onChangeText={(value) => update("confirmPassword", value)}
-              placeholder="Re-enter your password"
+              placeholder={localize("Re-enter your password")}
               placeholderTextColor={theme.colors.muted}
               secureTextEntry={!showPasswords}
               autoCapitalize="none"
@@ -177,12 +179,12 @@ export function RegisterScreen({ navigation }: Props) {
 
             {error && (
               <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={styles.error}>
-                {error}
+                {localize(error)}
               </Text>
             )}
 
             <AppButton
-              title={submitting ? "Creating account…" : "Create account"}
+              title={submitting ? localize("Creating account…") : localize("Create account")}
               onPress={handleSubmit}
               disabled={submitting}
               loading={submitting}
@@ -191,13 +193,13 @@ export function RegisterScreen({ navigation }: Props) {
 
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Already have an account? Sign in"
+            accessibilityLabel={localize("Already have an account? Sign in")}
             accessibilityState={{ disabled: submitting }}
             onPress={() => navigation.goBack()}
             disabled={submitting}
             style={styles.link}
           >
-            <Text style={styles.linkText}>Already have an account? Sign in</Text>
+            <Text style={styles.linkText}>{localize("Already have an account? Sign in")}</Text>
           </Pressable>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -206,9 +208,10 @@ export function RegisterScreen({ navigation }: Props) {
 }
 
 function FieldError({ message }: { message?: string }) {
+  const { t } = useLocale();
   return message ? (
     <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={styles.fieldError}>
-      {message}
+      {t(message)}
     </Text>
   ) : null;
 }

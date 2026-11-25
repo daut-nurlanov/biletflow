@@ -260,13 +260,15 @@ test(
           await setField('action', 'order_refunded')
           await browser.click('Apply filters')
           await browser.wait('End of activity for these filters')
-          assert.ok(
-            requests.some((request) =>
+          await eventually(
+            () => requests.some((request) =>
               request.url.includes(
                 'date_from=2029-04-10&date_to=2029-04-10&action=order_refunded',
               ),
             ),
+            'Filtered history requested',
           )
+          await browser.wait('End of activity for these filters')
           assert.equal(
             await browser.evaluate(
               '[...document.querySelectorAll(".org-history h3")].every(title => title.textContent === "Order refunded")',

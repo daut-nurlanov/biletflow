@@ -61,7 +61,7 @@ def test_campaign_quote_checkout_ticket_support_and_scanner(kit, free):
     repeated = kit.client.post("/api/orders/checkout", headers=headers, json=body)
     assert repeated.json()["order"]["id"] == bought.json()["order"]["id"]
     ticket = bought.json()["tickets"][0]
-    image = kit.client.get(f"/api/tickets/{ticket['id']}/qr.png")
+    image = kit.client.get(f"/api/tickets/{ticket['id']}/qr.png", headers=buyer.h)
     assert image.status_code == 200 and image.content.startswith(b"\x89PNG")
     mine = kit.client.get("/api/tickets/my-tickets", headers=buyer.h).json()
     assert len(mine) == 2 and mine[0]["event_status"] == "upcoming"

@@ -117,13 +117,12 @@ def checkin_stats(event_id: str, user=Depends(require_roles(*STAFF_ROLES))):
 
 @router.post("/api/checkin/manual-search")
 def manual_search(payload: ManualSearchRequest, user=Depends(require_roles(*STAFF_ROLES))):
-    #for when a QR code won't scan: find people by (part of) their name or email
-    #and check them in with the ticket's qr_code_hash through /verify-qr
-    if len(payload.name.strip()) < 2:
-        raise HTTPException(status_code=400, detail="Type at least 2 letters")
+    query = payload.name.strip()
+    if len(query) < 2:
+        raise HTTPException(status_code=400, detail="Type at least 2 characters")
     with tx() as cur:
         assert_event_staff(cur, user, payload.event_id)
-        pattern = "%" + payload.name.strip() + "%"
+        pattern = f"%{query}%"
         cur.execute(
             """SELECT tickets.id, tickets.attendee_name, tickets.status, tickets.qr_code_hash,
                       ticket_types.name AS ticket_type_name, seats.section, seats.row_label, seats.seat_number
@@ -132,7 +131,10 @@ def manual_search(payload: ManualSearchRequest, user=Depends(require_roles(*STAF
                JOIN orders ON tickets.order_id = orders.id
                JOIN users ON orders.attendee_id = users.id
                LEFT JOIN seats ON tickets.seat_id = seats.id
-               WHERE tickets.event_id = %s AND (tickets.attendee_name ILIKE %s OR users.email ILIKE %s)
+               WHERE tickets.event_id = %s AND (
+                   tickets.attendee_name ILIKE %s OR users.email ILIKE %s
+                   OR tickets.id::text = %s OR right(tickets.id::text, 8) = %s
+               )
                ORDER BY tickets.attendee_name""",
-            (payload.event_id, pattern, pattern))
+            (payload.event_id, pattern, pattern, query.lower(), query.lower()))
         return cur.fetchall()

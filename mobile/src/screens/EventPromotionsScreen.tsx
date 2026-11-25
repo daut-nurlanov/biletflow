@@ -11,6 +11,7 @@ import { EmptyState } from "../components/EmptyState";
 import { ErrorState } from "../components/ErrorState";
 import { FilterChips } from "../components/FilterChips";
 import { LoadingState } from "../components/LoadingState";
+import { OrganizerTimeField } from "../components/OrganizerForm";
 import { Screen } from "../components/Screen";
 import { useApiResource } from "../hooks/useApiResource";
 import type { OrganizerStackParamList } from "../navigation/types";
@@ -19,6 +20,8 @@ import { formStyles } from "../theme/forms";
 import type { DiscountType, PromoCampaign } from "../types/organizer";
 import { formatDateTime } from "../utils/formatting";
 import { campaignInput, discountLabel, organizerMessage, usageLabel } from "../utils/organizerOrders";
+import { eventTime } from "../utils/organizerSetup";
+import { useLocale } from "../i18n/LocaleContext";
 
 type Props = NativeStackScreenProps<OrganizerStackParamList, "EventPromotions">;
 
@@ -28,6 +31,7 @@ const TYPE_OPTIONS = [
 ] as const;
 
 export function EventPromotionsScreen({ route }: Props) {
+  const { lang, t: localize } = useLocale();
   const { eventId, eventTitle } = route.params;
   const { authed, state } = useSession();
   const token = state.status === "signedIn" ? state.token : null;
@@ -42,7 +46,9 @@ export function EventPromotionsScreen({ route }: Props) {
     [authed, eventId],
   );
   const ticketTypes = useApiResource(loadTypes);
-  const [ticketTypeId, setTicketTypeId] = useState("all");
+  const [restrictedTypes, setRestrictedTypes] = useState<string[]>([]);
+  const [validFrom, setValidFrom] = useState("");
+  const [validUntil, setValidUntil] = useState("");
 
   const [code, setCode] = useState("");
   const [discountType, setDiscountType] = useState<DiscountType>("percentage");
@@ -72,15 +78,33 @@ export function EventPromotionsScreen({ route }: Props) {
   }
 
   function create() {
-    const checked = campaignInput({ code, discountType, discountValue, maxRedemptions, ticketTypeId });
+    const checked = campaignInput({ code, discountType, discountValue, maxRedemptions });
     if ("error" in checked) {
       Keyboard.dismiss();
       setNotice({ text: checked.error, error: true });
       return;
     }
+    let from: string | undefined;
+    let until: string | undefined;
+    try {
+      from = eventTime(validFrom, localize("Valid from (optional)"));
+      until = eventTime(validUntil, localize("Valid until (optional)"));
+      if (from && until && Date.parse(until) <= Date.parse(from)) {
+        throw new Error(localize("The campaign end must be after its start."));
+      }
+    } catch (error) {
+      setNotice({ text: organizerMessage(error), error: true });
+      return;
+    }
     void change("new", async (t) => {
-      const made = await createPromoCampaign(t, eventId, checked.input);
+      const made = await createPromoCampaign(t, eventId, {
+        ...checked.input, valid_from: from, valid_until: until,
+        ticket_type_ids: restrictedTypes.length ? restrictedTypes : undefined,
+      });
       setCode("");
+      setValidFrom("");
+      setValidUntil("");
+      setRestrictedTypes([]);
       setShownQr(made.id);
       return `Campaign ${made.code} created. Its QR is shown below.`;
     });
@@ -110,73 +134,88 @@ export function EventPromotionsScreen({ route }: Props) {
             <View style={styles.header}>
               <Text accessibilityRole="header" style={sharedStyles.title}>{eventTitle}</Text>
               <Text style={sharedStyles.muted}>
-                A campaign gives buyers a discount through a code or a QR link. The server always calculates the price, so a link can&apos;t change it.
+                {localize("A campaign gives buyers a discount through a code or a QR link.")} {localize("The server calculates the discount at checkout.")}
               </Text>
 
               <View style={[sharedStyles.card, styles.form]}>
-                <Text accessibilityRole="header" style={sharedStyles.title}>New campaign</Text>
-                <Text style={sharedStyles.body} nativeID="promoCodeLabel">Code (leave empty to generate one)</Text>
+                <Text accessibilityRole="header" style={sharedStyles.title}>{localize("New campaign")}</Text>
+                <Text style={sharedStyles.body} nativeID="promoCodeLabel">{localize("Code (leave empty to generate one)")}</Text>
                 <TextInput accessibilityLabelledBy="promoCodeLabel" style={formStyles.input} value={code} onChangeText={setCode}
-                  autoCapitalize="characters" autoCorrect={false} maxLength={40} editable={!busy} placeholder="For example: DEMO20"
+                  autoCapitalize="characters" autoCorrect={false} maxLength={40} editable={!busy}
                   placeholderTextColor={theme.colors.muted} />
-                <FilterChips label="Discount type" options={TYPE_OPTIONS} value={discountType}
+                <FilterChips label={localize("Discount type")} options={TYPE_OPTIONS} value={discountType}
                   onChange={(value) => setDiscountType(value as DiscountType)} />
                 <View style={styles.pair}>
                   <View style={styles.flex}>
-                    <Text style={sharedStyles.body} nativeID="promoValueLabel">{discountType === "percentage" ? "Discount (%)" : "Discount (KZT)"}</Text>
+                    <Text style={sharedStyles.body} nativeID="promoValueLabel">{discountType === "percentage" ? localize("Discount (%)") : localize("Discount (KZT)")}</Text>
                     <TextInput accessibilityLabelledBy="promoValueLabel" style={formStyles.input} value={discountValue}
                       onChangeText={setDiscountValue} keyboardType="decimal-pad" editable={!busy} />
                   </View>
                   <View style={styles.flex}>
-                    <Text style={sharedStyles.body} nativeID="promoMaxLabel">Max uses</Text>
+                    <Text style={sharedStyles.body} nativeID="promoMaxLabel">{localize("Max uses")}</Text>
                     <TextInput accessibilityLabelledBy="promoMaxLabel" style={formStyles.input} value={maxRedemptions}
                       onChangeText={setMaxRedemptions} keyboardType="number-pad" editable={!busy} />
                   </View>
                 </View>
-                {(ticketTypes.data ?? []).length > 1 ? (
-                  <FilterChips
-                    label="Applies to"
-                    options={[{ value: "all", label: "All tickets" }, ...(ticketTypes.data ?? []).map((t) => ({ value: t.id, label: t.name }))]}
-                    value={ticketTypeId}
-                    onChange={setTicketTypeId}
-                  />
-                ) : null}
-                <AppButton title={busyId === "new" ? "Creating…" : "Create campaign"} onPress={create} disabled={busy} loading={busyId === "new"} />
-                <Text style={sharedStyles.muted}>Start and end dates can be set on the website.</Text>
+                <OrganizerTimeField label="Valid from (optional)" value={validFrom} onChangeText={setValidFrom} editable={!busy} />
+                <OrganizerTimeField label="Valid until (optional)" value={validUntil} onChangeText={setValidUntil} editable={!busy} />
+                <Text style={sharedStyles.muted}>{localize("Use Almaty time (UTC+5).")}</Text>
+                {ticketTypes.error ? <ErrorState message={ticketTypes.error} onRetry={ticketTypes.retry} /> : null}
+                {!!ticketTypes.data?.length && (
+                  <View style={styles.form}>
+                    <Text style={sharedStyles.body}>{localize("Applies to (leave all unchecked for every ticket type)")}</Text>
+                    <View style={formStyles.row}>
+                      {ticketTypes.data.map((type) => {
+                        const checked = restrictedTypes.includes(type.id);
+                        return (
+                          <Pressable key={type.id} accessibilityRole="checkbox" accessibilityLabel={type.name}
+                            accessibilityState={{ checked, disabled: busy }} disabled={busy}
+                            style={[formStyles.choice, checked && formStyles.selected]}
+                            onPress={() => setRestrictedTypes((previous) => checked
+                              ? previous.filter((id) => id !== type.id) : [...previous, type.id])}>
+                            <Text style={sharedStyles.body}>{type.name}</Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                  </View>
+                )}
+                <AppButton title={localize(busyId === "new" ? "Creating…" : "Create campaign")} onPress={create}
+                  disabled={busy || ticketTypes.loading || !!ticketTypes.error} loading={busyId === "new"} />
               </View>
 
               {notice ? (
                 <Text accessibilityRole="alert" style={notice.error ? formStyles.error : sharedStyles.body}>{notice.text}</Text>
               ) : null}
-              <Text accessibilityRole="header" style={sharedStyles.title}>Campaigns</Text>
+              <Text accessibilityRole="header" style={sharedStyles.title}>{localize("Campaigns")}</Text>
             </View>
           }
           ListEmptyComponent={
-            resource.loading ? <LoadingState message="Loading campaigns…" />
-              : resource.error ? <ErrorState title="Couldn't load campaigns" message={resource.error} onRetry={resource.retry} />
-                : <EmptyState title="No campaigns yet" message="Create one above to get a code and a QR to share." />
+            resource.loading ? <LoadingState message={localize("Loading campaigns…")} />
+              : resource.error ? <ErrorState title={localize("Couldn't load campaigns")} message={resource.error} onRetry={resource.retry} />
+                : <EmptyState title={localize("No campaigns yet")} message={localize("Create one above to get a code and a QR to share.")} />
           }
           renderItem={({ item }) => (
             <View style={sharedStyles.card}>
               <View style={styles.rowTop}>
                 <Text style={[sharedStyles.title, styles.flex]} selectable>{item.code}</Text>
-                <Text style={[styles.state, item.is_active ? styles.on : styles.off]}>{item.is_active ? "Active" : "Disabled"}</Text>
+                <Text style={[styles.state, item.is_active ? styles.on : styles.off]}>{item.is_active ? localize("Active") : localize("Disabled")}</Text>
               </View>
               <Text style={sharedStyles.body}>{discountLabel(item)}</Text>
               <Text style={sharedStyles.muted}>{usageLabel(item)}</Text>
               <Text style={sharedStyles.muted}>
                 {item.ticket_type_ids && item.ticket_type_ids.length > 0
                   ? `Only: ${item.ticket_type_ids.map((id) => (ticketTypes.data ?? []).find((t) => t.id === id)?.name ?? "one ticket type").join(", ")}`
-                  : "All ticket types"}
+                  : localize("All ticket types")}
               </Text>
-              {item.valid_until ? <Text style={sharedStyles.muted}>{`Ends ${formatDateTime(item.valid_until)}`}</Text> : null}
+              {item.valid_until ? <Text style={sharedStyles.muted}>{`Ends ${formatDateTime(item.valid_until, lang)}`}</Text> : null}
               <View style={styles.buttons}>
                 <SecondaryButton
-                  title={shownQr === item.id ? "Hide QR" : "Show QR"}
+                  title={shownQr === item.id ? localize("Hide QR") : localize("Show QR")}
                   onPress={() => setShownQr(shownQr === item.id ? null : item.id)}
                 />
                 <SecondaryButton
-                  title={item.is_active ? "Disable" : "Enable"}
+                  title={item.is_active ? localize("Disable") : localize("Enable")}
                   onPress={() => toggle(item)}
                   disabled={busy}
                   loading={busyId === item.id}
@@ -187,10 +226,10 @@ export function EventPromotionsScreen({ route }: Props) {
                   <CampaignQr token={token} campaign={item} />
                   <Text style={sharedStyles.muted} selectable>{item.campaign_link}</Text>
                   <SecondaryButton
-                    title="Share link"
+                    title={localize("Share link")}
                     onPress={() => { void Share.share({ message: `${item.code}: ${item.campaign_link}` }); }}
                   />
-                  {!item.is_active ? <Text style={sharedStyles.muted}>This campaign is disabled, so its QR won&apos;t give a discount.</Text> : null}
+                  {!item.is_active ? <Text style={sharedStyles.muted}>{localize("This campaign is disabled, so its QR will not give a discount.")}</Text> : null}
                 </View>
               ) : null}
             </View>
@@ -221,6 +260,7 @@ function SecondaryButton({ title, onPress, disabled = false, loading = false }: 
 
 /** The blue campaign QR, loaded with the organizer's token. */
 function CampaignQr({ token, campaign }: { token: string; campaign: PromoCampaign }) {
+  const { t: localize } = useLocale();
   const [attempt, setAttempt] = useState(0);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   const source = promoQrImageSource(token, campaign.id);
@@ -228,8 +268,8 @@ function CampaignQr({ token, campaign }: { token: string; campaign: PromoCampaig
   if (state === "error") {
     return (
       <View style={styles.qrError}>
-        <Text style={sharedStyles.body}>The QR couldn&apos;t be loaded.</Text>
-        <SecondaryButton title="Try again" onPress={() => { setState("loading"); setAttempt((n) => n + 1); }} />
+        <Text style={sharedStyles.body}>{localize("QR could not be loaded.")}</Text>
+        <SecondaryButton title={localize("Try again")} onPress={() => { setState("loading"); setAttempt((n) => n + 1); }} />
       </View>
     );
   }

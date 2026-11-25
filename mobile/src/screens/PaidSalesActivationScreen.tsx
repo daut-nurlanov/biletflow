@@ -15,10 +15,12 @@ import { formStyles } from "../theme/forms";
 import { formatMoney } from "../utils/formatting";
 import { organizerMessage } from "../utils/organizerOrders";
 import { activationState, isProfileStep } from "../utils/organizerProfile";
+import { useLocale } from "../i18n/LocaleContext";
 
 type Props = NativeStackScreenProps<OrganizerStackParamList, "PaidSalesActivation">;
 
 export function PaidSalesActivationScreen({ route, navigation }: Props) {
+  const { lang, t: localize } = useLocale();
   const { eventId, eventTitle } = route.params;
   const { authed } = useSession();
   const load = useCallback(
@@ -34,13 +36,13 @@ export function PaidSalesActivationScreen({ route, navigation }: Props) {
   const locked = useRef(false);
 
   const checklist = resource.data;
-  if (!checklist && resource.loading) return <Screen><LoadingState message="Loading the checklist…" /></Screen>;
+  if (!checklist && resource.loading) return <Screen><LoadingState message={localize("Loading the checklist…")} /></Screen>;
   if (!checklist || resource.error) {
-    return <Screen><ErrorState title="Couldn't load the checklist" message={resource.error ?? "Try again."} onRetry={resource.retry} /></Screen>;
+    return <Screen><ErrorState title={localize("Couldn't load the checklist")} message={resource.error ?? "Try again."} onRetry={resource.retry} /></Screen>;
   }
 
   const state = activationState(checklist);
-  const fee = formatMoney(checklist.activation_fee);
+  const fee = formatMoney(checklist.activation_fee, lang);
   const profileIncomplete = checklist.items.some((item) => isProfileStep(item.key) && !item.done);
 
   async function activate() {
@@ -66,11 +68,11 @@ export function PaidSalesActivationScreen({ route, navigation }: Props) {
 
   function confirm() {
     Alert.alert(
-      "Activate paid sales?",
+      localize("Activate paid sales?"),
       `The activation fee of ${fee} is simulated: no real money moves. Paid sales turn on for ${eventTitle}.`,
       [
-        { text: "Back", style: "cancel" },
-        { text: "Pay and activate", onPress: () => { void activate(); } },
+        { text: localize("Back"), style: "cancel" },
+        { text: localize("Pay and activate"), onPress: () => { void activate(); } },
       ],
     );
   }
@@ -85,13 +87,13 @@ export function PaidSalesActivationScreen({ route, navigation }: Props) {
 
         {state.kind === "active" ? (
           <View style={sharedStyles.card}>
-            <Text style={sharedStyles.title}>Paid sales are active</Text>
-            <Text style={sharedStyles.body}>Paid tickets can be sold once the event is published and on sale.</Text>
+            <Text style={sharedStyles.title}>{localize("Paid sales are active")}</Text>
+            <Text style={sharedStyles.body}>{localize("Paid tickets can be sold once the event is published and on sale.")}</Text>
           </View>
         ) : state.kind === "suspended" ? (
           <View style={sharedStyles.card}>
-            <Text style={sharedStyles.title}>Paid sales suspended</Text>
-            <Text style={sharedStyles.body}>BiletFlow suspended paid sales for this event. Contact support through the Support tab.</Text>
+            <Text style={sharedStyles.title}>{localize("Paid sales suspended")}</Text>
+            <Text style={sharedStyles.body}>{localize("BiletFlow suspended paid sales for this event. Contact support through the Support tab.")}</Text>
           </View>
         ) : (
           <>
@@ -111,7 +113,7 @@ export function PaidSalesActivationScreen({ route, navigation }: Props) {
               <Text style={sharedStyles.muted}>This event has no paid ticket types yet. Free tickets don&apos;t need activation.</Text>
             ) : null}
             {profileIncomplete ? (
-              <AppButton title="Open organizer profile" onPress={() => navigation.navigate("OrganizerProfile")} />
+              <AppButton title={localize("Open organizer profile")} onPress={() => navigation.navigate("OrganizerProfile")} />
             ) : null}
             {state.kind === "blocked" ? (
               <Text style={sharedStyles.muted}>{`Still needed: ${state.missing.join("; ")}.`}</Text>
@@ -129,9 +131,9 @@ export function PaidSalesActivationScreen({ route, navigation }: Props) {
                   <View style={[styles.box, terms && styles.boxOn]}>
                     {terms ? <Text style={styles.tick}>✓</Text> : null}
                   </View>
-                  <Text style={[sharedStyles.body, styles.flex]}>I accept the paid-event terms</Text>
+                  <Text style={[sharedStyles.body, styles.flex]}>{localize("I accept the paid-event terms")}</Text>
                 </Pressable>
-                <AppButton title={busy ? "Activating…" : "Pay activation fee and activate"} onPress={confirm}
+                <AppButton title={busy ? localize("Activating…") : localize("Pay activation fee and activate")} onPress={confirm}
                   disabled={!terms || resource.loading || resource.refreshing} loading={busy} />
               </>
             ) : null}

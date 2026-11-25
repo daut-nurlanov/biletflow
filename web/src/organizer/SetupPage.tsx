@@ -6,6 +6,7 @@ import { money } from './format'
 import { useManagedEvent } from './Layout'
 import { toApiTime, toLocalInput, type TicketType } from './setup'
 import { Notice, ResourceState, Table } from './ui'
+import { useI18n } from "../i18n"
 
 interface Checklist {
   activation_fee: string | number
@@ -45,6 +46,7 @@ function TicketTypeForm({
   editing?: TicketType
   onDone: () => void
 }) {
+  const { t: localize } = useI18n()
   const [form, setForm] = useState<TypeForm>(
     editing
       ? {
@@ -97,50 +99,50 @@ function TicketTypeForm({
 
   return (
     <form className="org-panel org-form" onSubmit={submit}>
-      <h3>{editing ? `Edit ${editing.name}` : 'Add a ticket type'}</h3>
+      <h3>{editing ? `Edit ${editing.name}` : localize("Add a ticket type")}</h3>
       {error && <Notice error>{error}</Notice>}
       <div className="org-form-row">
         <label className="org-field">
-          Name
+          {localize("Name")}
           <input required maxLength={100} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
         </label>
         <label className="org-field">
-          Price (KZT, 0 = free)
+          {localize("Price (KZT, 0 = free)")}
           <input required type="number" min={0} step="any" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} />
         </label>
         <label className="org-field">
-          Tickets available
+          {localize("Tickets available")}
           <input required type="number" min={1} value={form.total_quantity} onChange={(e) => setForm({ ...form, total_quantity: e.target.value })} />
         </label>
         <label className="org-field">
-          Max per order
+          {localize("Max per order")}
           <input required type="number" min={1} value={form.max_per_order} onChange={(e) => setForm({ ...form, max_per_order: e.target.value })} />
         </label>
       </div>
       <label className="org-field">
-        Description
+        {localize("Description")}
         <input maxLength={500} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
       </label>
       <div className="org-form-row">
         <label className="org-field">
-          Sales start (optional)
+          {localize("Sales start (optional)")}
           <input type="datetime-local" value={form.sales_start} onChange={(e) => setForm({ ...form, sales_start: e.target.value })} />
         </label>
         <label className="org-field">
-          Sales end (optional)
+          {localize("Sales end (optional)")}
           <input type="datetime-local" value={form.sales_end} onChange={(e) => setForm({ ...form, sales_end: e.target.value })} />
         </label>
       </div>
       <label className="org-check">
         <input type="checkbox" checked={form.is_hidden} onChange={(e) => setForm({ ...form, is_hidden: e.target.checked })} />
-        Hide from buyers (for example a staff or guest list type)
+        {localize("Hide from buyers (for example a staff or guest list type)")}
       </label>
       <div className="org-actions">
         <button className="btn" disabled={busy}>
-          {busy ? 'Saving…' : 'Save ticket type'}
+          {busy ? localize("Saving…") : localize("Save ticket type")}
         </button>
         <button type="button" className="btn secondary" onClick={onDone}>
-          Cancel
+          {localize("Cancel")}
         </button>
       </div>
     </form>
@@ -148,6 +150,7 @@ function TicketTypeForm({
 }
 
 export default function SetupPage() {
+  const { t: localize } = useI18n()
   const event = useManagedEvent()
   const types = useResource<TicketType[]>(`/api/events/${event.id}/ticket-types`)
   const checklist = useResource<Checklist>(
@@ -189,7 +192,7 @@ export default function SetupPage() {
     <>
       {message && <Notice error={message.error}>{message.text}</Notice>}
 
-      <h2>Event status</h2>
+      <h2>{localize("Event status")}</h2>
       <div className="org-panel">
         <p>
           This event is <strong>{event.phase}</strong>.
@@ -198,70 +201,69 @@ export default function SetupPage() {
         <div className="org-actions">
           {editable && (
             <Link className="btn secondary" to={`/organizer/events/${event.id}/edit`}>
-              Edit details
+              {localize("Edit details")}
             </Link>
           )}
           <a className="btn secondary" href={`/events/${event.id}`} target="_blank" rel="noreferrer">
-            Preview public page
+            {localize("Preview public page")}
           </a>
           {draft && (
             <button className="btn" disabled={busy} onClick={() => run('Event published. Buyers can now see it.', `/api/events/${event.id}/publish`)}>
-              Publish event
+              {localize("Publish event")}
             </button>
           )}
           {live && (
             <button className="btn secondary" disabled={busy} onClick={() => run('Event moved back to draft.', `/api/events/${event.id}/unpublish`)}>
-              Unpublish (only if nothing is sold)
+              {localize("Unpublish (only if nothing is sold)")}
             </button>
           )}
           <button className="btn secondary" disabled={busy} onClick={() => run('A copy was created as a draft. Find it in My events.', `/api/events/${event.id}/duplicate`)}>
-            Duplicate as draft
+            {localize("Duplicate as draft")}
           </button>
           {editable && !confirmCancel && (
             <button className="btn org-danger" onClick={() => setConfirmCancel(true)}>
-              Cancel event
+              {localize("Cancel event")}
             </button>
           )}
         </div>
         {confirmCancel && (
-          <div className="org-confirm" role="alertdialog" aria-label="Confirm cancel">
+          <div className="org-confirm" role="alertdialog" aria-label={localize("Confirm cancel")}>
             <p>
-              Cancelling stops all ticket sales and every ticket stops working at
-              the door. Ticket holders are notified. This cannot be undone.
+              {localize("Cancelling stops all ticket sales and every ticket stops working at the door. Ticket holders are notified. This cannot be undone.")}
             </p>
             <button className="btn org-danger" disabled={busy} onClick={() => run('Event cancelled. Ticket holders were notified. Refund orders from the Orders tab.', `/api/events/${event.id}/cancel`)}>
-              Yes, cancel this event
+              {localize("Yes, cancel this event")}
             </button>{' '}
             <button className="btn secondary" onClick={() => setConfirmCancel(false)}>
-              Keep event
+              {localize("Keep event")}
             </button>
           </div>
         )}
       </div>
 
-      <h2>Ticket types</h2>
+      <h2>{localize("Ticket types")}</h2>
       <ResourceState {...types} retry={types.refresh} />
       {types.data?.length === 0 && (
-        <Notice>No ticket types yet. Add one so the event can be published.</Notice>
+        <Notice>{localize("No ticket types yet. Add one so the event can be published.")}</Notice>
       )}
       {types.data && types.data.length > 0 && (
-        <Table caption="Ticket types" headings={['Name', 'Price', 'Sold', 'Per order', 'Visible', '']}>
+        <Table caption={localize("Ticket types")} headings={['Name', 'Price', 'Sold', 'Per order', 'Visible', '']}>
           {types.data.map((t) => (
             <tr key={t.id}>
               <td>{t.name}</td>
-              <td>{Number(t.price) > 0 ? money(t.price) : 'Free'}</td>
+              <td>{Number(t.price) > 0 ? money(t.price) : localize("Free")}</td>
               <td>
                 {t.total_quantity - t.quantity_available} / {t.total_quantity}
               </td>
               <td>{t.max_per_order}</td>
-              <td>{t.is_hidden ? 'Hidden' : 'Yes'}</td>
+              <td>{t.is_hidden ? localize("Hidden") : localize("Yes")}</td>
               <td>
                 {editable && (
                   <button className="btn secondary" onClick={() => {
                       setMessage(null)
                       setEditing(t)
                     }}>
-                    Edit
+                    {localize("Edit")}
                   </button>
                 )}
               </td>
@@ -275,7 +277,7 @@ export default function SetupPage() {
               setMessage(null)
               setEditing('new')
             }}>
-            Add ticket type
+            {localize("Add ticket type")}
           </button>
         </p>
       )}
@@ -293,12 +295,11 @@ export default function SetupPage() {
 
       {hasPaid && checklist.data && (
         <>
-          <h2>Paid ticket sales</h2>
+          <h2>{localize("Paid ticket sales")}</h2>
           <div className="org-panel">
             {checklist.data.paid_sales_active ? (
               <p>
-                <strong>Paid sales are active.</strong> Buyers can pay for paid
-                ticket types.
+                <strong>{localize("Paid sales are active.")}</strong> {localize("Buyers can pay for paid ticket types.")}
               </p>
             ) : (
               <>
@@ -316,19 +317,19 @@ export default function SetupPage() {
                 </ul>
                 <p className="muted">
                   Identity and payout details are on your{' '}
-                  <Link to="/organizer/profile">organizer profile</Link>.
+                  <Link to="/organizer/profile">{localize("organizer profile")}</Link>.
                 </p>
                 {checklist.data.suspended_by_admin ? (
-                  <Notice error>Paid sales were suspended by BiletFlow.</Notice>
+                  <Notice error>{localize("Paid sales were suspended by BiletFlow.")}</Notice>
                 ) : (
                   <>
                     <label className="org-check">
                       <input type="checkbox" checked={terms} onChange={(e) => setTerms(e.target.checked)} />
-                      I accept the paid-event terms
+                      {localize("I accept the paid-event terms")}
                     </label>
                     <p>
                       <button className="btn" disabled={busy || !terms} onClick={() => run('Paid sales activated.', `/api/events/${event.id}/activate-paid`, { accept_terms: terms })}>
-                        Pay activation fee and activate
+                        {localize("Pay activation fee and activate")}
                       </button>
                     </p>
                   </>

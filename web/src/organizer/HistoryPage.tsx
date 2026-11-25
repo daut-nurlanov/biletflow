@@ -6,6 +6,7 @@ import { query, useResource } from './data'
 import { actionLabel, historyActions, historyMoment } from './history'
 import type { HistoryEntry } from './types'
 import { Notice, ResourceState } from './ui'
+import { useI18n } from "../i18n"
 
 const PAGE_SIZE = 50
 
@@ -41,6 +42,7 @@ function HistoryView({
   action: string
   apply: (params: URLSearchParams) => void
 }) {
+  const { t: localize } = useI18n()
   const [before, setBefore] = useState<string | null>(null)
   const [olderPages, setOlderPages] = useState<HistoryEntry[]>([])
   const invalid = dateRangeError(from, to)
@@ -79,10 +81,9 @@ function HistoryView({
     <>
       <div className="org-heading">
         <div>
-          <h2>History</h2>
+          <h2>{localize("History")}</h2>
           <p className="muted">
-            Read-only activity for this event, newest first. Times use Almaty
-            time.
+            {localize("Read-only activity for this event, newest first. Times use Almaty time.")}
           </p>
         </div>
         <button
@@ -90,7 +91,7 @@ function HistoryView({
           disabled={Boolean(invalid)}
           onClick={refresh}
         >
-          Refresh history
+          {localize("Refresh history")}
         </button>
       </div>
       <HistoryFilters
@@ -104,10 +105,10 @@ function HistoryView({
       {entries.length > 0 && (
         <>
           <p className="muted" role="status">
-            {entries.length} activity records loaded.{' '}
+            {localize('{count} activity records loaded.', { count: entries.length })}{' '}
             {hasMore && 'Older records are available below.'}
           </p>
-          <ol className="org-history" aria-label="Event activity history">
+          <ol className="org-history" aria-label={localize("Event activity history")}>
             {entries.map((entry) => (
               <li key={entry.id} className="org-panel org-history-entry">
                 <div className="org-heading">
@@ -123,25 +124,25 @@ function HistoryView({
                   {entry.details || 'No additional description recorded.'}
                 </p>
                 <p className="muted">
-                  Affected record:{' '}
+                  {localize("Affected record:")}{' '}
                   <AffectedRecord entry={entry} eventId={eventId} />
                 </p>
                 <details className="org-history-record">
-                  <summary>Record identifiers</summary>
+                  <summary>{localize("Record identifiers")}</summary>
                   <dl>
                     <div>
-                      <dt>Activity</dt>
+                      <dt>{localize("Activity")}</dt>
                       <dd className="org-id">{entry.id}</dd>
                     </div>
                     {entry.actor_id && (
                       <div>
-                        <dt>Actor</dt>
+                        <dt>{localize("Actor")}</dt>
                         <dd className="org-id">{entry.actor_id}</dd>
                       </div>
                     )}
                     {entry.entity_id && (
                       <div>
-                        <dt>Entity</dt>
+                        <dt>{localize("Entity")}</dt>
                         <dd className="org-id">{entry.entity_id}</dd>
                       </div>
                     )}
@@ -154,21 +155,20 @@ function HistoryView({
       )}
       <ResourceState {...resource} retry={resource.refresh} />
       {resource.data && entries.length === 0 && (
-        <Notice>No activity matches these filters.</Notice>
+        <Notice>{localize("No activity matches these filters.")}</Notice>
       )}
       {hasMore && (
         <button className="btn" disabled={resource.loading} onClick={loadOlder}>
-          Load older activity
+          {localize("Load older activity")}
         </button>
       )}
       {resource.data && entries.length > 0 && !hasMore && (
         <p className="muted">
-          End of activity for these filters. Refresh to check for new records.
+          {localize("End of activity for these filters. Refresh to check for new records.")}
         </p>
       )}
       <p className="muted">
-        Changing filters or refreshing restarts the list. History records cannot
-        be edited or deleted here.
+        {localize("Changing filters or refreshing restarts the list. History records cannot be edited or deleted here.")}
       </p>
     </>
   )
@@ -181,6 +181,7 @@ function AffectedRecord({
   entry: HistoryEntry
   eventId: string
 }) {
+  const { t: localize } = useI18n()
   const label = entry.entity_type?.replaceAll('_', ' ') || 'Not specified'
   if (!entry.entity_id) return <span>{label}</span>
   if (entry.entity_type === 'order')
@@ -188,19 +189,19 @@ function AffectedRecord({
       <Link
         to={`/organizer/events/${eventId}/orders/${encodeURIComponent(entry.entity_id)}`}
       >
-        Order details
+        {localize("Order details")}
       </Link>
     )
   if (entry.entity_type === 'support_case')
     return (
       <Link to={`/support/${encodeURIComponent(entry.entity_id)}`}>
-        Support case
+        {localize("Support case")}
       </Link>
     )
   if (entry.entity_type === 'event' && entry.entity_id === eventId)
-    return <Link to={`/organizer/events/${eventId}`}>Event overview</Link>
+    return <Link to={`/organizer/events/${eventId}`}>{localize("Event overview")}</Link>
   if (entry.action === 'staff_assigned' || entry.action === 'staff_revoked')
-    return <Link to={`/organizer/events/${eventId}/staff`}>Event staff</Link>
+    return <Link to={`/organizer/events/${eventId}/staff`}>{localize("Event staff")}</Link>
   return <span>{label}</span>
 }
 
@@ -217,6 +218,7 @@ function HistoryFilters({
   actions: string[]
   apply: (params: URLSearchParams) => void
 }) {
+  const { t: localize } = useI18n()
   const [values, setValues] = useState({ from, to, action })
   const [error, setError] = useState('')
   function submit(event: FormEvent<HTMLFormElement>) {
@@ -234,7 +236,7 @@ function HistoryFilters({
     <>
       <form className="org-filters" onSubmit={submit}>
         <label className="org-field">
-          Activity date from
+          {localize("Activity date from")}
           <input
             type="date"
             name="date_from"
@@ -246,7 +248,7 @@ function HistoryFilters({
           />
         </label>
         <label className="org-field">
-          Activity date to
+          {localize("Activity date to")}
           <input
             type="date"
             name="date_to"
@@ -258,7 +260,7 @@ function HistoryFilters({
           />
         </label>
         <label className="org-field">
-          Activity type
+          {localize("Activity type")}
           <select
             name="action"
             value={values.action}
@@ -266,7 +268,7 @@ function HistoryFilters({
               setValues({ ...values, action: event.target.value })
             }
           >
-            <option value="">All activity</option>
+            <option value="">{localize("All activity")}</option>
             {[...actions]
               .sort((a, b) => actionLabel(a).localeCompare(actionLabel(b)))
               .map((value) => (
@@ -277,14 +279,14 @@ function HistoryFilters({
           </select>
         </label>
         <button className="btn" type="submit">
-          Apply filters
+          {localize("Apply filters")}
         </button>
         <button
           className="btn secondary"
           type="button"
           onClick={() => apply(new URLSearchParams())}
         >
-          Reset filters
+          {localize("Reset filters")}
         </button>
       </form>
       {error && <Notice error>{error}</Notice>}

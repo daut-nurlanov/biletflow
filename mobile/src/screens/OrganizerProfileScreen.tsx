@@ -12,8 +12,10 @@ import { sharedStyles, theme } from "../theme";
 import { formStyles } from "../theme/forms";
 import { organizerMessage } from "../utils/organizerOrders";
 import { canVerify, PAYOUT_MAX, PHONE_MAX, profileInput } from "../utils/organizerProfile";
+import { useLocale } from "../i18n/LocaleContext";
 
 export function OrganizerProfileScreen() {
+  const { t: localize } = useLocale();
   const { authed } = useSession();
   const load = useCallback(
     (signal: AbortSignal) => authed((token) => getOrganizerProfile(token, signal))
@@ -38,9 +40,9 @@ export function OrganizerProfileScreen() {
     setPayout(profile.payout_account_details ?? "");
   }, [profile]);
 
-  if (!profile && resource.loading) return <Screen><LoadingState message="Loading your profile…" /></Screen>;
+  if (!profile && resource.loading) return <Screen><LoadingState message={localize("Loading your profile…")} /></Screen>;
   if (!profile) {
-    return <Screen><ErrorState title="Couldn't load your profile" message={resource.error ?? "Try again."} onRetry={resource.retry} /></Screen>;
+    return <Screen><ErrorState title={localize("Couldn't load your profile")} message={resource.error ?? "Try again."} onRetry={resource.retry} /></Screen>;
   }
 
   const unsaved = phone.trim() !== (profile.contact_phone ?? "").trim()
@@ -89,19 +91,19 @@ export function OrganizerProfileScreen() {
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <ScrollView contentContainerStyle={sharedStyles.listContent} keyboardShouldPersistTaps="handled">
           <Text style={sharedStyles.muted}>
-            Needed before you can sell paid tickets. Verification is simulated in this version: it checks that both details are saved.
+            {localize("Needed before you can sell paid tickets. Verification is simulated in this version: it checks that both details are saved.")}
           </Text>
 
           <View style={[sharedStyles.card, styles.form]}>
-            <Text style={sharedStyles.body} nativeID="profilePhoneLabel">Contact phone</Text>
+            <Text style={sharedStyles.body} nativeID="profilePhoneLabel">{localize("Contact phone")}</Text>
             <TextInput accessibilityLabelledBy="profilePhoneLabel" style={formStyles.input} value={phone} onChangeText={setPhone}
               keyboardType="phone-pad" autoComplete="tel" textContentType="telephoneNumber" maxLength={PHONE_MAX}
               editable={!busy} placeholder="+7 701 123 45 67" placeholderTextColor={theme.colors.muted} />
-            <Text style={sharedStyles.body} nativeID="profilePayoutLabel">Payout account (for example IBAN)</Text>
+            <Text style={sharedStyles.body} nativeID="profilePayoutLabel">{localize("Payout account (for example IBAN)")}</Text>
             <TextInput accessibilityLabelledBy="profilePayoutLabel" style={formStyles.input} value={payout} onChangeText={setPayout}
               autoCapitalize="characters" autoCorrect={false} maxLength={PAYOUT_MAX} editable={!busy}
               placeholder="KZ00 0000 0000 0000 0000" placeholderTextColor={theme.colors.muted} />
-            <AppButton title={busy === "save" ? "Saving…" : "Save"} onPress={save} disabled={busy !== null || !unsaved} loading={busy === "save"} />
+            <AppButton title={busy === "save" ? localize("Saving…") : localize("Save")} onPress={save} disabled={busy !== null || !unsaved} loading={busy === "save"} />
           </View>
 
           {notice ? (
@@ -109,17 +111,17 @@ export function OrganizerProfileScreen() {
           ) : null}
 
           <View style={[sharedStyles.card, styles.form]}>
-            <Text accessibilityRole="header" style={sharedStyles.title}>Identity</Text>
+            <Text accessibilityRole="header" style={sharedStyles.title}>{localize("Identity")}</Text>
             {profile.paid_sales_verified ? (
-              <Text style={sharedStyles.body}>Verified. You can activate paid sales on your events.</Text>
+              <Text style={sharedStyles.body}>{localize("Verified. You can activate paid sales on your events.")}</Text>
             ) : (
               <>
                 <Text style={sharedStyles.body}>
                   {unsaved || !canVerify(profile)
-                    ? "Not verified yet. Save both details above, then verify."
-                    : "Not verified yet. Your details are saved, so you can verify now."}
+                    ? localize("Not verified yet. Save both details above, then verify.")
+                    : localize("Not verified yet. Your details are saved, so you can verify now.")}
                 </Text>
-                <AppButton title={busy === "verify" ? "Verifying…" : "Verify identity"} onPress={verify}
+                <AppButton title={busy === "verify" ? localize("Verifying…") : localize("Verify identity")} onPress={verify}
                   disabled={busy !== null || unsaved || !canVerify(profile)} loading={busy === "verify"} />
               </>
             )}

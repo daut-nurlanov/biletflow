@@ -1,13 +1,15 @@
 import { moment, money, seatLabel } from './format'
 import { useRef, useState, type FormEvent } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
-import { api } from '../api'
+import { api, ApiError } from '../api'
 import { useManagedEvent } from './Layout'
 import { messageFor, query, useResource } from './data'
 import type { Order, OrderDetail } from './types'
 import { Notice, ResourceState, Status, Table } from './ui'
+import { useI18n } from "../i18n"
 
 export function OrdersPage() {
+  const { t: localize } = useI18n()
   const event = useManagedEvent()
   const [params, setParams] = useSearchParams()
   const status = params.get('status') ?? ''
@@ -18,38 +20,38 @@ export function OrdersPage() {
     <>
       <div className="org-heading">
         <div>
-          <h2>Orders</h2>
+          <h2>{localize("Orders")}</h2>
           <p className="muted">
-            Payments and refunds are simulated. No real money is charged.
+            {localize("Payments and refunds are simulated. No real money is charged.")}
           </p>
         </div>
         <button className="btn secondary" onClick={resource.refresh}>
-          Refresh
+          {localize("Refresh")}
         </button>
       </div>
       <label className="org-field org-filter">
-        Order status
+        {localize("Order status")}
         <select
           value={status}
           onChange={(e) =>
             setParams(e.target.value ? { status: e.target.value } : {})
           }
         >
-          <option value="">All statuses</option>
-          <option value="paid">Confirmed</option>
-          <option value="failed">Payment failed</option>
-          <option value="refunded">Refunded</option>
-          <option value="cancelled">Cancelled</option>
-          <option value="pending">Pending payment</option>
+          <option value="">{localize("All statuses")}</option>
+          <option value="paid">{localize("Confirmed")}</option>
+          <option value="failed">{localize("Payment failed")}</option>
+          <option value="refunded">{localize("Refunded")}</option>
+          <option value="cancelled">{localize("Cancelled")}</option>
+          <option value="pending">{localize("Pending payment")}</option>
         </select>
       </label>
       <ResourceState {...resource} retry={resource.refresh} />
       {resource.data &&
         (resource.data.length === 0 ? (
-          <Notice>No orders match these filters.</Notice>
+          <Notice>{localize("No orders match these filters.")}</Notice>
         ) : (
           <Table
-            caption="Event orders"
+            caption={localize("Event orders")}
             headings={[
               'Order / date (Almaty)',
               'Buyer',
@@ -78,7 +80,7 @@ export function OrdersPage() {
                 </td>
                 <td>
                   <Link to={`/organizer/events/${event.id}/orders/${order.id}`}>
-                    View
+                    {localize("View")}
                   </Link>
                 </td>
               </tr>
@@ -95,6 +97,7 @@ export function OrderPage() {
 }
 
 function OrderView({ orderId }: { orderId: string }) {
+  const { t: localize } = useI18n()
   const event = useManagedEvent()
   const resource = useResource<OrderDetail>(
     `/api/orders/${encodeURIComponent(orderId)}`,
@@ -103,6 +106,7 @@ function OrderView({ orderId }: { orderId: string }) {
   const [busy, setBusy] = useState(false)
   const [actionError, setActionError] = useState('')
   const [success, setSuccess] = useState('')
+  const [uncertain, setUncertain] = useState(false)
   const submitting = useRef(false)
   const order = resource.data
   const hasUsedTickets = order?.tickets.some(
@@ -110,7 +114,7 @@ function OrderView({ orderId }: { orderId: string }) {
   )
   const paid = Number(order?.total_amount) > 0
   const canChange =
-    order?.status === 'paid' && !hasUsedTickets && order.tickets.length > 0
+    order?.status === 'paid' && !hasUsedTickets && order.tickets.length > 0 && !uncertain
 
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -139,6 +143,10 @@ function OrderView({ orderId }: { orderId: string }) {
       resource.refresh()
     } catch (error) {
       setActionError(messageFor(error))
+      if (!(error instanceof ApiError) || error.status >= 500 || error.status === 408) {
+        setConfirming(false)
+        setUncertain(true)
+      }
     } finally {
       submitting.current = false
       setBusy(false)
@@ -147,38 +155,47 @@ function OrderView({ orderId }: { orderId: string }) {
 
   return (
     <>
-      <Link to={`/organizer/events/${event.id}/orders`}>← All orders</Link>
+      <Link to={`/organizer/events/${event.id}/orders`}>{localize("← All orders")}</Link>
       <h2>
-        Order <span className="org-id">{orderId}</span>
+        {localize("Order")} <span className="org-id">{orderId}</span>
       </h2>
       {success && <Notice>{success}</Notice>}
+      {uncertain && <Notice error>
+        <p>{actionError}</p>
+        <p>{localize("The server may have completed the request. Refresh the order to check its status.")}</p>
+        <button className="btn secondary" onClick={() => {
+          setActionError('')
+          setUncertain(false)
+          resource.refresh()
+        }}>{localize("Refresh status")}</button>
+      </Notice>}
       <ResourceState {...resource} retry={resource.refresh} />
       {order &&
         (order.event_id !== event.id ? (
-          <Notice error>This order belongs to a different event.</Notice>
+          <Notice error>{localize("This order belongs to a different event.")}</Notice>
         ) : (
           <>
             <div className="org-panel">
               <div className="org-heading">
                 <div>
                   <Status value={order.status} />
-                  <p>{moment(order.created_at)} · Almaty time</p>
+                  <p>{moment(order.created_at)} {localize("· Almaty time")}</p>
                 </div>
                 <strong className="org-order-amount">
                   {money(order.total_amount)}
                 </strong>
               </div>
-              <p>Promo code: {order.promo_code_applied || 'not applied'}</p>
+              <p>{localize("Promo code:")} {order.promo_code_applied || 'not applied'}</p>
               <p className="muted">
-                Demo order. All financial transactions are simulated.
+                {localize("Demo order. All financial transactions are simulated.")}
               </p>
             </div>
-            <h3>Order tickets</h3>
+            <h3>{localize("Order tickets")}</h3>
             {order.tickets.length === 0 ? (
-              <Notice>No tickets have been issued.</Notice>
+              <Notice>{localize("No tickets have been issued.")}</Notice>
             ) : (
               <Table
-                caption="Order tickets"
+                caption={localize("Order tickets")}
                 headings={['Attendee', 'Ticket type', 'Seat', 'Status']}
               >
                 {order.tickets.map((ticket) => (
@@ -198,8 +215,7 @@ function OrderView({ orderId }: { orderId: string }) {
             )}
             {hasUsedTickets && (
               <Notice>
-                Tickets in this order have already been used. Refunds and
-                cancellations are unavailable.
+                {localize("Tickets in this order have already been used. Refunds and cancellations are unavailable.")}
               </Notice>
             )}
             {canChange && !confirming && (
@@ -211,7 +227,7 @@ function OrderView({ orderId }: { orderId: string }) {
                     setActionError('')
                   }}
                 >
-                  {paid ? 'Refund payment…' : 'Cancel registration…'}
+                  {paid ? localize("Refund payment…") : localize("Cancel registration…")}
                 </button>
               </div>
             )}
@@ -222,23 +238,22 @@ function OrderView({ orderId }: { orderId: string }) {
               >
                 <h3 id="confirm-title">
                   {paid
-                    ? 'Confirm full refund'
-                    : 'Confirm registration cancellation'}
+                    ? localize("Confirm full refund")
+                    : localize("Confirm registration cancellation")}
                 </h3>
                 <p>
-                  Order <span className="org-id">{order.id}</span> ·{' '}
+                  {localize("Order")} <span className="org-id">{order.id}</span> ·{' '}
                   {order.tickets.length} tickets · {money(order.total_amount)}.
                 </p>
                 <p>
-                  All tickets in this order will become invalid and their
-                  inventory will be released for sale.{' '}
+                  {localize("All tickets in this order will become invalid and their inventory will be released for sale.")}{' '}
                   {paid &&
                     'This refund is simulated. No real money is transferred.'}
                 </p>
                 <form onSubmit={submit}>
                   {paid && (
                     <label className="org-field">
-                      Refund reason (optional)
+                      {localize("Refund reason (optional)")}
                       <textarea
                         autoFocus
                         name="reason"
@@ -252,8 +267,7 @@ function OrderView({ orderId }: { orderId: string }) {
                     <Notice error>
                       {actionError}
                       <p>
-                        If the response was lost, refresh the order and check
-                        its status before trying again.
+                        {localize("If the response was lost, refresh the order and check its status before trying again.")}
                       </p>
                     </Notice>
                   )}
@@ -264,7 +278,7 @@ function OrderView({ orderId }: { orderId: string }) {
                       disabled={busy}
                     >
                       {busy
-                        ? 'Processing…'
+                        ? localize("Processing…")
                         : paid
                           ? 'Confirm refund'
                           : 'Confirm cancellation'}
@@ -275,7 +289,7 @@ function OrderView({ orderId }: { orderId: string }) {
                       disabled={busy}
                       onClick={() => setConfirming(false)}
                     >
-                      Back
+                      {localize("Back")}
                     </button>
                     <button
                       className="btn secondary"
@@ -286,7 +300,7 @@ function OrderView({ orderId }: { orderId: string }) {
                         resource.refresh()
                       }}
                     >
-                      Refresh status
+                      {localize("Refresh status")}
                     </button>
                   </div>
                 </form>
@@ -294,7 +308,7 @@ function OrderView({ orderId }: { orderId: string }) {
             )}
             {order.refunds.length > 0 && (
               <section className="org-panel">
-                <h3>Refund history</h3>
+                <h3>{localize("Refund history")}</h3>
                 {order.refunds.map((refund) => (
                   <div key={refund.id}>
                     <p>

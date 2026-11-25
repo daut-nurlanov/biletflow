@@ -2,6 +2,17 @@ import type { AttendeeRegistration } from "../types/auth";
 
 export type RegistrationErrors = Partial<Record<keyof AttendeeRegistration | "confirmPassword", string>>;
 
+export function passwordValidation(password: string): string | undefined {
+  const characters = Array.from(password);
+  // Count UTF-8 bytes without requiring native encoding APIs.
+  const bytes = characters.reduce((total, character) => {
+    const point = character.codePointAt(0)!;
+    return total + (point <= 0x7f ? 1 : point <= 0x7ff ? 2 : point <= 0xffff ? 3 : 4);
+  }, 0);
+  if (characters.length < 8) return "Use at least 8 characters for your password.";
+  if (bytes > 72) return "This password is too long. Shorten it and try again.";
+}
+
 /** Match backend-python/security.py, including bcrypt's 72-byte UTF-8 limit. */
 export function validateRegistration(
   input: AttendeeRegistration,
@@ -18,14 +29,8 @@ export function validateRegistration(
     errors.email = "Enter a valid email address.";
   }
 
-  const characters = Array.from(input.password);
-  // Count code points and UTF-8 bytes without relying on a native encoding module.
-  const bytes = characters.reduce((total, character) => {
-    const point = character.codePointAt(0)!;
-    return total + (point <= 0x7f ? 1 : point <= 0x7ff ? 2 : point <= 0xffff ? 3 : 4);
-  }, 0);
-  if (characters.length < 8) errors.password = "Use at least 8 characters for your password.";
-  else if (bytes > 72) errors.password = "This password is too long. Shorten it and try again.";
+  const passwordError = passwordValidation(input.password);
+  if (passwordError) errors.password = passwordError;
 
   if (!confirmPassword) errors.confirmPassword = "Confirm your password.";
   else if (input.password !== confirmPassword) errors.confirmPassword = "Passwords don't match.";

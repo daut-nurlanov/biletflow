@@ -1,4 +1,5 @@
-import { Link, Route, Routes } from 'react-router-dom'
+import { useRef, useState } from 'react'
+import { Link, NavLink, Outlet, Route, Routes, useLocation } from 'react-router-dom'
 import { useAuth } from './auth'
 import { LANGS, useI18n } from './i18n'
 import EventsPage from './pages/EventsPage'
@@ -20,7 +21,7 @@ import AnalyticsPage from './organizer/AnalyticsPage'
 import StaffPage from './organizer/StaffPage'
 import HistoryPage from './organizer/HistoryPage'
 import EventSupportPage from './organizer/SupportPage'
-import { AdminGuard } from './admin/AdminLayout'
+import { AdminGuard, AdminWorkspace } from './admin/AdminLayout'
 import AdminOverview from './admin/Overview'
 import AdminUsers from './admin/Users'
 import AdminEvents from './admin/Events'
@@ -33,38 +34,62 @@ import { EditEventPage, NewEventPage } from './organizer/EventFormPage'
 import SetupPage from './organizer/SetupPage'
 import PromoPage from './organizer/PromoPage'
 import ProfilePage from './organizer/ProfilePage'
+import { Brand } from './components/Surface'
+import { Icon } from './components/Icon'
+
+function SupportWorkspace() {
+  const { user } = useAuth()
+  return user?.role === 'platform_admin' ? <AdminWorkspace><Outlet /></AdminWorkspace> : <Outlet />
+}
 
 export default function App() {
   const { user, logout } = useAuth()
   const { lang, setLang, t } = useI18n()
+  const { pathname } = useLocation()
+  const [menuOpen, setMenuOpen] = useState(false)
+  const menuButton = useRef<HTMLButtonElement>(null)
+  const closeMenu = () => setMenuOpen(false)
+  const workspace = /^\/(admin|organizer)(\/|$)/.test(pathname) || (user?.role === 'platform_admin' && pathname.startsWith('/support'))
+  const accountForm = ['/login', '/register', '/verify-email', '/forgot-password', '/reset-password'].includes(pathname)
 
   return (
     <>
-      <header className="header">
+      <a className="skip-link" href="#main-content">{t('Skip to main content')}</a>
+      <header className="header site-header" onKeyDown={(event) => {
+        if (event.key === 'Escape' && menuOpen) {
+          closeMenu()
+          menuButton.current?.focus()
+        }
+      }}>
         <div className="container">
-          <Link to="/" className="logo">
-            BiletFlow
+          <Link to="/" className="logo" onClick={closeMenu}>
+            <Brand />
           </Link>
-          <nav className="nav">
-            <Link to="/my-tickets">{t('My tickets')}</Link>
-            <Link to="/my-orders">{t('My orders')}</Link>
-            <Link to="/support">{t('Support')}</Link>
+          <button ref={menuButton} type="button" className="menu-toggle btn secondary" aria-expanded={menuOpen}
+            aria-controls="site-navigation" aria-label={t('Menu')} onClick={() => setMenuOpen(!menuOpen)}>
+            <Icon name={menuOpen ? 'close' : 'menu'} />
+          </button>
+          <nav id="site-navigation" className={`nav${menuOpen ? ' is-open' : ''}`} aria-label={t('Main navigation')}>
+            <NavLink end to="/" onClick={closeMenu}>{t('Events')}</NavLink>
+            <NavLink to="/my-tickets" onClick={closeMenu}>{t('My tickets')}</NavLink>
+            <NavLink to="/my-orders" onClick={closeMenu}>{t('My orders')}</NavLink>
+            <NavLink to="/support" onClick={closeMenu}>{t('Support')}</NavLink>
             {user ? (
               <>
-                <Link to="/notifications">{t('Notifications')}</Link>
-                {user.role === 'platform_admin' && <Link to="/admin">{t('Admin portal')}</Link>}
+                <NavLink to="/notifications" onClick={closeMenu}>{t('Notifications')}</NavLink>
+                {user.role === 'platform_admin' && <NavLink to="/admin" onClick={closeMenu}>{t('Admin portal')}</NavLink>}
                 {user.role === 'organizer' && (
-                  <Link to="/organizer">{t('Organizer dashboard')}</Link>
+                  <NavLink to="/organizer" onClick={closeMenu}>{t('Organizer dashboard')}</NavLink>
                 )}
-                <span className="muted">{user.full_name}</span>
-                <button className="btn secondary" onClick={logout}>
+                <span className="nav-person muted" title={user.full_name}>{user.full_name}</span>
+                <button className="btn secondary" onClick={() => { logout(); closeMenu() }}>
                   {t('Sign out')}
                 </button>
               </>
             ) : (
               <>
-                <Link to="/login">{t('Sign in')}</Link>
-                <Link to="/register">{t('Register')}</Link>
+                <NavLink to="/login" onClick={closeMenu}>{t('Sign in')}</NavLink>
+                <Link className="btn nav-register" to="/register" onClick={closeMenu}>{t('Register')}</Link>
               </>
             )}
             <select
@@ -81,7 +106,7 @@ export default function App() {
           </nav>
         </div>
       </header>
-      <main className="container">
+      <main id="main-content" className={`container page${workspace ? ' workspace-page' : ''}${accountForm ? ' auth-page' : ''}`} tabIndex={-1}>
         {user?.is_email_verified === false && (
           <p className="verification-notice" role="status">
             {t('Your email is not verified.')} <Link to="/verify-email">{t('Verify email')}</Link>
@@ -98,9 +123,11 @@ export default function App() {
           <Route path="/my-tickets" element={<MyTicketsPage />} />
           <Route path="/my-orders" element={<MyOrdersPage />} />
           <Route path="/notifications" element={<NotificationsPage />} />
-          <Route path="/support" element={<SupportPage />} />
-          <Route path="/support/new" element={<SupportNewPage />} />
-          <Route path="/support/:id" element={<SupportCasePage />} />
+          <Route element={<SupportWorkspace />}>
+            <Route path="/support" element={<SupportPage />} />
+            <Route path="/support/new" element={<SupportNewPage />} />
+            <Route path="/support/:id" element={<SupportCasePage />} />
+          </Route>
           <Route path="/admin" element={<AdminGuard />}>
             <Route index element={<AdminOverview />} />
             <Route path="users" element={<AdminUsers />} />
@@ -131,11 +158,17 @@ export default function App() {
               path="*"
               element={
                 <p>
-                  Page not found. <Link to="/organizer">My events</Link>
+                  {t('Page not found.')} <Link to="/organizer">{t('My events')}</Link>
                 </p>
               }
             />
           </Route>
+          <Route path="*" element={
+            <section className="card">
+              <h1>{t('Page not found.')}</h1>
+              <Link to="/">{t('Back to events')}</Link>
+            </section>
+          } />
         </Routes>
       </main>
     </>

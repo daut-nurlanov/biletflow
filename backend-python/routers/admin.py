@@ -105,7 +105,8 @@ def suspend_event(event_id: str, admin=Depends(admin_only)):
         suspended = cur.fetchone()
         audit(cur, admin["id"], event_id, "event_suspended", "Event suspended by a platform admin", "event", event_id)
         notify(cur, event["organizer_id"], "event_suspended", f"{event['title']} was suspended",
-               "A BiletFlow administrator suspended this event. Contact support for details.")
+               "A BiletFlow administrator suspended this event. Contact support for details.",
+               target=("organizer_event", event_id))
         return suspended
 
 

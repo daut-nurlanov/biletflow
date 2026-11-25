@@ -21,13 +21,13 @@ export function StatTile({ label, value }: StatTileProps) {
 const styles = StyleSheet.create({
   tile: {
     flexGrow: 1,
-    flexBasis: 96,
+    flexBasis: 92,
     // Keeps values on one line across a row even when a longer label wraps.
     justifyContent: "space-between",
     gap: theme.spacing.xs,
-    padding: theme.spacing.md,
+    padding: 12,
     borderRadius: theme.radius.sm,
-    backgroundColor: theme.colors.background,
+    backgroundColor: theme.colors.accentSoft,
   },
-  value: { fontSize: theme.fontSize.heading, fontWeight: "700", color: theme.colors.text },
+  value: { fontSize: 24, fontWeight: "800", color: theme.colors.night },
 });

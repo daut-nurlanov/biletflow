@@ -3,18 +3,19 @@ import type { SalesDay } from './types'
 import { dayLabel } from './analytics'
 import { money } from './format'
 import { Notice } from './ui'
+import { useI18n } from "../i18n"
 
 export default function SalesChart({ days }: { days: SalesDay[] }) {
+  const { t: localize } = useI18n()
   const titleId = useId()
   const descriptionId = useId()
   if (!days.length)
-    return <Notice>No confirmed orders in this selection.</Notice>
+    return <Notice>{localize("No confirmed orders in this selection.")}</Notice>
   const max = Math.max(...days.map((day) => Number(day.revenue)))
   if (max <= 0)
     return (
       <Notice>
-        Confirmed orders in this selection have no paid revenue. See their
-        ticket counts in the daily table.
+        {localize("Confirmed orders in this selection have no paid revenue. See their ticket counts in the daily table.")}
       </Notice>
     )
   const first = Date.parse(days[0].day)
@@ -25,17 +26,16 @@ export default function SalesChart({ days }: { days: SalesDay[] }) {
     <figure
       className="org-sales-chart"
       tabIndex={0}
-      aria-label="Sales chart; scroll horizontally on narrow screens"
+      aria-label={localize("Sales chart; scroll horizontally on narrow screens")}
     >
       <svg
         viewBox="0 0 800 300"
         role="img"
         aria-labelledby={`${titleId} ${descriptionId}`}
       >
-        <title id={titleId}>Confirmed order revenue by purchase date</title>
+        <title id={titleId}>{localize("Confirmed order revenue by purchase date")}</title>
         <desc id={descriptionId}>
-          Revenue in KZT. Dates use Almaty time. Refunded orders are excluded.
-          Exact values are listed in the daily sales table below.
+          {localize("Revenue in KZT. Dates use Almaty time. Refunded orders are excluded. Exact values are listed in the daily sales table below.")}
         </desc>
         {[0, 0.5, 1].map((fraction) => {
           const y = 240 - fraction * 190
@@ -83,9 +83,7 @@ export default function SalesChart({ days }: { days: SalesDay[] }) {
         )}
       </svg>
       <figcaption className="muted">
-        Revenue from currently confirmed orders, grouped by purchase date. Gaps
-        contain no confirmed orders; refunded orders are excluded. Scroll
-        horizontally on narrow screens.
+        {localize("Revenue from currently confirmed orders, grouped by purchase date. Gaps contain no confirmed orders; refunded orders are excluded. Scroll horizontally on narrow screens.")}
       </figcaption>
     </figure>
   )

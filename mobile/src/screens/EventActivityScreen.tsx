@@ -12,6 +12,7 @@ import { useApiResource } from "../hooks/useApiResource";
 import type { OrganizerStackParamList } from "../navigation/types";
 import { sharedStyles } from "../theme";
 import { formatDateTime } from "../utils/formatting";
+import { useLocale } from "../i18n/LocaleContext";
 
 type Props = NativeStackScreenProps<OrganizerStackParamList, "EventActivity">;
 
@@ -27,6 +28,7 @@ function activityLabel(action: string) {
 }
 
 export function EventActivityScreen({ route }: Props) {
+  const { lang, t: localize } = useLocale();
   const { eventId, eventTitle } = route.params;
   const { authed } = useSession();
   const load = useCallback((signal: AbortSignal) => authed((token) => getEventActivity(token, eventId, signal)), [authed, eventId]);
@@ -34,8 +36,8 @@ export function EventActivityScreen({ route }: Props) {
 
   return (
     <Screen>
-      {resource.loading ? <LoadingState message="Loading event activity…" /> : resource.error ? (
-        <ErrorState title="Couldn't load event activity" message={resource.error} onRetry={resource.retry} />
+      {resource.loading ? <LoadingState message={localize("Loading event activity…")} /> : resource.error ? (
+        <ErrorState title={localize("Couldn't load event activity")} message={resource.error} onRetry={resource.retry} />
       ) : (
         <FlatList
           data={resource.data ?? []}
@@ -45,14 +47,14 @@ export function EventActivityScreen({ route }: Props) {
           onRefresh={resource.refresh}
           ListHeaderComponent={<View>
             <Text accessibilityRole="header" style={sharedStyles.title}>{eventTitle}</Text>
-            <Text style={sharedStyles.muted}>Latest {EVENT_ACTIVITY_LIMIT} actions. Use the website for full history and filters.</Text>
+            <Text style={sharedStyles.muted}>{localize("Latest {count} actions. Use the website for full history and filters.", { count: EVENT_ACTIVITY_LIMIT })}</Text>
           </View>}
-          ListEmptyComponent={<EmptyState title="No activity yet" message="Event changes, orders and admissions will appear here." />}
+          ListEmptyComponent={<EmptyState title={localize("No activity yet")} message={localize("Event changes, orders and admissions will appear here.")} />}
           renderItem={({ item }) => (
             <View style={sharedStyles.card}>
-              <Text style={sharedStyles.title}>{activityLabel(item.action)}</Text>
+              <Text style={sharedStyles.title}>{localize(activityLabel(item.action))}</Text>
               {item.details ? <Text style={sharedStyles.body}>{item.details}</Text> : null}
-              <Text style={sharedStyles.muted}>{item.actor ?? "System"} · {formatDateTime(item.timestamp)}</Text>
+              <Text style={sharedStyles.muted}>{item.actor ?? localize("System")} · {formatDateTime(item.timestamp, lang)}</Text>
             </View>
           )}
         />

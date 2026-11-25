@@ -53,7 +53,21 @@ export class Browser {
     return response.result.value
   }
   async navigate(path) {
-    await this.send('Page.navigate', { url: base + path })
+    await this.send('Page.setLifecycleEventsEnabled', { enabled: true })
+    const loaded = new Set()
+    const previous = this.events.get('Page.lifecycleEvent')
+    this.events.set('Page.lifecycleEvent', (event) => {
+      if (event.name === 'DOMContentLoaded') loaded.add(event.loaderId)
+      previous?.(event)
+    })
+    try {
+      const { loaderId, errorText } = await this.send('Page.navigate', { url: base + path })
+      if (errorText) throw new Error(errorText)
+      if (loaderId) await eventually(() => loaded.has(loaderId), `Document ready at ${path}`)
+    } finally {
+      if (previous) this.events.set('Page.lifecycleEvent', previous)
+      else this.events.delete('Page.lifecycleEvent')
+    }
   }
   async has(text) {
     return this.evaluate(

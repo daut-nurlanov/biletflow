@@ -16,10 +16,12 @@ import { sharedStyles, theme } from "../theme";
 import { formStyles } from "../theme/forms";
 import { formatDateTime, formatMoney } from "../utils/formatting";
 import { orderAction, organizerMessage, seatLabel } from "../utils/organizerOrders";
+import { useLocale } from "../i18n/LocaleContext";
 
 type Props = NativeStackScreenProps<OrganizerStackParamList, "OrderDetail">;
 
 export function OrderDetailScreen({ route }: Props) {
+  const { lang, t: localize } = useLocale();
   const { orderId, eventId } = route.params;
   const { authed } = useSession();
   const [revision, setRevision] = useState(0);
@@ -39,18 +41,18 @@ export function OrderDetailScreen({ route }: Props) {
   const submittedRevision = useRef(-1);
 
   const order = resource.data?.order;
-  if (!order && resource.loading) return <Screen><LoadingState message="Loading order…" /></Screen>;
+  if (!order && resource.loading) return <Screen><LoadingState message={localize("Loading order…")} /></Screen>;
   if (!order) {
-    return <Screen><ErrorState title="Couldn't load this order" message={resource.error ?? "Order not found."} onRetry={resource.retry} /></Screen>;
+    return <Screen><ErrorState title={localize("Couldn't load this order")} message={resource.error ?? "Order not found."} onRetry={resource.retry} /></Screen>;
   }
   if (order.id !== orderId || order.event_id !== eventId) {
-    return <Screen><ErrorState title="Different event" message="This order belongs to another event." onRetry={resource.retry} /></Screen>;
+    return <Screen><ErrorState title={localize("Different event")} message={localize("This order belongs to another event.")} onRetry={resource.retry} /></Screen>;
   }
 
   const action = orderAction(order);
   const ticketCount = order.tickets.length;
   const ticketWord = ticketCount === 1 ? "ticket" : "tickets";
-  const total = formatMoney(order.total_amount);
+  const total = formatMoney(order.total_amount, lang);
   const checking = resource.loading || resource.refreshing;
   const statusCurrent = !checking && !resource.error && resource.data?.revision === revision;
   const actionsDisabled = busy || !statusCurrent;
@@ -97,7 +99,7 @@ export function OrderDetailScreen({ route }: Props) {
       refund ? "Refund this order?" : "Cancel this registration?",
       `${ticketCount} ${ticketWord} will stop working and go back on sale.${refund ? ` ${total} is refunded (simulated, no real money moves).` : ""}`,
       [
-        { text: "Back", style: "cancel" },
+        { text: localize("Back"), style: "cancel" },
         { text: refund ? "Refund" : "Cancel registration", style: "destructive", onPress: () => { void run(); } },
       ],
     );
@@ -112,10 +114,10 @@ export function OrderDetailScreen({ route }: Props) {
               <Text style={[sharedStyles.title, styles.flex]}>{total}</Text>
               <StatusBadge status={order.status} />
             </View>
-            <Text style={sharedStyles.body}>{formatDateTime(order.created_at)}</Text>
+            <Text style={sharedStyles.body}>{formatDateTime(order.created_at, lang)}</Text>
             <Text style={sharedStyles.body}>{`Promo code: ${order.promo_code_applied || "none"}`}</Text>
             <Text style={sharedStyles.muted} selectable>{`Order ${order.id}`}</Text>
-            <Text style={sharedStyles.muted}>Demo order. All payments and refunds are simulated.</Text>
+            <Text style={sharedStyles.muted}>{localize("Demo order. All payments and refunds are simulated.")}</Text>
           </View>
 
           {noticeText ? (
@@ -124,9 +126,9 @@ export function OrderDetailScreen({ route }: Props) {
           ) : null}
           {resource.error ? <Text accessibilityRole="alert" style={formStyles.error}>{resource.error}</Text> : null}
           {!statusCurrent && !busy
-            ? <Text style={sharedStyles.muted}>Showing the last known order status.</Text> : null}
-          <AppButton title={checking ? "Refreshing order…" : "Refresh order"}
-            accessibilityLabel="Refresh order" onPress={resource.refresh} disabled={busy} loading={checking} />
+            ? <Text style={sharedStyles.muted}>{localize("Showing the last known order status.")}</Text> : null}
+          <AppButton title={checking ? localize("Refreshing order…") : localize("Refresh order")}
+            accessibilityLabel={localize("Refresh order")} onPress={resource.refresh} disabled={busy} loading={checking} />
 
           <Text accessibilityRole="header" style={sharedStyles.title}>{`${ticketCount} ${ticketWord}`}</Text>
           {order.tickets.map((ticket) => {
@@ -146,7 +148,7 @@ export function OrderDetailScreen({ route }: Props) {
 
           {action.kind === "refund" ? (
             <View style={styles.action}>
-              <Text style={sharedStyles.body} nativeID="refundReasonLabel">Refund reason (optional)</Text>
+              <Text style={sharedStyles.body} nativeID="refundReasonLabel">{localize("Refund reason (optional)")}</Text>
               <TextInput
                 accessibilityLabelledBy="refundReasonLabel"
                 style={[formStyles.input, formStyles.message]}
@@ -155,23 +157,23 @@ export function OrderDetailScreen({ route }: Props) {
                 multiline
                 maxLength={1000}
                 editable={!busy}
-                placeholder="For example: attendee can't come"
+                placeholder={localize("For example: attendee can't come")}
                 placeholderTextColor={theme.colors.muted}
               />
-              <AppButton title={busy ? "Refunding…" : "Refund order"} onPress={confirm} disabled={actionsDisabled} loading={busy} />
+              <AppButton title={busy ? localize("Refunding…") : localize("Refund order")} variant="danger" onPress={confirm} disabled={actionsDisabled} loading={busy} />
             </View>
           ) : null}
           {action.kind === "cancel" ? (
-            <AppButton title={busy ? "Cancelling…" : "Cancel registration"} onPress={confirm}
+            <AppButton title={busy ? localize("Cancelling…") : localize("Cancel registration")} variant="danger" onPress={confirm}
               disabled={actionsDisabled} loading={busy} />
           ) : null}
 
           {order.refunds.length > 0 ? (
             <View style={sharedStyles.card}>
-              <Text accessibilityRole="header" style={sharedStyles.title}>Refund history</Text>
+              <Text accessibilityRole="header" style={sharedStyles.title}>{localize("Refund history")}</Text>
               {order.refunds.map((refund) => (
                 <View key={refund.id}>
-                  <Text style={sharedStyles.body}>{`${formatMoney(refund.amount)} · ${formatDateTime(refund.created_at)}`}</Text>
+                  <Text style={sharedStyles.body}>{`${formatMoney(refund.amount, lang)} · ${formatDateTime(refund.created_at, lang)}`}</Text>
                   <Text style={sharedStyles.muted}>{refund.reason || "No reason given"}</Text>
                 </View>
               ))}

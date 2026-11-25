@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link, Navigate, useLocation, useSearchParams } from 'react-router-dom'
+import { Link, Navigate, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { api } from '../api'
 import { useAuth } from '../auth'
 import { messageFor, useResource } from '../organizer/data'
 import { moment } from '../organizer/format'
 import { Notice, ResourceState } from '../organizer/ui'
 import '../organizer/organizer.css'
+import { useI18n } from "../i18n"
 
 interface Notification {
   id: string
@@ -14,12 +15,30 @@ interface Notification {
   body: string
   is_read: boolean
   created_at: string
+  target_type?: 'event' | 'organizer_event' | 'support' | null
+  target_id?: string | null
+}
+
+function destination(item: Notification) {
+  const id = item.target_id
+  if (id && /^[0-9a-f-]{36}$/i.test(id)) {
+    if (item.target_type === 'support') return '/support/' + id
+    if (item.target_type === 'event') return '/events/' + id
+    if (item.target_type === 'organizer_event') return '/organizer/events/' + id
+  }
+  if (item.kind === 'payment_failed') return '/my-orders'
+  if (['order_confirmation', 'refund_completed', 'registration_cancelled', 'event_cancelled'].includes(item.kind)) {
+    return '/my-tickets'
+  }
+  if (item.kind === 'verify_email') return '/verify-email'
+  if (item.kind === 'reset_password') return '/reset-password'
 }
 
 export default function NotificationsPage() {
+  const { t: localize } = useI18n()
   const { user, loading, error } = useAuth()
   const location = useLocation()
-  if (loading) return <Notice>Restoring your session…</Notice>
+  if (loading) return <Notice>{localize('Restoring your session…')}</Notice>
   if (error)
     return (
       <Notice error>
@@ -28,7 +47,7 @@ export default function NotificationsPage() {
           className="btn secondary"
           onClick={() => window.location.reload()}
         >
-          Try again
+          {localize("Try again")}
         </button>
       </Notice>
     )
@@ -44,6 +63,8 @@ export default function NotificationsPage() {
 }
 
 function Inbox() {
+  const { t: localize } = useI18n()
+  const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
   const unread = params.get('unread_only') === 'true'
   const resource = useResource<Notification[]>(
@@ -53,22 +74,29 @@ function Inbox() {
   useEffect(() => () => lock.current?.abort(), [])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  const [notice, setNotice] = useState('')
-  async function markRead() {
+  const [notice, setNotice] = useState<number | null>(null)
+  async function markRead(item?: Notification, next?: string) {
     if (lock.current) return
+    if (item?.is_read && next) {
+      navigate(next)
+      return
+    }
     const controller = new AbortController()
     lock.current = controller
     setBusy(true)
     setError('')
-    setNotice('')
+    setNotice(null)
     try {
-      const result = await api<{ marked_read: number }>(
-        '/api/notifications/read-all',
-        { method: 'POST', signal: controller.signal },
-      )
+      const options = { method: 'POST', signal: controller.signal }
+      if (item) {
+        await api(`/api/notifications/${encodeURIComponent(item.id)}/read`, options)
+      } else {
+        const result = await api<{ marked_read: number }>('/api/notifications/read-all', options)
+        if (!controller.signal.aborted) setNotice(result.marked_read)
+      }
       if (controller.signal.aborted) return
-      setNotice(`${result.marked_read} notifications marked as read.`)
       resource.refresh()
+      if (next) navigate(next)
     } catch (err) {
       if (!controller.signal.aborted) setError(messageFor(err))
     } finally {
@@ -82,10 +110,9 @@ function Inbox() {
     <section className="org">
       <div className="org-heading">
         <div>
-          <h1>Notifications</h1>
+          <h1>{localize("Notifications")}</h1>
           <p className="muted">
-            Your latest 100 notifications, newest first. Opening this page does
-            not mark them as read.
+            {localize("Your latest 100 notifications, newest first. Opening this page does not mark them as read.")}
           </p>
         </div>
         <button
@@ -93,12 +120,12 @@ function Inbox() {
           disabled={busy}
           onClick={resource.refresh}
         >
-          Refresh notifications
+          {localize("Refresh notifications")}
         </button>
       </div>
       <div className="org-filters">
         <label className="org-field">
-          Show
+          {localize("Show")}
           <select
             name="notification_filter"
             value={unread ? 'unread' : 'all'}
@@ -107,12 +134,12 @@ function Inbox() {
               setParams(
                 event.target.value === 'unread' ? { unread_only: 'true' } : {},
               )
-              setNotice('')
+              setNotice(null)
               setError('')
             }}
           >
-            <option value="all">All notifications</option>
-            <option value="unread">Unread only</option>
+            <option value="all">{localize("All notifications")}</option>
+            <option value="unread">{localize("Unread only")}</option>
           </select>
         </label>
         <button
@@ -126,37 +153,46 @@ function Inbox() {
             void markRead()
           }}
         >
-          {busy ? 'Marking as read…' : 'Mark all notifications as read'}
+          {busy ? localize("Marking as read…") : localize("Mark all notifications as read")}
         </button>
       </div>
       <p className="muted">
-        Mark all applies to all your unread notifications, including older ones
-        outside this list.
+        {localize("Mark all applies to all your unread notifications, including older ones outside this list.")}
       </p>
       {error && <Notice error>{error}</Notice>}
-      {notice && <Notice>{notice}</Notice>}
+      {notice !== null && <Notice>{localize('{count} notifications marked as read.', { count: notice })}</Notice>}
       <ResourceState {...resource} retry={resource.refresh} />
       {resource.data?.length === 0 && (
         <Notice>
-          {unread ? 'No unread notifications.' : 'No notifications yet.'}
+          {unread ? localize("No unread notifications.") : localize("No notifications yet.")}
         </Notice>
       )}
       <div className="notification-list">
-        {resource.data?.map((item) => (
+        {resource.data?.map((item) => {
+          const next = destination(item)
+          return (
           <article className="org-panel notification-entry" key={item.id}>
             <div className="org-heading">
-              <h2>{item.subject}</h2>
-              <span>{item.is_read ? 'Read' : 'Unread'}</span>
+              <h2>{localize(item.subject)}</h2>
+              <span>{item.is_read ? localize("Read") : localize("Unread")}</span>
             </div>
             <time className="muted" dateTime={item.created_at}>
-              {moment(item.created_at)} · Almaty time
+              {moment(item.created_at)} {localize("· Almaty time")}
             </time>
-            <p className="notification-body">{item.body}</p>
-            <p className="muted">{item.kind.replaceAll('_', ' ')}</p>
+            <p className="notification-body">{localize(item.body)}</p>
+            {next && <button className="btn secondary" disabled={busy} onClick={() => void markRead(item, next)}
+              aria-label={localize('Open related item: {subject}', { subject: localize(item.subject) })}>
+              {localize('Open related item')}
+            </button>}
+            {!item.is_read && !next && <button className="btn secondary" disabled={busy} onClick={() => void markRead(item)}
+              aria-label={localize('Mark as read: {subject}', { subject: localize(item.subject) })}>
+              {localize('Mark as read')}
+            </button>}
           </article>
-        ))}
+          )
+        })}
       </div>
-      <Link to="/">Browse events</Link>
+      <Link to="/">{localize("Browse events")}</Link>
     </section>
   )
 }

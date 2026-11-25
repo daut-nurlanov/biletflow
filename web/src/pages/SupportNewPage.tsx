@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import {
   Link,
   useLocation,
@@ -9,6 +9,7 @@ import { api } from '../api'
 import { useAuth } from '../auth'
 import { formatDate } from '../format'
 import type { SupportCase, SupportCategory } from '../types'
+import { useI18n } from "../i18n"
 
 const categories: { value: SupportCategory; label: string }[] = [
   { value: 'ticket_delivery', label: 'Ticket delivery' },
@@ -29,6 +30,7 @@ interface OrderOption {
 }
 
 export default function SupportNewPage() {
+  const { t: localize } = useI18n()
   const { user, loading } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
@@ -40,6 +42,8 @@ export default function SupportNewPage() {
   const [orders, setOrders] = useState<OrderOption[] | null>(null)
   const [orderId, setOrderId] = useState('')
   const [ordersError, setOrdersError] = useState('')
+  const inFlight = useRef(false)
+  const draftAttempt = useRef<{ input: string; key: string } | null>(null)
 
   const ticketId = searchParams.get('ticket_id') || undefined
   const linkedOrderId = searchParams.get('order_id') || undefined
@@ -74,21 +78,21 @@ export default function SupportNewPage() {
     return () => controller.abort()
   }, [user, hasContext, organizer])
 
-  if (loading) return <p>Loading…</p>
+  if (loading) return <p>{localize("Loading…")}</p>
   if (!user) {
     return (
       <p>
         <Link to="/login" state={{ from: location.pathname + location.search }}>
-          Sign in
+          {localize("Sign in")}
         </Link>{' '}
-        to open a support request.
+        {localize("to open a support request.")}
       </p>
     )
   }
 
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
-    if (sending) return
+    if (inFlight.current || !user) return
     const text = message.trim()
     if (!text) {
       setError('Please describe how we can help.')
@@ -99,25 +103,32 @@ export default function SupportNewPage() {
       return
     }
 
+    inFlight.current = true
     setSending(true)
     setError('')
     try {
-      const created = await api<SupportCase>('/api/support/cases', {
-        method: 'POST',
-        body: {
+      const body = {
           category,
           message: text,
           ticket_id: ticketId,
           order_id: linkedOrderId ?? (orderId || undefined),
           event_id: eventId,
-        },
+      }
+      const input = JSON.stringify([user.id, body])
+      if (draftAttempt.current?.input !== input) {
+        draftAttempt.current = { input, key: crypto.randomUUID() }
+      }
+      const created = await api<SupportCase>('/api/support/cases', {
+        method: 'POST', body, headers: { 'Idempotency-Key': draftAttempt.current.key },
       })
+      draftAttempt.current = null
       navigate(`/support/${created.id}`, { replace: true })
     } catch (err) {
       setError(
         err instanceof Error ? err.message : 'Could not open the request',
       )
     } finally {
+      inFlight.current = false
       setSending(false)
     }
   }
@@ -131,22 +142,20 @@ export default function SupportNewPage() {
 
   return (
     <>
-      <h1>New support request</h1>
+      <h1>{localize("New support request")}</h1>
       {organizer && (
         <p className="muted">
-          Contact the platform team about your account, paid-sales activation,
-          payments or a technical issue. An order is not required.
+          {localize("Contact the platform team about your account, paid-sales activation, payments or a technical issue. An order is not required.")}
         </p>
       )}
       {hasContext && (
         <p className="muted">
-          This request will be linked to your ticket, order or event
-          automatically.
+          {localize("This request will be linked to your ticket, order or event automatically.")}
         </p>
       )}
       {noOrders && (
         <p className="muted">
-          You have no orders yet, so there is nothing to ask support about.
+          {localize("You have no orders yet, so there is nothing to ask support about.")}
         </p>
       )}
       {ordersError && (
@@ -157,7 +166,7 @@ export default function SupportNewPage() {
       <form className="form wide" onSubmit={submit}>
         {!organizer && !hasContext && !noOrders && (
           <>
-            <label htmlFor="support-order">Which order is it about?</label>
+            <label htmlFor="support-order">{localize("Which order is it about?")}</label>
             <select
               id="support-order"
               required
@@ -166,19 +175,19 @@ export default function SupportNewPage() {
               onChange={(e) => setOrderId(e.target.value)}
             >
               <option value="">
-                {orders === null ? 'Loading…' : 'Choose an order'}
+                {orders === null ? localize("Loading…") : localize("Choose an order")}
               </option>
               {orders?.map((o) => (
                 <option value={o.id} key={o.id}>
                   {o.event_title} · {formatDate(o.created_at)} ·{' '}
-                  {o.ticket_count} ticket{o.ticket_count === 1 ? '' : 's'}
+                  {localize('{count} ticket(s)', { count: o.ticket_count })}
                 </option>
               ))}
             </select>
           </>
         )}
 
-        <label htmlFor="support-category">Category</label>
+        <label htmlFor="support-category">{localize("Category")}</label>
         <select
           id="support-category"
           value={category}
@@ -192,7 +201,7 @@ export default function SupportNewPage() {
           ))}
         </select>
 
-        <label htmlFor="support-message">How can we help?</label>
+        <label htmlFor="support-message">{localize("How can we help?")}</label>
         <textarea
           id="support-message"
           rows={8}
@@ -212,7 +221,7 @@ export default function SupportNewPage() {
           </div>
         )}
         <button className="btn" type="submit" disabled={sending || noOrders}>
-          {sending ? 'Sending…' : 'Send request'}
+          {sending ? localize("Sending…") : localize("Send request")}
         </button>
       </form>
     </>

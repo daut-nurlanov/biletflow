@@ -80,6 +80,7 @@ export interface Analytics {
     remaining: number
     percent_sold: number
     reserved: number
+    general_admission_reserved?: number
     reserved_scope: 'event'
   }
   ticket_counts: {

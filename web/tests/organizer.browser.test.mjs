@@ -76,7 +76,7 @@ class Browser {
   }
   async has(text) {
     return this.evaluate(
-      `document.body.innerText.includes(${JSON.stringify(text)})`,
+      `(document.body?.innerText ?? '').includes(${JSON.stringify(text)})`,
     )
   }
   async wait(text) {
@@ -84,7 +84,7 @@ class Browser {
       await eventually(() => this.has(text), text)
     } catch (error) {
       throw new Error(
-        `${error.message}\n${await this.evaluate('document.body.innerText')}`,
+        `${error.message}\n${await this.evaluate("document.body?.innerText ?? ''")}`,
         { cause: error },
       )
     }
@@ -179,6 +179,7 @@ test(
       let role = 'organizer'
       let outage = false
       let rejectRefund = false
+      let refundUnavailable = false
       let meDelay = 0
       let analyticsError = false
       let expired = false
@@ -254,7 +255,10 @@ test(
             url.pathname.endsWith('/cancel')
           ) {
             mutations.push(request)
-            if (rejectRefund) {
+            if (refundUnavailable) {
+              status = 503
+              body = { detail: 'Refund response unavailable' }
+            } else if (rejectRefund) {
               status = 409
               body = {
                 detail:
@@ -320,7 +324,14 @@ test(
         async () => {
           await browser.evaluate('localStorage.clear()')
           await browser.navigate('/organizer/events/event-1/orders')
-          await browser.wait('Sign in')
+          await eventually(() => browser.evaluate("location.pathname === '/login' && !!document.querySelector('form input[type=email]')"), 'Login form')
+          await browser.evaluate(`(() => {
+            for (const [type, value] of [['email', 'organizer@example.com'], ['password', 'test-password']]) {
+              const field = document.querySelector('form input[type=' + type + ']')
+              Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(field, value)
+              field.dispatchEvent(new Event('input', { bubbles: true }))
+            }
+          })()`)
           await browser.click('Sign in')
           await browser.wait('Orders')
           await browser.wait('Dana')
@@ -379,6 +390,20 @@ test(
           )
           await browser.click('View order')
           await browser.wait('Order tickets')
+        },
+      )
+      await t.test(
+        'an uncertain refund requires a fresh read before retry',
+        async () => {
+          refundUnavailable = true
+          await browser.click('Refund payment…')
+          await browser.click('Confirm refund')
+          await browser.wait('The server may have completed the request.')
+          assert.equal(await browser.has('Confirm refund'), false)
+          assert.equal(await browser.has('Refund payment…'), false)
+          refundUnavailable = false
+          await browser.click('Refresh status')
+          await browser.wait('Refund payment…')
         },
       )
       await t.test(
@@ -543,6 +568,10 @@ test(
       await t.test(
         'invalid date range avoids analytics requests and can be reset',
         async () => {
+          await eventually(
+            () => browser.evaluate("!!document.querySelector('[aria-labelledby=revenue-title]')"),
+            'Previous analytics refresh finished',
+          )
           const before = requests.filter((request) =>
             request.url.includes('/analytics'),
           ).length

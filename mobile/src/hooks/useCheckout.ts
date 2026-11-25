@@ -5,12 +5,14 @@ import { checkoutOrder, quoteOrder } from "../api/orders";
 import { campaignTokenFromInput, resolveCampaign } from "../api/promotions";
 import { acquirePurchaseLock, clearPurchaseAttempt, readPurchaseAttempt, savePurchaseAttempt, type PurchaseAttempt } from "../auth/PurchaseAttempt";
 import { useSession } from "../auth/SessionContext";
+import { useLocale } from "../i18n/LocaleContext";
 import type { EventDetails } from "../types/event";
 import type { CheckoutResponse } from "../types/order";
 import { QUOTE_LIFETIME_MS, sameQuote, selectionError } from "../utils/checkout";
 import { useApiResource } from "./useApiResource";
 
 export function useCheckout(event: EventDetails, initialTypeId?: string, initialCampaignToken?: string) {
+  const { t } = useLocale();
   const { state, authed } = useSession();
   const userId = state.status === "signedIn" ? state.user.id : "";
   const [form, setForm] = useState({ typeId: initialTypeId ?? "", quantity: 1,
@@ -29,6 +31,7 @@ export function useCheckout(event: EventDetails, initialTypeId?: string, initial
   const openedCampaign = useRef(false);
   const [confirmation, setConfirmation] = useState<CheckoutResponse | null>(null);
   const [expiredQuote, setExpiredQuote] = useState<object | null>(null);
+  const [reservationClock, setReservationClock] = useState(0);
   const [quoteVersion, setQuoteVersion] = useState(0);
   const quoteRevision = useRef(0);
   // Invalidate synchronously as well as on render: an old button handler must
@@ -68,19 +71,20 @@ export function useCheckout(event: EventDetails, initialTypeId?: string, initial
   const invalid = selectionError(event, input);
   const loadQuote = useCallback(async (signal: AbortSignal) => {
     if (invalid || attempt || promoPending || applying || campaignError) return null;
+    const requestedAt = Date.now();
     try {
-      const value = await authed((token) => quoteOrder(token, input, signal));
-      return { ok: true as const, choice, version: quoteVersion, value, receivedAt: Date.now(), error: null, promoError: null };
+      const value = await authed((token) => quoteOrder(token, { ...input, reserve_inventory: true }, signal));
+      return { ok: true as const, choice, version: quoteVersion, value, requestedAt, receivedAt: Date.now(), error: null, promoError: null };
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : "Couldn't calculate a quote. Please retry.";
       // A quote can also fail for inventory, auth or network reasons. Only
       // backend promo validation errors belong beside the promotion field.
       const promoError = caught instanceof ApiError && caught.status >= 400 && caught.status < 500 &&
         caught.status !== 401 && /promo code/i.test(message)
-        ? `${message}. Please correct or remove the promo code.` : null;
+        ? `${t(message.replace(/\.$/, ""))}. ${t("Please correct or remove the promo code.")}` : null;
       return { ok: false as const, choice, version: quoteVersion, value: null, receivedAt: Date.now(), error: message, promoError };
     }
-  }, [attempt, authed, choice, input, invalid, promoPending, applying, campaignError, quoteVersion]);
+  }, [attempt, authed, choice, input, invalid, promoPending, applying, campaignError, quoteVersion, t]);
   const resource = useApiResource(loadQuote);
   const currentQuote = resource.data?.choice === choice && resource.data.version === quoteVersion &&
     !promoPending && !applying && !campaignError ? resource.data : null;
@@ -88,13 +92,20 @@ export function useCheckout(event: EventDetails, initialTypeId?: string, initial
   const quoteError = currentQuote?.error ?? resource.error;
   const promoError = campaignError ?? currentQuote?.promoError ?? null;
   const promoNote = reviewed && !resource.loading && !resource.refreshing && !quoteError && form.promo
-    ? `Applied code: ${form.promo}. The discount is included in the quote.` : null;
-  const expired = !!reviewed && expiredQuote === currentQuote;
+    ? t("Applied code: {code}. The discount is included in the quote.", { code: form.promo }) : null;
+  const reservationDeadline = reviewed?.value.reservation
+    ? reviewed.requestedAt + reviewed.value.reservation.remaining_seconds * 1000 : null;
+  const reservationSeconds = reservationDeadline === null || !reviewed ? null
+    : Math.max(0, Math.ceil((reservationDeadline - Math.max(reservationClock, reviewed.receivedAt)) / 1000));
+  const expired = !!reviewed && (expiredQuote === currentQuote || reservationSeconds === 0);
   useEffect(() => {
-    if (!currentQuote?.value) return;
-    const timer = setTimeout(() => setExpiredQuote(currentQuote), Math.max(0, QUOTE_LIFETIME_MS - (Date.now() - currentQuote.receivedAt)));
-    return () => clearTimeout(timer);
-  }, [currentQuote]);
+    if (!reviewed) return;
+    const deadline = reservationDeadline ?? reviewed.receivedAt + QUOTE_LIFETIME_MS;
+    const timer = setTimeout(() => setExpiredQuote(reviewed), Math.max(0, deadline - Date.now()));
+    const interval = reservationDeadline !== null
+      ? setInterval(() => setReservationClock(Date.now()), 1000) : undefined;
+    return () => { clearTimeout(timer); clearInterval(interval); };
+  }, [reservationDeadline, reviewed]);
 
   const change = useCallback((patch: Partial<typeof form>) => {
     if (attempt || lock.current || confirmation) return;
@@ -178,14 +189,14 @@ export function useCheckout(event: EventDetails, initialTypeId?: string, initial
         return;
       }
       if (!pending) {
-        if (!reviewed || Date.now() - reviewed.receivedAt >= QUOTE_LIFETIME_MS) {
+        if (!reviewed || Date.now() >= (reservationDeadline ?? reviewed.receivedAt + QUOTE_LIFETIME_MS)) {
           throw new Error("This quote expired. Refresh the quote before purchasing.");
         }
-        // Quotes do not reserve inventory or price. Revalidate immediately before submitting.
-        const latest = await authed((token) => quoteOrder(token, input));
+        // Revalidate price because the reservation only holds inventory.
+        const latest = await authed((token) => quoteOrder(token, { ...input, reserve_inventory: true }));
         if (!mounted.current) return;
         if (quoteVersion !== quoteRevision.current) return;
-        if (!sameQuote(reviewed.value, latest)) {
+        if (!sameQuote(reviewed.value, latest) || reviewed.value.reservation?.id !== latest.reservation?.id) {
           throw new Error("The price changed. Review the new quote and tap Buy again.");
         }
         // Checkout's native dependency must not prevent login, tickets or staff
@@ -201,7 +212,8 @@ export function useCheckout(event: EventDetails, initialTypeId?: string, initial
           throw new Error("Purchasing isn't available in this app build. Update the app or use a development build, then retry.");
         }
         if (!mounted.current || quoteVersion !== quoteRevision.current) return;
-        pending = { key, body: { ...input, attendee_name: form.name.trim(), simulate_payment: "success" } };
+        pending = { key, body: { ...input, attendee_name: form.name.trim(), simulate_payment: "success",
+          ...(latest.reservation ? { reservation_id: latest.reservation.id, expected_total: latest.total } : {}) } };
         // Persist BEFORE sending a mutation, so navigation/relaunch cannot lose a retry key.
         await savePurchaseAttempt(userId, pending);
         if (!mounted.current) return;
@@ -242,7 +254,7 @@ export function useCheckout(event: EventDetails, initialTypeId?: string, initial
     if (!lock.current && !attempt && !confirmation) invalidateQuote();
   }, [attempt, confirmation, invalidateQuote]);
   const quotes = { ...resource, error: quoteError, retry: retryQuote, refresh: retryQuote };
-  return { form, change, promoInput, changePromo, applyPromo, promoNote, promoError, promoPending, applying, invalid, reviewed, expired, quotes,
+  return { form, change, promoInput, changePromo, applyPromo, promoNote, promoError, promoPending, applying, invalid, reviewed, expired, reservationSeconds, quotes,
     attempt, ready, restoreError, retryRestore: () => setRestoreVersion((n) => n + 1),
     error, busy, confirmation, canBuy, purchase };
 }

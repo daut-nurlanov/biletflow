@@ -13,6 +13,8 @@ const chrome =
     '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
     '/usr/bin/google-chrome',
     '/usr/bin/chromium',
+    'C:/Program Files/Google/Chrome/Application/chrome.exe',
+    'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
   ].find(existsSync)
 test(
   'notifications, calendar files and admin failed payments',
@@ -230,14 +232,17 @@ test(
         'unread filter persists, failed marking keeps records, double submit sends once',
         async () => {
           await browser.evaluate(
-            `const select=document.querySelector('select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(select,'unread');select.dispatchEvent(new Event('change',{bubbles:true}))`,
+            `const select=document.querySelector('select[name="notification_filter"]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(select,'unread');select.dispatchEvent(new Event('change',{bubbles:true}))`,
           )
-          await browser.wait('Ticket confirmed')
-          assert.equal(await browser.has('Old message'), false)
+          await eventually(async () =>
+            (await browser.evaluate('location.search')) === '?unread_only=true' &&
+            (await browser.has('Ticket confirmed')) && !(await browser.has('Old message')),
+          'Unread filter committed and filtered records loaded')
           assert.equal(
             await browser.evaluate('location.search'),
             '?unread_only=true',
           )
+          await eventually(() => browser.evaluate(`[...document.querySelectorAll('button')].some(b => b.textContent === 'Mark all notifications as read' && !b.disabled)`), 'Unread notifications loaded')
           failWrite = true
           await browser.click('Mark all notifications as read')
           await browser.wait('Could not mark notifications')

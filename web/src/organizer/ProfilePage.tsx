@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { api } from '../api'
 import { messageFor, useResource } from './data'
 import { Notice, ResourceState } from './ui'
+import { useI18n } from "../i18n"
 
 interface Profile {
   contact_phone: string | null
@@ -11,6 +12,7 @@ interface Profile {
 }
 
 function ProfileForm({ data, refresh }: { data: Profile; refresh: () => void }) {
+  const { t: localize } = useI18n()
   const [phone, setPhone] = useState(data.contact_phone ?? '')
   const [payout, setPayout] = useState(data.payout_account_details ?? '')
   const [message, setMessage] = useState<{ text: string; error: boolean } | null>(null)
@@ -55,30 +57,30 @@ function ProfileForm({ data, refresh }: { data: Profile; refresh: () => void }) 
         <>
           <form className="org-panel org-form" onSubmit={save}>
             <label className="org-field">
-              Contact phone
+              {localize("Contact phone")}
               <input required maxLength={40} value={phone} onChange={(e) => setPhone(e.target.value)} />
             </label>
             <label className="org-field">
-              Payout account (for example IBAN)
+              {localize("Payout account (for example IBAN)")}
               <input required maxLength={200} value={payout} onChange={(e) => setPayout(e.target.value)} />
             </label>
             <div className="org-actions">
               <button className="btn" disabled={busy}>
-                Save
+                {localize("Save")}
               </button>
             </div>
           </form>
-          <h2>Identity</h2>
+          <h2>{localize("Identity")}</h2>
           <div className="org-panel">
             {data.paid_sales_verified ? (
               <p>
-                <strong>Verified.</strong> You can activate paid sales on your events.
+                <strong>{localize("Verified.")}</strong> {localize("You can activate paid sales on your events.")}
               </p>
             ) : (
               <>
-                <p>Not verified yet. Save both details above, then verify.</p>
+                <p>{localize("Not verified yet. Save both details above, then verify.")}</p>
                 <button className="btn" disabled={busy} onClick={verify}>
-                  Verify identity
+                  {localize("Verify identity")}
                 </button>
               </>
             )}
@@ -89,19 +91,19 @@ function ProfileForm({ data, refresh }: { data: Profile; refresh: () => void }) 
 }
 
 export default function ProfilePage() {
+  const { t: localize } = useI18n()
   const resource = useResource<Profile>('/api/organizer/profile')
   return (
     <>
       <Link className="org-back" to="/organizer">
-        ← My events
+        {localize("← My events")}
       </Link>
       <div className="org-heading">
         <div>
-          <p className="org-eyebrow">Organizer</p>
-          <h1>Profile and verification</h1>
+          <p className="org-eyebrow">{localize("Organizer")}</p>
+          <h1>{localize("Profile and verification")}</h1>
           <p className="muted">
-            Needed before you can sell paid tickets. Verification is simulated
-            in this version: it checks that both details are filled in.
+            {localize("Needed before you can sell paid tickets. Verification is simulated in this version: it checks that both details are filled in.")}
           </p>
         </div>
       </div>

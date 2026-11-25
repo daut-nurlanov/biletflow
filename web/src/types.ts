@@ -19,8 +19,10 @@ export interface EventItem {
   end_time: string | null
   capacity: number
   status: string
+  visibility?: 'public' | 'unlisted' | 'private'
   has_assigned_seating: boolean
   is_paid_sales_active: boolean
+  paid_sales_suspended?: boolean
   image_url: string | null
   refund_policy: string | null
   registration_opens_at: string | null
@@ -37,6 +39,9 @@ export interface TicketType {
   quantity_available: number
   seat_category: string | null
   max_per_order: number
+  is_hidden?: boolean
+  sales_start_time?: string | null
+  sales_end_time?: string | null
 }
 
 export interface Quote {
@@ -44,6 +49,7 @@ export interface Quote {
   discount: string | number
   total: string | number
   processing_fee?: string | number
+  reservation?: { id: string; expires_at: string; remaining_seconds: number }
 }
 
 // exact shape of /api/tickets/my-tickets is checked in /docs, so most fields are optional
@@ -57,6 +63,7 @@ export interface MyTicket {
   title?: string
   event?: { title?: string; start_time?: string; venue_name?: string }
   start_time?: string
+  end_time?: string
   venue_name?: string
   ticket_type_name?: string
   section?: string

@@ -1,6 +1,12 @@
+from concurrent.futures import ThreadPoolExecutor
+from threading import Barrier
 from uuid import uuid4
 
+from fastapi.testclient import TestClient
+
+import main
 from conftest import PASSWORD, fetch_one, notifications_for, run_sql
+from security import make_token
 
 
 def register(kit, **kw):
@@ -78,7 +84,11 @@ def test_email_verification_flow(kit):
     assert response.json()["is_email_verified"] is False
     code = notifications_for(user_id, "verify_email")[0]["body"].split(": ")[-1]
     assert kit.client.post("/api/auth/verify-email", json={"token": "garbage"}).status_code == 400
+    expired = make_token(user_id, "verify_email", ttl=-10)
+    assert kit.client.post("/api/auth/verify-email", json={"token": expired}).status_code == 400
     assert kit.client.post("/api/auth/verify-email", json={"token": code}).status_code == 200
+    replay = kit.client.post("/api/auth/verify-email", json={"token": code})
+    assert replay.status_code == 400 and "already been used" in replay.json()["detail"]
     assert fetch_one("SELECT is_email_verified FROM users WHERE id = %s", (user_id,))["is_email_verified"] is True
     h = {"Authorization": "Bearer " + response.json()["token"]}
     assert kit.client.post("/api/auth/resend-verification", headers=h).json()["message"].startswith("Your email is already")
@@ -101,6 +111,24 @@ def test_forgot_password_does_not_reveal_which_emails_exist(kit):
     a = kit.client.post("/api/auth/forgot-password", json={"email": known.email})
     b = kit.client.post("/api/auth/forgot-password", json={"email": "ghost@test.invalid"})
     assert a.status_code == b.status_code == 200 and a.json() == b.json()
+
+
+def test_password_reset_code_can_only_be_used_by_one_concurrent_request(kit):
+    user = kit.user()
+    kit.client.post("/api/auth/forgot-password", json={"email": user.email})
+    code = notifications_for(user.id, "reset_password")[0]["body"].split(": ")[-1]
+    ready = Barrier(2)
+    passwords = ("First-choice-123", "Second-choice-123")
+
+    def reset(password):
+        with TestClient(main.app) as client:
+            ready.wait(timeout=10)
+            return client.post("/api/auth/reset-password", json={"token": code, "new_password": password}).status_code
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(reset, passwords))
+    assert sorted(results) == [200, 400]
+    assert kit.client.post("/api/auth/login", json={"email": user.email, "password": passwords[results.index(200)]}).status_code == 200
 
 
 def test_notifications_list_and_mark_read(kit):

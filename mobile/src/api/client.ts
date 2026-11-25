@@ -56,6 +56,37 @@ export interface RequestOptions {
 
 /** Shared fetch helper: JSON in and out, token header, timeout and readable errors. */
 export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  return readResponse(path, options, async (response) => {
+    try {
+      return await response.json() as T;
+    } catch {
+      throw new Error("BiletFlow returned an unreadable response. Please try again.");
+    }
+  });
+}
+
+export function requestBlob(path: string, mimeType: string, token: string, signal?: AbortSignal): Promise<Blob> {
+  return requestFile(path, mimeType, token, signal, (response) => response.blob());
+}
+
+export function requestPdf(path: string, token: string, signal?: AbortSignal): Promise<Uint8Array> {
+  return requestFile(path, "application/pdf", token, signal,
+    async (response) => new Uint8Array(await response.arrayBuffer()));
+}
+
+function requestFile<T>(path: string, mimeType: string, token: string, signal: AbortSignal | undefined,
+  decode: (response: Response) => Promise<T>): Promise<T> {
+  return readResponse(path, { token, signal, headers: { Accept: mimeType } }, (response) => {
+    if (response.headers.get("content-type")?.split(";")[0].trim().toLowerCase() !== mimeType) {
+      throw new Error("BiletFlow returned an unexpected file type. Please try again.");
+    }
+    return decode(response);
+  });
+}
+
+async function readResponse<T>(
+  path: string, options: RequestOptions, decode: (response: Response) => Promise<T>,
+): Promise<T> {
   const { method = "GET", body, token, signal } = options;
   const baseUrl = getBaseUrl();
   const controller = new AbortController();
@@ -96,11 +127,7 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
       );
     }
 
-    try {
-      return await response.json() as T;
-    } catch {
-      throw new Error("BiletFlow returned an unreadable response. Please try again.");
-    }
+    return await decode(response);
   } catch (error) {
     if (timedOut && !signal?.aborted) {
       throw new Error("The request took too long. Check your connection and try again.");

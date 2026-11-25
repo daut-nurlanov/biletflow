@@ -15,6 +15,7 @@ import type { OrganizerStackParamList } from "../navigation/types";
 import { sharedStyles, theme } from "../theme";
 import { formatDateTime, formatMoney } from "../utils/formatting";
 import { organizerMessage } from "../utils/organizerOrders";
+import { useLocale } from "../i18n/LocaleContext";
 
 type Props = NativeStackScreenProps<OrganizerStackParamList, "EventOrders">;
 
@@ -28,6 +29,8 @@ const STATUS_OPTIONS = [
 ] as const;
 
 export function EventOrdersScreen({ route, navigation }: Props) {
+  const { t: localize } = useLocale();
+  const { lang } = useLocale();
   const { eventId, eventTitle } = route.params;
   const { authed } = useSession();
   const [status, setStatus] = useState("");
@@ -51,19 +54,19 @@ export function EventOrdersScreen({ route, navigation }: Props) {
         ListHeaderComponent={
           <View style={styles.header}>
             <Text accessibilityRole="header" style={sharedStyles.title}>{eventTitle}</Text>
-            <Text style={sharedStyles.muted}>Payments and refunds are simulated. No real money is charged.</Text>
-            <FilterChips label="Order status" options={STATUS_OPTIONS} value={status} onChange={setStatus} />
+            <Text style={sharedStyles.muted}>{localize("Payments and refunds are simulated. No real money is charged.")}</Text>
+            <FilterChips label={localize("Order status")} options={STATUS_OPTIONS} value={status} onChange={setStatus} />
           </View>
         }
         ListEmptyComponent={
-          resource.loading ? <LoadingState message="Loading orders…" />
-            : resource.error ? <ErrorState title="Couldn't load orders" message={resource.error} onRetry={resource.retry} />
-              : <EmptyState title="No orders" message={status ? "No orders have this status." : "Orders appear here once people buy or register."} />
+          resource.loading ? <LoadingState message={localize("Loading orders…")} />
+            : resource.error ? <ErrorState title={localize("Couldn't load orders")} message={resource.error} onRetry={resource.retry} />
+              : <EmptyState title={localize("No orders")} message={status ? localize("No orders have this status.") : localize("Orders appear here once people buy or register.")} />
         }
         renderItem={({ item }) => (
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={`Order from ${item.full_name || item.email}, ${formatMoney(item.total_amount)}. Opens the order`}
+            accessibilityLabel={`Order from ${item.full_name || item.email}, ${formatMoney(item.total_amount, lang)}. Opens the order`}
             onPress={() => navigation.navigate("OrderDetail", { orderId: item.id, eventId })}
             style={({ pressed }) => [sharedStyles.card, pressed && styles.pressed]}
           >
@@ -75,11 +78,11 @@ export function EventOrdersScreen({ route, navigation }: Props) {
               <StatusBadge status={item.status} />
             </View>
             <Text style={sharedStyles.body}>
-              {`${formatMoney(item.total_amount)} · ${item.ticket_count} ${item.ticket_count === 1 ? "ticket" : "tickets"}`}
+              {`${formatMoney(item.total_amount, lang)} · ${item.ticket_count} ${item.ticket_count === 1 ? "ticket" : "tickets"}`}
               {item.promo_code_applied ? ` · ${item.promo_code_applied}` : ""}
             </Text>
-            <Text style={sharedStyles.muted}>{formatDateTime(item.created_at)}</Text>
-            <Text style={styles.link}>View order →</Text>
+            <Text style={sharedStyles.muted}>{formatDateTime(item.created_at, lang)}</Text>
+            <Text style={styles.link}>{localize("View order →")}</Text>
           </Pressable>
         )}
       />

@@ -11,6 +11,7 @@ import { StaffEventsScreen } from "../screens/StaffEventsScreen";
 import { StaffToolsScreen } from "../screens/StaffToolsScreen";
 import { theme } from "../theme";
 import type { ScannerStackParamList } from "./types";
+import { useLocale } from "../i18n/LocaleContext";
 
 const Stack = createNativeStackNavigator<ScannerStackParamList>();
 
@@ -31,10 +32,11 @@ const navigationTheme = {
  * after sign-in so "back" cannot return to them.
  */
 export function ScannerNavigator() {
+  const { t: localize } = useLocale();
   const { state } = useSession();
 
   if (state.status === "restoring") {
-    return <LoadingState message="Checking your sign-in…" />;
+    return <LoadingState message={localize("Checking your sign-in…")} />;
   }
 
   return (
@@ -42,19 +44,19 @@ export function ScannerNavigator() {
       <Stack.Navigator screenOptions={{ headerTintColor: theme.colors.primary }}>
         {state.status === "signedIn" ? (
           <>
-            <Stack.Screen name="StaffEvents" component={StaffEventsScreen} options={{ title: "Your events" }} />
+            <Stack.Screen name="StaffEvents" component={StaffEventsScreen} options={{ title: localize("Your events") }} />
             <Stack.Screen
               name="Scan"
               component={ScanScreen}
-              options={({ route }) => ({ title: route.params.eventTitle })}
+              options={{ title: localize("Scan tickets") }}
             />
-            <Stack.Screen name="StaffTools" component={StaffToolsScreen} options={{ title: "Attendees" }} />
+            <Stack.Screen name="StaffTools" component={StaffToolsScreen} options={{ title: localize("Attendees") }} />
           </>
         ) : (
           <>
             <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />
             <Stack.Screen name="Register" component={RegisterScreen} options={{ headerShown: false }} />
-            <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} options={{ title: "Reset password" }} />
+            <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} options={{ title: localize("Reset password") }} />
           </>
         )}
       </Stack.Navigator>
