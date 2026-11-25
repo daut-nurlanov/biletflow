@@ -4,6 +4,7 @@ import { BASE, api, getToken, imageSrc } from '../api'
 import { messageFor, useResource } from './data'
 import { Notice, ResourceState } from './ui'
 import { toApiTime, toLocalInput, type FullEvent } from './setup'
+import { useI18n } from "../i18n"
 
 const MAX_IMAGE_BYTES = 2 * 1024 * 1024
 const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp']
@@ -79,6 +80,7 @@ function EventForm({
   initial: FormState
   eventId?: string
 }) {
+  const { t: localize } = useI18n()
   const navigate = useNavigate()
   const location = useLocation()
   const [form, setForm] = useState(initial)
@@ -158,32 +160,32 @@ function EventForm({
     <form className="org-panel org-form" onSubmit={submit}>
       {error && <Notice error>{error}</Notice>}
       <label className="org-field">
-        Title
+        {localize("Title")}
         <input required maxLength={200} value={form.title} onChange={set('title')} />
       </label>
       <div className="org-form-row">
         <label className="org-field">
-          Venue name
+          {localize("Venue name")}
           <input required maxLength={200} value={form.venue_name} onChange={set('venue_name')} />
         </label>
         <label className="org-field">
-          Venue address
+          {localize("Venue address")}
           <input maxLength={300} value={form.venue_address} onChange={set('venue_address')} />
         </label>
       </div>
       <div className="org-form-row">
         <label className="org-field">
-          Starts (Almaty time)
+          {localize("Starts (Almaty time)")}
           <input required type="datetime-local" value={form.start} onChange={set('start')} />
         </label>
         <label className="org-field">
-          Ends (Almaty time)
+          {localize("Ends (Almaty time)")}
           <input type="datetime-local" value={form.end} onChange={set('end')} />
         </label>
       </div>
       <div className="org-form-row">
         <label className="org-field">
-          Category
+          {localize("Category")}
           <select value={form.category} onChange={set('category')}>
             {CATEGORIES.map((c) => (
               <option key={c}>{c}</option>
@@ -191,28 +193,28 @@ function EventForm({
           </select>
         </label>
         <label className="org-field">
-          Capacity (total tickets)
+          {localize("Capacity (total tickets)")}
           <input required type="number" min={1} value={form.capacity} onChange={set('capacity')} />
         </label>
         <label className="org-field">
-          Who can see it
+          {localize("Who can see it")}
           <select value={form.visibility} onChange={set('visibility')}>
-            <option value="public">Public: listed for everyone</option>
-            <option value="unlisted">Unlisted: only with the link</option>
-            <option value="private">Private: not for sale</option>
+            <option value="public">{localize("Public: listed for everyone")}</option>
+            <option value="unlisted">{localize("Unlisted: only with the link")}</option>
+            <option value="private">{localize("Private: not for sale")}</option>
           </select>
         </label>
       </div>
       <label className="org-field">
-        Description
+        {localize("Description")}
         <textarea rows={4} maxLength={5000} value={form.description} onChange={set('description')} />
       </label>
       <label className="org-field">
-        Refund policy
+        {localize("Refund policy")}
         <textarea rows={2} maxLength={2000} value={form.refund_policy} onChange={set('refund_policy')} />
       </label>
       <label className="org-field">
-        Cover picture (JPEG, PNG or WebP, up to 2 MB)
+        {localize("Cover picture (JPEG, PNG or WebP, up to 2 MB)")}
         <input
           type="file"
           accept="image/jpeg,image/png,image/webp"
@@ -223,25 +225,25 @@ function EventForm({
         <img src={imageSrc(form.image_url)} alt="Current cover" style={{ maxWidth: 240, borderRadius: 8 }} />
       )}
       <label className="org-field">
-        Or an image address (https://...)
+        {localize("Or an image address (https://...)")}
         <input type="url" maxLength={500} value={form.image_url} onChange={set('image_url')} />
       </label>
       <div className="org-form-row">
         <label className="org-field">
-          Registration opens (optional)
+          {localize("Registration opens (optional)")}
           <input type="datetime-local" value={form.reg_opens} onChange={set('reg_opens')} />
         </label>
         <label className="org-field">
-          Registration closes (optional)
+          {localize("Registration closes (optional)")}
           <input type="datetime-local" value={form.reg_closes} onChange={set('reg_closes')} />
         </label>
       </div>
       <div className="org-actions">
         <button className="btn" disabled={busy}>
-          {busy ? 'Saving…' : eventId ? 'Save changes' : 'Create draft event'}
+          {busy ? localize("Saving…") : eventId ? 'Save changes' : 'Create draft event'}
         </button>
         <Link className="btn secondary" to={eventId ? `/organizer/events/${eventId}/setup` : '/organizer'}>
-          Cancel
+          {localize("Cancel")}
         </Link>
       </div>
     </form>
@@ -249,17 +251,18 @@ function EventForm({
 }
 
 export function NewEventPage() {
+  const { t: localize } = useI18n()
   return (
     <>
       <Link className="org-back" to="/organizer">
-        ← My events
+        {localize("← My events")}
       </Link>
       <div className="org-heading">
         <div>
-          <p className="org-eyebrow">Set-up</p>
-          <h1>New event</h1>
+          <p className="org-eyebrow">{localize("Set-up")}</p>
+          <h1>{localize("New event")}</h1>
           <p className="muted">
-            The event is saved as a draft. Add ticket types, then publish it.
+            {localize("The event is saved as a draft. Add ticket types, then publish it.")}
           </p>
         </div>
       </div>
@@ -269,17 +272,18 @@ export function NewEventPage() {
 }
 
 export function EditEventPage() {
+  const { t: localize } = useI18n()
   const { eventId } = useParams()
   const resource = useResource<FullEvent>(`/api/events/${eventId}`)
   return (
     <>
       <Link className="org-back" to={`/organizer/events/${eventId}/setup`}>
-        ← Set-up
+        {localize("← Set-up")}
       </Link>
       <div className="org-heading">
         <div>
-          <p className="org-eyebrow">Set-up</p>
-          <h1>Edit event</h1>
+          <p className="org-eyebrow">{localize("Set-up")}</p>
+          <h1>{localize("Edit event")}</h1>
         </div>
       </div>
       <ResourceState {...resource} retry={resource.refresh} />

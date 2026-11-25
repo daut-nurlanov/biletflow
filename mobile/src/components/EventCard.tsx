@@ -6,6 +6,7 @@ import { formatDateTime } from "../utils/formatting";
 import { StatusBadge } from "./StatusBadge";
 import { EventImage } from "./EventImage";
 import { BrandIcon } from "./BrandIcon";
+import { useLocale } from "../i18n/LocaleContext";
 
 interface EventCardProps {
   event: Event;
@@ -24,6 +25,7 @@ export function EventCard({
   accessibilityHint = "Opens event details and ticket types",
   showCover = false,
 }: EventCardProps) {
+  const { lang } = useLocale();
   return (
     <Pressable
       accessibilityRole="button"
@@ -40,7 +42,7 @@ export function EventCard({
       </View>
       <View style={styles.action}>
         <BrandIcon name="calendar" size={16} />
-        <Text style={[sharedStyles.muted, styles.meta]}>{formatDateTime(event.start_time)}</Text>
+        <Text style={[sharedStyles.muted, styles.meta]}>{formatDateTime(event.start_time, lang)}</Text>
       </View>
       <StatusBadge status={event.status} />
       <View style={styles.action}>

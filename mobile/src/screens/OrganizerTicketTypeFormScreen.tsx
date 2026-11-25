@@ -15,18 +15,20 @@ import type { EventDetails } from "../types/event";
 import type { TicketType } from "../types/ticket";
 import { eventDisplayStatus } from "../utils/eventTiming";
 import { canEditSetup, changedSetupFields, ticketTypeDraft, ticketTypeInput, type TicketTypeDraft } from "../utils/organizerSetup";
+import { useLocale } from "../i18n/LocaleContext";
 
 type Props = NativeStackScreenProps<OrganizerStackParamList, "TicketTypeForm">;
 
 export function OrganizerTicketTypeFormScreen({ route, navigation }: Props) {
+  const { t: localize } = useLocale();
   const { eventId, ticketTypeId } = route.params;
   const resource = useManagedEvent(eventId);
   const event = resource.data;
-  if (!event && resource.loading) return <Screen><LoadingState message="Loading ticket types…" /></Screen>;
+  if (!event && resource.loading) return <Screen><LoadingState message={localize("Loading ticket types…")} /></Screen>;
   if (!event) return <Screen><ErrorState message={resource.error ?? "Event unavailable."} onRetry={resource.retry} /></Screen>;
   const type = event.ticket_types.find((item) => item.id === ticketTypeId);
   if (!canEditSetup(eventDisplayStatus(event)) || (ticketTypeId && !type)) {
-    return <Screen><ErrorState message="This ticket type or event can no longer be edited." onRetry={resource.retry} /></Screen>;
+    return <Screen><ErrorState message={localize("This ticket type or event can no longer be edited.")} onRetry={resource.retry} /></Screen>;
   }
   return <TicketTypeEditor key={type?.id ?? event.id} event={event} type={type} onBack={navigation.goBack}
     loadError={resource.error} checking={resource.loading || resource.refreshing} onRetry={resource.retry} />;
@@ -36,6 +38,7 @@ function TicketTypeEditor({ event, type, checking, loadError, onRetry, onBack }:
   event: EventDetails; type?: TicketType; checking: boolean; loadError: string | null;
   onRetry: () => void; onBack: () => void;
 }) {
+  const { t: localize } = useLocale();
   const [original] = useState(type);
   const [form, setForm] = useState(() => ticketTypeDraft(event, type));
   const [saved, setSaved] = useState(false);
@@ -70,24 +73,26 @@ function TicketTypeEditor({ event, type, checking, loadError, onRetry, onBack }:
   }
 
   return (
-    <OrganizerForm error={error} submitTitle="Save ticket type" busy={busy} disabled={disabled}
+    <OrganizerForm error={error} submitTitle={localize("Save ticket type")} busy={busy} disabled={disabled}
       onSubmit={() => { void submit(); }} onBack={onBack}>
-      {loadError ? <ErrorState title="Couldn't refresh ticket types" message={loadError} onRetry={onRetry} /> : null}
+      {loadError ? <ErrorState title={localize("Couldn't refresh ticket types")} message={loadError} onRetry={onRetry} /> : null}
       <Text accessibilityRole="header" style={sharedStyles.title}>{event.title}</Text>
       <OrganizerField {...field("name")} label="Ticket type name" maxLength={100} />
       <OrganizerField {...field("price")} label="Price in KZT" keyboardType="decimal-pad" maxLength={12} />
-      <Text style={sharedStyles.muted}>Set the price to 0 for free tickets.</Text>
+      <Text style={sharedStyles.muted}>{localize("Set the price to 0 for free tickets.")}</Text>
       <OrganizerField {...field("total_quantity")} label="Total tickets" keyboardType="number-pad" maxLength={10} />
-      {type ? <Text style={sharedStyles.muted}>{type.total_quantity - type.quantity_available} sold. Total includes tickets already sold.</Text> : null}
+      {type ? <Text style={sharedStyles.muted}>{localize("{count} sold. Total includes tickets already sold.", {
+        count: type.total_quantity - type.quantity_available,
+      })}</Text> : null}
       <OrganizerField {...field("max_per_order")} label="Maximum per order" keyboardType="number-pad" maxLength={10} />
       <OrganizerField {...field("description")} label="Ticket description (optional)" multiline maxLength={500} />
-      <Text accessibilityRole="header" style={sharedStyles.title}>Sales window</Text>
-      <Text style={sharedStyles.muted}>Use Almaty time (UTC+5).{type ? " Blank optional fields keep their saved values." : ""}</Text>
+      <Text accessibilityRole="header" style={sharedStyles.title}>{localize("Sales window")}</Text>
+      <Text style={sharedStyles.muted}>{localize("Use Almaty time (UTC+5).")}{type ? " Blank optional fields keep their saved values." : ""}</Text>
       <OrganizerTimeField {...field("sales_start_time")} label="Sales start (optional)" />
       <OrganizerTimeField {...field("sales_end_time")} label="Sales end (optional)" />
       <View style={formStyles.row}>
-        <Text style={sharedStyles.body}>Hide from buyers</Text>
-        <Switch accessibilityLabel="Hide from buyers" value={form.is_hidden}
+        <Text style={sharedStyles.body}>{localize("Hide from buyers")}</Text>
+        <Switch accessibilityLabel={localize("Hide from buyers")} value={form.is_hidden}
           onValueChange={(is_hidden) => setForm((previous) => ({ ...previous, is_hidden }))} disabled={disabled} />
       </View>
     </OrganizerForm>

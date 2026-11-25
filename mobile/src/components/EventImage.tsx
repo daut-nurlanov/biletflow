@@ -5,8 +5,10 @@ import { environment } from "../config/environment";
 import { theme } from "../theme";
 import { BrandIcon } from "./BrandIcon";
 import { LoadingState } from "./LoadingState";
+import { useLocale } from "../i18n/LocaleContext";
 
 export function EventImage({ uri, title, category }: { uri?: string | null; title: string; category?: string | null }) {
+  const { t: localize } = useLocale();
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const url = uri?.startsWith("/") ? `${environment.apiBaseUrl}${uri}` : uri;
   useEffect(() => {
@@ -22,7 +24,7 @@ export function EventImage({ uri, title, category }: { uri?: string | null; titl
       </View> : <>
         <Image source={{ uri: url }} style={StyleSheet.absoluteFill} accessibilityLabel={title}
           onLoad={() => setStatus((current) => current === "loading" ? "ready" : current)} onError={() => setStatus("error")} />
-        {status === "loading" ? <LoadingState message="Loading event image…" /> : null}
+        {status === "loading" ? <LoadingState message={localize("Loading event image…")} /> : null}
       </>}
     </View>
   );

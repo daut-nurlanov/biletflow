@@ -6,12 +6,14 @@ import { formatDate } from '../format'
 import type { SupportCase, SupportMessage, SupportStatus, User } from '../types'
 import { supportLabel, supportStatuses } from '../support/labels'
 import '../support/support.css'
+import { useI18n } from "../i18n"
 
 export default function SupportCasePage() {
+  const { t: localize } = useI18n()
   const { id } = useParams()
   const { user, loading, error } = useAuth()
   const location = useLocation()
-  if (loading) return <p>Loading…</p>
+  if (loading) return <p>{localize("Loading…")}</p>
   if (error)
     return (
       <p className="error" role="alert">
@@ -22,16 +24,17 @@ export default function SupportCasePage() {
     return (
       <p>
         <Link to="/login" state={{ from: location.pathname + location.search }}>
-          Sign in
+          {localize("Sign in")}
         </Link>{' '}
-        to see this support request.
+        {localize("to see this support request.")}
       </p>
     )
-  if (!id) return <p role="alert">Request not found.</p>
+  if (!id) return <p role="alert">{localize("Request not found.")}</p>
   return <CaseView key={`${user.id}:${id}`} id={id} user={user} />
 }
 
 function CaseView({ id, user }: { id: string; user: User }) {
+  const { t: localize } = useI18n()
   const location = useLocation()
   const [supportCase, setSupportCase] = useState<SupportCase | null>(null)
   const [loading, setLoading] = useState(true)
@@ -46,6 +49,7 @@ function CaseView({ id, user }: { id: string; user: User }) {
   const [confirmEscalation, setConfirmEscalation] = useState(false)
   const readController = useRef<AbortController | null>(null)
   const writeController = useRef<AbortController | null>(null)
+  const replyAttempt = useRef<{ text: string; key: string } | null>(null)
   const root = `/api/support/cases/${encodeURIComponent(id)}`
 
   useEffect(() => () => writeController.current?.abort(), [])
@@ -103,6 +107,9 @@ function CaseView({ id, user }: { id: string; user: User }) {
     setActionError('')
     setNotice('')
     try {
+      if (action === 'reply' && replyAttempt.current?.text !== text) {
+        replyAttempt.current = { text, key: crypto.randomUUID() }
+      }
       const result = await api<SupportCase | SupportMessage>(
         root +
           (action === 'reply'
@@ -112,6 +119,8 @@ function CaseView({ id, user }: { id: string; user: User }) {
               : ''),
         {
           method: action === 'reply' || action === 'escalate' ? 'POST' : 'PUT',
+          headers: action === 'reply' && replyAttempt.current
+            ? { 'Idempotency-Key': replyAttempt.current.key } : undefined,
           body:
             action === 'reply'
               ? { message: text }
@@ -124,7 +133,10 @@ function CaseView({ id, user }: { id: string; user: User }) {
         },
       )
       if (controller.signal.aborted) return
-      if (action === 'reply') setReply('')
+      if (action === 'reply') {
+        replyAttempt.current = null
+        setReply('')
+      }
       else
         setSupportCase((current) =>
           current ? ({ ...current, ...result } as SupportCase) : null,
@@ -177,20 +189,20 @@ function CaseView({ id, user }: { id: string; user: User }) {
   if (notFound)
     return (
       <p className="error" role="alert">
-        Request not found.
+        {localize("Request not found.")}
       </p>
     )
-  if (loading && !supportCase) return <p>Loading…</p>
+  if (loading && !supportCase) return <p>{localize("Loading…")}</p>
   return (
     <>
       <div className="support-heading">
-        <Link className="support-back" to={back}>← All support requests</Link>
+        <Link className="support-back" to={back}>{localize("← All support requests")}</Link>
         <button
           className="btn secondary"
           disabled={busy}
           onClick={() => setRefreshKey((value) => value + 1)}
         >
-          Refresh request
+          {localize("Refresh request")}
         </button>
       </div>
       {loadError && (
@@ -200,7 +212,7 @@ function CaseView({ id, user }: { id: string; user: User }) {
             className="btn secondary"
             onClick={() => setRefreshKey((value) => value + 1)}
           >
-            Retry request
+            {localize("Retry request")}
           </button>
         </div>
       )}
@@ -210,7 +222,7 @@ function CaseView({ id, user }: { id: string; user: User }) {
             <div>
               <h1>{supportLabel(supportCase.category)}</h1>
               <p className="muted">
-                Opened {formatDate(supportCase.created_at)}
+                {localize("Opened")} {formatDate(supportCase.created_at)}
               </p>
             </div>
             <strong data-support-status>
@@ -218,15 +230,15 @@ function CaseView({ id, user }: { id: string; user: User }) {
                 supportLabel(supportCase.status)}
             </strong>
           </div>
-          <section className="support-context" aria-label="Request context">
+          <section className="support-context" aria-label={localize("Request context")}>
             <p>
               {supportCase.kind === 'organizer'
-                ? 'Platform support request'
-                : 'Attendee support request'}{' '}
+                ? localize("Platform support request")
+                : localize("Attendee support request")}{' '}
               · {supportCase.opened_by_name ?? 'Requester'}
             </p>
             <p>
-              Event:{' '}
+              {localize("Event:")}{' '}
               {handler && supportCase.event_id ? (
                 <Link to={`/organizer/events/${supportCase.event_id}`}>
                   {supportCase.event_title ?? 'Event overview'}
@@ -237,7 +249,7 @@ function CaseView({ id, user }: { id: string; user: User }) {
             </p>
             {supportCase.order_id && (
               <p>
-                Order:{' '}
+                {localize("Order:")}{' '}
                 {handler && supportCase.event_id ? (
                   <Link
                     to={`/organizer/events/${supportCase.event_id}/orders/${supportCase.order_id}`}
@@ -249,11 +261,11 @@ function CaseView({ id, user }: { id: string; user: User }) {
                 )}
               </p>
             )}
-            {supportCase.ticket_id && <p>Ticket: {supportCase.ticket_id}</p>}
+            {supportCase.ticket_id && <p>{localize("Ticket:")} {supportCase.ticket_id}</p>}
             <p>
-              Assigned to:{' '}
+              {localize("Assigned to:")}{' '}
               {supportCase.assigned_to === user.id
-                ? 'You'
+                ? localize("You")
                 : (supportCase.assigned_to_name ??
                   (supportCase.assigned_to
                     ? 'Support team member'
@@ -261,17 +273,16 @@ function CaseView({ id, user }: { id: string; user: User }) {
             </p>
             {supportCase.escalated && (
               <p className="support-escalated">
-                Escalated to platform support. The organizer and platform team
-                can continue helping here.
+                {localize("Escalated to platform support. The organizer and platform team can continue helping here.")}
               </p>
             )}
           </section>
           {manager && (
             <section
               className="support-controls"
-              aria-label="Support management"
+              aria-label={localize("Support management")}
             >
-              <h2>Manage request</h2>
+              <h2>{localize("Manage request")}</h2>
               <form
                 className="form"
                 onSubmit={(event) => {
@@ -279,7 +290,7 @@ function CaseView({ id, user }: { id: string; user: User }) {
                   void act('status')
                 }}
               >
-                <label htmlFor="support-status">Status</label>
+                <label htmlFor="support-status">{localize("Status")}</label>
                 <select
                   id="support-status"
                   name="status"
@@ -303,7 +314,7 @@ function CaseView({ id, user }: { id: string; user: User }) {
                     (draftStatus ?? supportCase.status) === supportCase.status
                   }
                 >
-                  Save status
+                  {localize("Save status")}
                 </button>
               </form>
               <div className="support-actions">
@@ -316,8 +327,8 @@ function CaseView({ id, user }: { id: string; user: User }) {
                     }}
                   >
                     {supportCase.assigned_to
-                      ? 'Take over request'
-                      : 'Assign to me'}
+                      ? localize("Take over request")
+                      : localize("Assign to me")}
                   </button>
                 )}
                 {handler && !supportCase.escalated && !confirmEscalation && (
@@ -326,7 +337,7 @@ function CaseView({ id, user }: { id: string; user: User }) {
                     disabled={disabled}
                     onClick={() => setConfirmEscalation(true)}
                   >
-                    Escalate to platform support
+                    {localize("Escalate to platform support")}
                   </button>
                 )}
               </div>
@@ -334,11 +345,10 @@ function CaseView({ id, user }: { id: string; user: User }) {
                 <div
                   className="support-confirm"
                   role="group"
-                  aria-label="Confirm escalation"
+                  aria-label={localize("Confirm escalation")}
                 >
                   <p>
-                    The platform team will receive this request and its
-                    conversation. You can continue replying here.
+                    {localize("The platform team will receive this request and its conversation. You can continue replying here.")}
                   </p>
                   <div className="support-actions">
                     <button
@@ -348,14 +358,14 @@ function CaseView({ id, user }: { id: string; user: User }) {
                         void act('escalate')
                       }}
                     >
-                      Confirm escalation
+                      {localize("Confirm escalation")}
                     </button>
                     <button
                       className="btn secondary"
                       disabled={busy}
                       onClick={() => setConfirmEscalation(false)}
                     >
-                      Cancel escalation
+                      {localize("Cancel escalation")}
                     </button>
                   </div>
                 </div>
@@ -377,7 +387,7 @@ function CaseView({ id, user }: { id: string; user: User }) {
                 <div className="support-message-meta">
                   <strong>
                     {message.sender_id === user.id
-                      ? 'You'
+                      ? localize("You")
                       : (message.sender_name ?? 'Support')}
                   </strong>
                   <span>{formatDate(message.created_at)}</span>
@@ -387,7 +397,7 @@ function CaseView({ id, user }: { id: string; user: User }) {
             ))}
           </div>
           <form className="form support-reply" onSubmit={submitReply}>
-            <label htmlFor="support-reply">Reply</label>
+            <label htmlFor="support-reply">{localize("Reply")}</label>
             <textarea
               id="support-reply"
               rows={5}
@@ -401,7 +411,7 @@ function CaseView({ id, user }: { id: string; user: User }) {
               {reply.length} / 4000
             </div>
             <button className="btn" type="submit" disabled={disabled}>
-              {busy ? 'Saving…' : 'Send reply'}
+              {busy ? localize("Saving…") : localize("Send reply")}
             </button>
           </form>
         </>

@@ -1,4 +1,5 @@
 const fs = require('node:fs');
+const path = require('node:path');
 const vm = require('node:vm');
 const ts = require('typescript');
 
@@ -10,7 +11,13 @@ function load(file, mocks = {}, globals = {}) {
   const module = { exports: {} };
   vm.runInNewContext(code, { module, exports: module.exports, Error, URL,
     AbortController, setTimeout, clearTimeout, setInterval, clearInterval,
-    require: (name) => Object.hasOwn(mocks, name) ? mocks[name] : require(name), ...globals });
+    require: (name) => {
+      if (Object.hasOwn(mocks, name)) return mocks[name];
+      if (name === '../i18n/LocaleContext') return localeMock;
+      if (name === '../i18n/messages') return messages;
+      if (name === 'expo-crypto') return require('node:crypto');
+      return require(name);
+    }, ...globals });
   return module.exports;
 }
 
@@ -65,4 +72,7 @@ const native = Object.fromEntries(['Text', 'TextInput', 'View', 'FlatList', 'Ima
 native.StyleSheet = { create: (styles) => styles, absoluteFill: {} };
 native.Platform = { OS: 'ios' };
 const theme = { colors: {}, spacing: { xs: 4, sm: 8, md: 16, lg: 24, xl: 32 }, radius: { sm: 8, md: 12 }, fontSize: {} };
-module.exports = { load, runtime, nodes, native, theme };
+const messages = load(path.resolve(__dirname, '../src/i18n/messages.ts'));
+const english = { lang: 'en', setLang: () => {}, t: (key, vars) => messages.translate(key, 'en', vars) };
+const localeMock = { useLocale: () => english };
+module.exports = { load, runtime, nodes, native, theme, localeMock, messages };

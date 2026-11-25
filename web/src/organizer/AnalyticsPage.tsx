@@ -8,6 +8,7 @@ import type { Analytics } from './types'
 import { money, moment } from './format'
 import { Notice, ResourceState, Stat, Table } from './ui'
 import SalesChart from './SalesChart'
+import { useI18n } from "../i18n"
 
 const payoutLabels: Record<string, string> = {
   not_started: 'Not started',
@@ -18,6 +19,7 @@ const payoutLabels: Record<string, string> = {
 }
 
 export default function AnalyticsPage() {
+  const { t: localize } = useI18n()
   const event = useManagedEvent()
   const [params, setParams] = useSearchParams()
   const from = params.get('date_from') ?? ''
@@ -41,10 +43,9 @@ export default function AnalyticsPage() {
     <>
       <div className="org-heading">
         <div>
-          <h2>Analytics</h2>
+          <h2>{localize("Analytics")}</h2>
           <p className="muted">
-            Sales and attendance from BiletFlow records. All financial
-            transactions are simulated.
+            {localize("Sales and attendance from BiletFlow records. All financial transactions are simulated.")}
           </p>
         </div>
         <button
@@ -52,7 +53,7 @@ export default function AnalyticsPage() {
           disabled={Boolean(invalid)}
           onClick={resource.refresh}
         >
-          Refresh analytics
+          {localize("Refresh analytics")}
         </button>
       </div>
       <AnalyticsFilters
@@ -66,9 +67,9 @@ export default function AnalyticsPage() {
       {invalid && <Notice error>{invalid}</Notice>}
       {types.error && (
         <Notice error>
-          <p>Could not load ticket types: {types.error}</p>
+          <p>{localize("Could not load ticket types:")} {types.error}</p>
           <button className="btn secondary" onClick={types.refresh}>
-            Retry ticket types
+            {localize("Retry ticket types")}
           </button>
         </Notice>
       )}
@@ -76,108 +77,105 @@ export default function AnalyticsPage() {
       {data && (
         <>
           <p className="muted" role="status">
-            Snapshot: {moment(data.generated_at)} · Almaty time. Purchase dates:{' '}
+            {localize("Snapshot:")} {moment(data.generated_at)} · Almaty time. Purchase dates:{' '}
             {from || to
               ? `${from ? dayLabel(from) : 'beginning'} — ${to ? dayLabel(to) : 'no end date'} (inclusive)`
-              : 'all dates'}
+              : localize("all dates")}
             . Ticket type:{' '}
             {ticketType
               ? (types.data?.find((type) => type.id === ticketType)?.name ??
                 'selected type')
-              : 'all types'}
+              : localize("all types")}
             .
           </p>
           <section aria-labelledby="inventory-title">
-            <h3 id="inventory-title">Current inventory</h3>
+            <h3 id="inventory-title">{localize("Current inventory")}</h3>
             <p className="muted">
-              Current figures for the selected ticket type, across all purchase
-              dates. Remaining inventory includes temporarily held seats. Seat
-              holds cover the whole event.
+              {localize("Current figures for the selected ticket type, across all purchase dates. Remaining inventory includes temporarily held seats. Seat holds cover the whole event.")}
             </p>
             <div className="org-stats">
               <Stat
-                title="Total ticket inventory"
+                title={localize("Total ticket inventory")}
                 value={data.inventory.total}
               />
               <Stat
-                title="Valid and checked-in tickets"
+                title={localize("Valid and checked-in tickets")}
                 value={data.inventory.sold}
               />
               <Stat
-                title="Remaining inventory"
-                value={data.inventory.remaining}
+                title={localize("Available")}
+                value={data.ticket_counts.available}
               />
-              <Stat title="Sold" value={`${data.inventory.percent_sold}%`} />
+              <Stat title={localize("Sold")} value={`${data.inventory.percent_sold}%`} />
               <Stat
-                title="Active seat holds (whole event)"
-                value={data.inventory.reserved}
+                title={localize("Active seat holds (whole event)")}
+                value={data.inventory.reserved - (data.inventory.general_admission_reserved ?? 0)}
               />
+              {data.inventory.general_admission_reserved !== undefined && (
+                <Stat title={localize("General-admission tickets held")} value={data.inventory.general_admission_reserved} />
+              )}
             </div>
           </section>
           <section aria-labelledby="revenue-title">
-            <h3 id="revenue-title">Revenue for selected purchases</h3>
+            <h3 id="revenue-title">{localize("Revenue for selected purchases")}</h3>
             <p className="muted">
-              Orders are selected by purchase date, including the full end date
-              in Almaty time. Refunds are attributed to the original purchase
-              date.
+              {localize("Orders are selected by purchase date, including the full end date in Almaty time. Refunds are attributed to the original purchase date.")}
             </p>
             <div className="org-stats org-money-stats">
               <Stat
-                title="Gross sales before discounts"
+                title={localize("Gross sales before discounts")}
                 value={money(data.money.gross_sales)}
               />
-              <Stat title="Discounts" value={money(data.money.discounts)} />
-              <Stat title="Refunds" value={money(data.money.refunds)} />
+              <Stat title={localize("Discounts")} value={money(data.money.discounts)} />
+              <Stat title={localize("Refunds")} value={money(data.money.refunds)} />
               <Stat
-                title="Revenue after discounts and refunds"
+                title={localize("Revenue after discounts and refunds")}
                 value={money(data.money.net_revenue)}
               />
               <Stat
-                title="Processing fees (simulated)"
+                title={localize("Processing fees (simulated)")}
                 value={money(data.money.processing_fee_simulated)}
               />
               <Stat
-                title="Estimated payout (simulated)"
+                title={localize("Estimated payout (simulated)")}
                 value={money(data.money.estimated_payout)}
               />
             </div>
             <p className="muted">
-              Revenue = gross sales − discounts − refunds. Estimated payout =
-              revenue − processing fees. Event payout status:{' '}
+              {localize("Revenue = gross sales − discounts − refunds. Estimated payout = revenue − processing fees. Event payout status:")}{' '}
               {payoutLabels[data.money.payout_status] ??
                 data.money.payout_status}{' '}
-              (whole event, simulated).
+              {localize("(whole event, simulated).")}
             </p>
           </section>
           <section aria-labelledby="attendance-title">
-            <h3 id="attendance-title">Attendance for selected purchases</h3>
+            <h3 id="attendance-title">{localize("Attendance for selected purchases")}</h3>
             <p className="muted">
-              Current ticket status for orders in the selected period. Refunded
-              and cancelled tickets are excluded from registered attendance.
+              {localize("Current ticket status for orders in the selected period. Refunded and cancelled tickets are excluded from registered attendance.")}
             </p>
             <div className="org-stats">
               <Stat
-                title="Registered tickets"
+                title={localize("Registered tickets")}
                 value={data.attendance.registered}
               />
-              <Stat title="Checked in" value={data.attendance.checked_in} />
-              <Stat title="Not checked in" value={data.attendance.absent} />
+              <Stat title={localize("Checked in")} value={data.attendance.checked_in} />
+              <Stat title={localize("Not checked in")} value={data.attendance.absent} />
               <Stat
-                title="Check-in rate"
+                title={localize("Check-in rate")}
                 value={`${data.attendance.percent_checked_in}%`}
               />
               <Stat
-                title="Refunded tickets"
+                title={localize("Refunded tickets")}
                 value={data.ticket_counts.refunded}
               />
             </div>
           </section>
           <section className="org-panel" aria-labelledby="sales-title">
-            <h3 id="sales-title">Sales over time</h3>
+            <h3 id="sales-title">{localize("Sales over time")}</h3>
             <SalesChart days={data.sales_over_time} />
             {data.sales_over_time.length > 0 && (
               <Table
-                caption="Daily sales"
+                caption={localize("Daily sales")}
                 headings={[
                   'Purchase date (Almaty)',
                   'Confirmed orders',
@@ -197,17 +195,15 @@ export default function AnalyticsPage() {
             )}
           </section>
           <section aria-labelledby="types-title">
-            <h3 id="types-title">Sales by ticket type</h3>
+            <h3 id="types-title">{localize("Sales by ticket type")}</h3>
             <p className="muted">
-              Sold and refunded counts use the selected purchase dates.
-              Inventory and list prices are current; list-price value is not
-              actual revenue.
+              {localize("Sold and refunded counts use the selected purchase dates. Inventory and list prices are current; list-price value is not actual revenue.")}
             </p>
             {data.by_ticket_type.length === 0 ? (
-              <Notice>No ticket types to show.</Notice>
+              <Notice>{localize("No ticket types to show.")}</Notice>
             ) : (
               <Table
-                caption="Sales by ticket type"
+                caption={localize("Sales by ticket type")}
                 headings={[
                   'Ticket type',
                   'Valid tickets',
@@ -231,17 +227,15 @@ export default function AnalyticsPage() {
             )}
           </section>
           <section aria-labelledby="campaigns-title">
-            <h3 id="campaigns-title">Campaign performance</h3>
+            <h3 id="campaigns-title">{localize("Campaign performance")}</h3>
             <p className="muted">
-              All sales columns use the same purchase-date and ticket-type
-              filters. Active redemptions exclude refunded or cancelled orders.
-              Quota usage covers all dates and ticket types.
+              {localize("All sales columns use the same purchase-date and ticket-type filters. Active redemptions exclude refunded or cancelled orders. Quota usage covers all dates and ticket types.")}
             </p>
             {data.campaigns.length === 0 ? (
-              <Notice>No campaigns for this event yet.</Notice>
+              <Notice>{localize("No campaigns for this event yet.")}</Notice>
             ) : (
               <Table
-                caption="Campaign performance"
+                caption={localize("Campaign performance")}
                 headings={[
                   'Campaign',
                   'Successful orders',
@@ -259,7 +253,7 @@ export default function AnalyticsPage() {
                     <td>
                       <strong>{campaign.code}</strong>
                       <span className="org-subtext">
-                        {campaign.is_active ? 'Enabled' : 'Disabled'}
+                        {campaign.is_active ? localize("Enabled") : localize("Disabled")}
                       </span>
                     </td>
                     <td>
@@ -302,6 +296,7 @@ function AnalyticsFilters({
   types?: TicketType[]
   apply: (params: URLSearchParams) => void
 }) {
+  const { t: localize } = useI18n()
   const [values, setValues] = useState({ from, to, ticketType })
   const [error, setError] = useState('')
   function submit(event: FormEvent<HTMLFormElement>) {
@@ -319,7 +314,7 @@ function AnalyticsFilters({
     <>
       <form className="org-filters" onSubmit={submit}>
         <label className="org-field">
-          Purchase date from
+          {localize("Purchase date from")}
           <input
             type="date"
             name="date_from"
@@ -331,7 +326,7 @@ function AnalyticsFilters({
           />
         </label>
         <label className="org-field">
-          Purchase date to
+          {localize("Purchase date to")}
           <input
             type="date"
             name="date_to"
@@ -343,7 +338,7 @@ function AnalyticsFilters({
           />
         </label>
         <label className="org-field">
-          Ticket type
+          {localize("Ticket type")}
           <select
             name="ticket_type_id"
             value={values.ticketType}
@@ -351,10 +346,10 @@ function AnalyticsFilters({
               setValues({ ...values, ticketType: event.target.value })
             }
           >
-            <option value="">All types</option>
+            <option value="">{localize("All types")}</option>
             {values.ticketType &&
               !types?.some((type) => type.id === values.ticketType) && (
-                <option value={values.ticketType}>Selected type</option>
+                <option value={values.ticketType}>{localize("Selected type")}</option>
               )}
             {types?.map((type) => (
               <option key={type.id} value={type.id}>
@@ -364,14 +359,14 @@ function AnalyticsFilters({
           </select>
         </label>
         <button className="btn" type="submit">
-          Apply filters
+          {localize("Apply filters")}
         </button>
         <button
           className="btn secondary"
           type="button"
           onClick={() => apply(new URLSearchParams())}
         >
-          Reset filters
+          {localize("Reset filters")}
         </button>
       </form>
       {error && <Notice error>{error}</Notice>}

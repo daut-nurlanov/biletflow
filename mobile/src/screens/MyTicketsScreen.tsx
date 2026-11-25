@@ -23,6 +23,7 @@ import { formatDateTime } from "../utils/formatting";
 import { eventDisplayStatus } from "../utils/eventTiming";
 import type { Ticket } from "../types/ticket";
 import type { RootTabParamList, TicketsStackParamList } from "../navigation/types";
+import { useLocale } from "../i18n/LocaleContext";
 
 type Props = CompositeScreenProps<NativeStackScreenProps<TicketsStackParamList, "TicketList">, BottomTabScreenProps<RootTabParamList, "MyTickets">>;
 
@@ -38,6 +39,7 @@ function eventEnded(ticket: Ticket, asOf: number) {
 }
 
 export function MyTicketsScreen({ navigation }: Props) {
+  const { lang, t: localize } = useLocale();
   const { authed, state } = useSession();
   const [openId, setOpenId] = useState<string>();
   const [pdfLoading, setPdfLoading] = useState(false);
@@ -63,7 +65,7 @@ export function MyTicketsScreen({ navigation }: Props) {
       file.write(pdf);
       await Sharing.shareAsync(file.uri, { mimeType: "application/pdf", UTI: "com.adobe.pdf" });
     } catch (error) {
-      if (!request.signal.aborted) Alert.alert("Couldn't open PDF", error instanceof Error ? error.message : "Please try again.");
+      if (!request.signal.aborted) Alert.alert(localize("Couldn't open PDF"), error instanceof Error ? error.message : "Please try again.");
     } finally {
       try { if (file?.exists) file.delete(); } catch { /* The operating system can clear its cache. */ }
       pdfRequest.current = null;
@@ -84,15 +86,15 @@ export function MyTicketsScreen({ navigation }: Props) {
     group.push(ticket);
   }
   const sections = [
-    { title: "Upcoming tickets", data: upcoming },
-    { title: "Past and inactive tickets", data: historical },
+    { title: localize("Upcoming tickets"), data: upcoming },
+    { title: localize("Past and inactive tickets"), data: historical },
   ].filter((section) => section.data.length > 0);
   const opened = error ? undefined : data?.tickets.find((ticket) => ticket.id === openId);
 
   return (
     <Screen>
-      {loading ? <LoadingState message="Loading your tickets…" /> : error ? (
-        <ErrorState title="Couldn't load your tickets" message={error} onRetry={retry} />
+      {loading ? <LoadingState message={localize("Loading your tickets…")} /> : error ? (
+        <ErrorState title={localize("Couldn't load your tickets")} message={error} onRetry={retry} />
       ) : (
         <SectionList
           sections={sections}
@@ -101,7 +103,7 @@ export function MyTicketsScreen({ navigation }: Props) {
           refreshing={refreshing}
           onRefresh={refresh}
           stickySectionHeadersEnabled={false}
-          ListHeaderComponent={<AppButton title="Purchase history" variant="secondary" onPress={() => navigation.navigate("OrderHistory")} />}
+          ListHeaderComponent={<AppButton title={localize("Purchase history")} variant="secondary" onPress={() => navigation.navigate("OrderHistory")} />}
           renderSectionHeader={({ section }) => <Text style={sharedStyles.title} accessibilityRole="header">{section.title}</Text>}
           renderItem={({ item }) => (
             <View style={styles.ticket}>
@@ -110,23 +112,23 @@ export function MyTicketsScreen({ navigation }: Props) {
                 <Text style={styles.ticketTitle}>{item.event_title}</Text>
               </View>
               <View style={styles.ticketBody}>
-                <Text style={sharedStyles.muted}>{formatDateTime(item.start_time)}</Text>
+                <Text style={sharedStyles.muted}>{formatDateTime(item.start_time, lang)}</Text>
                 {item.venue_name ? <Text style={sharedStyles.body}>{item.venue_name}</Text> : null}
                 <Text style={sharedStyles.muted}>{item.ticket_type_name || item.attendee_name}</Text>
-                {eventEnded(item, asOf) ? <Text style={sharedStyles.muted}>Past event</Text> : null}
+                {eventEnded(item, asOf) ? <Text style={sharedStyles.muted}>{localize("Past event")}</Text> : null}
                 <StatusBadge status={admissionStatus(item)} />
-                <AppButton title="Open ticket" accessibilityLabel={`Open ticket for ${item.event_title}, ending ${item.id.slice(-8)}`}
+                <AppButton title={localize("Open ticket")} accessibilityLabel={`Open ticket for ${item.event_title}, ending ${item.id.slice(-8)}`}
                   variant={admissionStatus(item) === "valid" ? "primary" : "secondary"} onPress={() => setOpenId(item.id)} />
               </View>
             </View>
           )}
-          ListEmptyComponent={<EmptyState title="No tickets yet" message="You don't have any tickets yet." />}
+          ListEmptyComponent={<EmptyState title={localize("No tickets yet")} message={localize("You don't have any tickets yet.")} />}
         />
       )}
       {opened && state.status === "signedIn" ? <Modal animationType="slide" onRequestClose={close} presentationStyle="pageSheet">
         <SafeAreaView style={styles.modal} accessibilityViewIsModal>
           <ScrollView contentContainerStyle={sharedStyles.listContent}>
-            <AppButton title="Close ticket" variant="secondary" onPress={close} />
+            <AppButton title={localize("Close ticket")} variant="secondary" onPress={close} />
             <TicketCard ticket={opened} pastEvent={eventEnded(opened, asOf)}
               onSupport={() => {
                 close();

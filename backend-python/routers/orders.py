@@ -12,6 +12,7 @@ from fpdf import FPDF
 from pydantic import BaseModel
 
 from db import audit, get_setting, notify, release_expired_holds, tx
+from reservations import clock, get_reservation, held_quantity, lock_attendee, reserve
 from security import can_manage, current_user, load_event, optional_user, resolve_actor
 
 router = APIRouter()
@@ -30,6 +31,8 @@ class CheckoutRequest(BaseModel):
     seat_ids: list[str] | None = None    #several seats: exactly one per ticket
     quantity: int | None = None          #defaults to the number of seats, or 1
     promo_code: str | None = None
+    reservation_id: uuid.UUID | None = None
+    expected_total: Decimal | None = None
     #"success" (default) or "fail": makes the demo payment fail, so the failed-payment path can be shown
     simulate_payment: str = "success"
 
@@ -39,13 +42,14 @@ class QuoteRequest(BaseModel):
     ticket_type_id: str
     quantity: int = 1
     promo_code: str | None = None
+    reserve_inventory: bool = False
 
 
 class RefundRequest(BaseModel):
     reason: str | None = None
 
 
-def price_order(cur, event, ticket_type, quantity, promo_code, lock, buyer=None):
+def price_order(cur, event, ticket_type, quantity, promo_code, lock, buyer=None, own_hold=None):
     """Every rule about whether something can be bought and what it costs.
     Used by both the price preview (quote) and the real checkout, so the two
     can never disagree. Raises HTTPException with a clear message if not allowed."""
@@ -53,6 +57,8 @@ def price_order(cur, event, ticket_type, quantity, promo_code, lock, buyer=None)
         raise HTTPException(status_code=409, detail="That ticket type is not available")
     if quantity < 1:
         raise HTTPException(status_code=400, detail="Quantity must be at least 1")
+    if quantity > 50:
+        raise HTTPException(status_code=400, detail="Choose at most 50 tickets.")
     if quantity > ticket_type["max_per_order"]:
         raise HTTPException(status_code=400,
                             detail=f"You can buy at most {ticket_type['max_per_order']} of this ticket type per order")
@@ -70,8 +76,9 @@ def price_order(cur, event, ticket_type, quantity, promo_code, lock, buyer=None)
         if not event["is_paid_sales_active"]:
             raise HTTPException(status_code=403, detail="Paid sales are not active for this event")
 
-    cur.execute("SELECT now() AS now")
-    now = cur.fetchone()["now"]
+    now = clock(cur)
+    if own_hold and own_hold["expires_at"] <= now:
+        raise HTTPException(status_code=409, detail="Your ticket reservation expired. Refresh availability to reserve again.")
     #nobody can buy a ticket for an event that is already over
     #(no end time set: it counts as over 2 hours after it starts)
     event_end = event["end_time"] or (event["start_time"] + timedelta(hours=2))
@@ -87,10 +94,13 @@ def price_order(cur, event, ticket_type, quantity, promo_code, lock, buyer=None)
     if event["registration_closes_at"] and now > event["registration_closes_at"]:
         raise HTTPException(status_code=409, detail="Registration for this event is closed")
 
-    if ticket_type["quantity_available"] <= 0:
+    available = ticket_type["quantity_available"] - held_quantity(
+        cur, ticket_type["id"], now, own_hold["id"] if own_hold else None,
+    )
+    if available <= 0:
         raise HTTPException(status_code=409, detail="Sold out")
-    if ticket_type["quantity_available"] < quantity:
-        raise HTTPException(status_code=409, detail=f"Only {ticket_type['quantity_available']} left for this ticket type")
+    if available < quantity:
+        raise HTTPException(status_code=409, detail=f"Only {available} left for this ticket type")
 
     subtotal = ticket_type["price"] * quantity
     discount = Decimal("0")
@@ -125,22 +135,48 @@ def price_order(cur, event, ticket_type, quantity, promo_code, lock, buyer=None)
 
 
 @router.post("/api/orders/quote")
-def quote(payload: QuoteRequest, user=Depends(optional_user)):
+def quote(payload: QuoteRequest, response: Response, user=Depends(optional_user)):
     #shows the attendee the code, the discount and the final total BEFORE they
     #pay. the server does the math, the app never decides a price itself
     with tx() as cur:
-        event = load_event(cur, payload.event_id)
-        cur.execute("SELECT * FROM ticket_types WHERE id = %s AND event_id = %s", (payload.ticket_type_id, payload.event_id))
+        if payload.reserve_inventory:
+            if not user:
+                raise HTTPException(status_code=401, detail="Sign in to reserve tickets.")
+            lock_attendee(cur, user["id"])
+            response.headers["Cache-Control"] = "private, no-store"
+        cur.execute("SELECT * FROM ticket_types WHERE id = %s AND event_id = %s" +
+                    (" FOR UPDATE" if payload.reserve_inventory else ""), (payload.ticket_type_id, payload.event_id))
         ticket_type = cur.fetchone()
         if not ticket_type:
             raise HTTPException(status_code=404, detail="Ticket type not found for this event")
-        priced = price_order(cur, event, ticket_type, payload.quantity, payload.promo_code, lock=False, buyer=user)
+        if payload.reserve_inventory:
+            cur.execute("SELECT * FROM events WHERE id = %s FOR SHARE", (payload.event_id,))
+            event = cur.fetchone()
+        else:
+            event = load_event(cur, payload.event_id)
+        existing = get_reservation(cur, user["id"]) if payload.reserve_inventory else None
+        now = clock(cur)
+        own_hold = existing if existing and existing["ticket_type_id"] == ticket_type["id"] and existing["expires_at"] > now else None
+        if payload.reserve_inventory and event["has_assigned_seating"]:
+            raise HTTPException(status_code=400, detail="Choose seats to reserve tickets for this event.")
+        priced = price_order(cur, event, ticket_type, payload.quantity, payload.promo_code, lock=False,
+                             buyer=user, own_hold=own_hold)
+        hold = reserve(cur, user["id"], existing, event, ticket_type, payload.quantity, priced["now"]) if payload.reserve_inventory else None
     return {"quantity": payload.quantity, "unit_price": ticket_type["price"], "subtotal": priced["subtotal"],
             "promo_code": priced["campaign"]["code"] if priced["campaign"] else None,
             "discount": priced["discount"], "total": priced["total"],
             "processing_fee": priced["processing_fee"],
             "processing_fee_note": "Simulated payment-provider fee. It is charged to the organizer and is not added to your total.",
-            "currency": "KZT"}
+            "currency": "KZT", **({"reservation": hold} if hold else {})}
+
+
+@router.delete("/api/orders/reservations/{reservation_id}", status_code=204)
+def release_reservation(reservation_id: uuid.UUID, user=Depends(current_user)):
+    with tx() as cur:
+        lock_attendee(cur, user["id"])
+        # Keep the expiration timestamp for the per-attendee renewal cooldown.
+        cur.execute("""UPDATE ticket_reservations SET expires_at = LEAST(expires_at, clock_timestamp())
+                       WHERE id = %s AND attendee_id = %s""", (str(reservation_id), user["id"]))
 
 
 @router.post("/api/orders/checkout", status_code=201)
@@ -168,6 +204,15 @@ def checkout(payload: CheckoutRequest, user=Depends(current_user),
                             detail=f"Choose exactly one seat per ticket ({quantity} ticket(s), {len(seat_list)} seat(s) chosen)")
 
     with tx() as cur:
+        lock_attendee(cur, attendee_id)
+        if idempotency_key:
+            cur.execute("SELECT * FROM orders WHERE attendee_id = %s AND idempotency_key = %s", (attendee_id, idempotency_key))
+            earlier = cur.fetchone()
+            if earlier:
+                cur.execute("SELECT * FROM tickets WHERE order_id = %s ORDER BY created_at, id", (earlier["id"],))
+                earlier_tickets = cur.fetchall()
+                return {"order": earlier, "ticket": earlier_tickets[0] if earlier_tickets else None,
+                        "tickets": earlier_tickets, "repeated": True}
         release_expired_holds(cur)
 
         #lock the ticket type row first, so two buyers racing for the last
@@ -191,15 +236,19 @@ def checkout(payload: CheckoutRequest, user=Depends(current_user),
 
         if event["has_assigned_seating"] and len(seat_list) != quantity:
             raise HTTPException(status_code=400, detail="This event has assigned seating: choose one seat for each ticket")
-        if idempotency_key:
-            cur.execute("SELECT * FROM orders WHERE attendee_id = %s AND idempotency_key = %s", (attendee_id, idempotency_key))
-            earlier = cur.fetchone()
-            if earlier:
-                cur.execute("SELECT * FROM tickets WHERE order_id = %s ORDER BY created_at, id", (earlier["id"],))
-                earlier_tickets = cur.fetchall()
-                return {"order": earlier, "ticket": earlier_tickets[0] if earlier_tickets else None,
-                        "tickets": earlier_tickets, "repeated": True}
-        priced = price_order(cur, event, ticket_type, quantity, payload.promo_code, lock=True, buyer=user)
+        own_hold = None
+        if payload.reservation_id:
+            own_hold = get_reservation(cur, attendee_id)
+            if (not own_hold or str(own_hold["id"]) != str(payload.reservation_id)
+                    or own_hold["ticket_type_id"] != ticket_type["id"] or own_hold["quantity"] != quantity
+                    or seat_list or event["has_assigned_seating"]):
+                raise HTTPException(status_code=409, detail="Your ticket reservation changed. Refresh availability to reserve again.")
+        priced = price_order(cur, event, ticket_type, quantity, payload.promo_code, lock=True,
+                             buyer=user, own_hold=own_hold)
+        if own_hold and own_hold["expires_at"] <= clock(cur):
+            raise HTTPException(status_code=409, detail="Your ticket reservation expired. Refresh availability to reserve again.")
+        if payload.expected_total is not None and payload.expected_total != priced["total"]:
+            raise HTTPException(status_code=409, detail="The price changed. Refresh the quote and review the new total.")
         campaign = priced["campaign"]
 
         #lock the chosen seats in a fixed order, so two buyers who want overlapping
@@ -272,6 +321,8 @@ def checkout(payload: CheckoutRequest, user=Depends(current_user),
 
         cur.execute("UPDATE ticket_types SET quantity_available = quantity_available - %s WHERE id = %s",
                     (quantity, payload.ticket_type_id))
+        if own_hold:
+            cur.execute("DELETE FROM ticket_reservations WHERE attendee_id = %s", (attendee_id,))
         if campaign:
             cur.execute("INSERT INTO promo_redemptions (campaign_id, order_id, discount_amount) VALUES (%s, %s, %s)",
                         (campaign["id"], order["id"], priced["discount"]))

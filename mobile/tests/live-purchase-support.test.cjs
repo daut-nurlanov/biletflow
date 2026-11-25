@@ -45,6 +45,8 @@ test('native purchase controller -> real quote/checkout -> My Tickets/QR -> staf
       ApiError: client.ApiError, initialCampaignToken: new URL(campaign.campaign_link).searchParams.get('c') });
     await ready(paidFlow); paidFlow.view.change({ quantity: 2 }); await ready(paidFlow);
     assert.equal(Number(paidFlow.view.reviewed.value.total), 3200);
+    assert.ok(paidFlow.view.reviewed.value.reservation.id);
+    assert.ok(paidFlow.view.reservationSeconds > 0 && paidFlow.view.reservationSeconds <= 300);
     assert.equal(paidFlow.view.form.promo, campaign.code);
     assert.equal(paidFlow.view.canBuy, true);
     // Real server validation after a successful quote, then correct the field
@@ -102,20 +104,27 @@ test('native purchase controller -> real quote/checkout -> My Tickets/QR -> staf
     const issue = await support.createSupportCase(attendee.token, 'ticket_delivery', 'Help with my ticket', { ticketId: ticket.id });
     assert.ok((await support.getSupportCases(attendee.token)).some((c) => c.id === issue.id));
     assert.equal((await support.getSupportCase(organizer.token, issue.id)).your_role_in_case, 'handler');
-    await support.replyToSupport(organizer.token, issue.id, 'Your ticket is visible in My Tickets');
+    const replyKey = crypto.randomUUID();
+    const firstReply = await support.replyToSupport(organizer.token, issue.id, 'Your ticket is visible in My Tickets', replyKey);
+    const recoveredReply = await support.replyToSupport(organizer.token, issue.id, 'Your ticket is visible in My Tickets', replyKey);
+    assert.equal(firstReply.id, recoveredReply.id);
     await support.setSupportStatus(organizer.token, issue.id, 'resolved');
     await support.replyToSupport(attendee.token, issue.id, 'Thank you, one more question');
     const conversation = await support.getSupportCase(attendee.token, issue.id);
     assert.equal(conversation.messages.length, 3); assert.equal(conversation.status, 'open');
     await assert.rejects(support.getSupportCase(staff.token, issue.id), (e) => e.status === 404);
-    // Revalidate a quote when another buyer consumes the remaining inventory.
+    // Capacity cannot be cut below a held quote. A sale restriction still
+    // invalidates the quote and must be rechecked by the purchase controller.
     const staleFlow = checkoutHarness({ event: details, initialTypeId: paid.id, session, api: orders, promotions, ApiError: client.ApiError });
     await ready(staleFlow);
-    await api(`/api/ticket-types/${paid.id}`, { total_quantity: 2 }, organizer.token, 'PUT');
+    await assert.rejects(
+      api(`/api/ticket-types/${paid.id}`, { total_quantity: 2 }, organizer.token, 'PUT'),
+      (error) => error.status === 409);
+    await api(`/api/ticket-types/${paid.id}`, { is_hidden: true }, organizer.token, 'PUT');
     await staleFlow.view.purchase(); await staleFlow.settle();
     assert.equal(staleFlow.view.confirmation, null);
     assert.equal(staleFlow.calls.filter((c) => c.method === 'checkoutOrder').length, 0);
-    assert.match(staleFlow.view.error, /Sold out/);
+    assert.match(staleFlow.view.error, /not available/i);
     assert.equal((await orders.getMyOrders(attendee.token)).length, 2);
     // Drop a response only after the actual backend committed, then recover on remount.
     const recoveryStore = new Map(); let dropResponse = true;

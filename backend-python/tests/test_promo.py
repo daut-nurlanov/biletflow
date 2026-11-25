@@ -1,4 +1,5 @@
 import re
+from datetime import datetime
 from decimal import Decimal
 from uuid import uuid4
 
@@ -41,6 +42,23 @@ def test_campaign_discount_matches_database_precision(kit, kind, amount, expecte
         assert kit.client.get(path, headers=organizer.h).json() == []
 
 from conftest import fetch_one, run_sql
+
+
+def test_resolve_promo_accepts_almaty_campaign_window_and_rejects_invalid_dates(kit):
+    organizer = kit.user("organizer")
+    event, tier = kit.event(organizer)
+    url = f"/api/events/{event['id']}/promo-campaigns"
+    payload = {"discount_type": "percentage", "discount_value": 20, "max_redemptions": 2,
+               "ticket_type_ids": [tier["id"]], "valid_from": "2030-01-01 09:00", "valid_until": "2030-01-01 18:00"}
+    failed = kit.client.post(url, headers=organizer.h, json={**payload, "valid_until": "not-a-date"})
+    assert failed.status_code == 400
+    failed = kit.client.post(url, headers=organizer.h, json={**payload, "valid_until": "2030-01-01 08:00"})
+    assert failed.status_code == 400
+    succeeded = kit.client.post(url, headers=organizer.h, json=payload)
+    assert succeeded.status_code == 201
+    data = succeeded.json()
+    assert datetime.fromisoformat(data["valid_from"]) == datetime.fromisoformat("2030-01-01T04:00:00+00:00")
+    assert data["ticket_type_ids"] == [tier["id"]]
 
 
 def campaign(kit, org, event_id, **kw):

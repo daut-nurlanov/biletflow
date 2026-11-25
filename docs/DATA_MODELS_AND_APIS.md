@@ -37,7 +37,7 @@ An **endpoint** is one specific thing you can ask the waiter for. `GET /api/even
 
 ## Section 2: Database Models (The Actual 20 Tables)
 
-Every table below exists right now in `docs/schema.sql`, already built and tested. The last four (`notifications`, `paid_sales_activations`, `platform_settings`, `event_reports`) were added on Oct 28.
+The baseline is in `docs/schema.sql`. Apply the versioned migrations in `backend-python/migrations` to bring fresh and existing databases up to date.
 
 ### `users`
 *Account details for attendees, organizers, event admins, and platform admins.*
@@ -181,6 +181,10 @@ Every table below exists right now in `docs/schema.sql`, already built and teste
 | `issued_by` | UUID | Which organizer/admin issued it | No |
 | `created_at` | Date + time | When | Yes |
 
+### `ticket_reservations`
+
+Each buyer can hold one general-admission selection. The row contains the buyer ID, public reservation UUID, ticket type, quantity and expiration in UTC. The reservation is active only while its expiration is in the future. Ticket inventory retains the number of unsold units, and sale eligibility subtracts active reservations belonging to other buyers.
+
 ### `checkin_records`
 *One scan at the door.*
 
@@ -290,6 +294,7 @@ Every table below exists right now in `docs/schema.sql`, already built and teste
 | `subject` / `body` | Text | The message | Yes |
 | `is_read` | True/False | Read yet | Yes, defaults to false |
 | `created_at` | Date + time | When | Yes |
+| `target_type` / `target_id` | Text / UUID | Server-linked event, organizer dashboard or support case | Optional pair |
 
 ### `paid_sales_activations` (new)
 *One record per event that turned on paid sales, with the simulated activation fee.*
@@ -360,6 +365,7 @@ The **Who** column uses these words:
 | `POST /api/auth/forgot-password` | Public | Body: `email`. Always answers the same way, so it cannot be used to find out who has an account. The reset code is delivered as a simulated email. |
 | `POST /api/auth/reset-password` | Public | Body: `token`, `new_password`. |
 | `GET /api/notifications` | Token | Your simulated emails. Optional `?unread_only=true`. |
+| `POST /api/notifications/{id}/read` | Recipient | Marks one notification read and returns its ID and read state. Other accounts receive 404. |
 | `POST /api/notifications/read-all` | Token | Mark all as read. |
 
 ### 🎟️ Events
@@ -388,12 +394,19 @@ The **Who** column uses these words:
 | `POST /api/events/{id}/seats` | Organizer | Generate a block of seats. Body: `section`, `category`, `rows`, `seats_per_row`. The total number of seats cannot exceed the event capacity. |
 | `GET /api/events/{id}/seats` | Public | Every seat with its section, row, number and category, plus `hold_status` (an active hold, if any) and `ticket_status` (`valid` or `checked_in` if sold). Both empty means the seat is free. |
 | `POST /api/seats/hold` | Buyer | Body: `seat_id`. Holds a seat for 5 minutes. One person can hold at most 10 seats at once. Someone else's active hold gives 409. |
-| `POST /api/orders/quote` | Public | Body: `event_id`, `ticket_type_id`, optional `quantity`, `promo_code`. Returns subtotal, discount, total and the simulated `processing_fee` without buying anything. Refused if registration is not open or the event has ended. |
+| `POST /api/orders/quote` | Public preview, buyer for a reservation | Body: `event_id`, `ticket_type_id`, optional `quantity`, `promo_code`, `reserve_inventory`. Returns subtotal, discount, total and simulated `processing_fee`. An authenticated general-admission quote with `reserve_inventory: true` includes `reservation: {id, expires_at, remaining_seconds}`. |
+| `DELETE /api/orders/reservations/{id}` | Buyer | Releases the buyer's reservation early. Returns 204 for a released or already absent hold. |
 | `POST /api/orders/checkout` | Buyer | Body: `event_id`, `ticket_type_id`, `attendee_name`, optional `quantity`, `seat_id` (one seat) or `seat_ids` (one seat per ticket, all or nothing; **required, one per ticket, when the event has assigned seating**), `promo_code`, `simulate_payment` (`success` default, or `fail`). Simulated payment. Returns `{order, ticket, tickets}`. With `fail` it answers **402**, records a `failed` order, issues no tickets, keeps the buyer's seat hold and sends a `payment_failed` notification. Refused (409) outside the registration window, after the event ended, or when the organizer is suspended; private events cannot be bought by the public (404). Send an `Idempotency-Key` header to make a double tap safe: repeating the same key returns the first order (`"repeated": true`) instead of buying twice. A refund or cancellation gives the promo redemption back. |
 
 Checkout enforces: event is upcoming or active, paid sales are active (and not frozen by an admin) for priced tickets, sale window is open, quantity is within `max_per_order` and what is left, seat category matches the ticket type, the seat is not sold or held by someone else, and the promo code is valid, not used up, and allowed for that ticket type. Everything happens in one database transaction with row locks, so two people cannot get the same seat or the last ticket.
 
 Checkout, seat holds and the ticket wallet require a bearer token. Optional identity fields must match the signed-in user.
+
+The web and Android checkout screens send the quote's `reservation_id` and `expected_total` with the purchase. The backend verifies the selection, current price and sale rules in the checkout transaction. A hold lasts up to five minutes and ends earlier if the sale closes. Editing the type or quantity replaces the selection within the same hold window. After expiration or explicit release, the buyer can reserve again after 30 seconds. A declined simulated payment leaves the hold in place until it expires. The existing idempotency key retrieves a committed order even after the reservation has expired or been consumed.
+
+Older clients may still quote and buy without a reservation. They can only buy inventory available after accounting for active holds. In attendee event details and ticket-type lists, `quantity_available` excludes other buyers' holds. Organizer inventory reports expose `general_admission_reserved` and the unheld count in `ticket_counts.available`.
+
+Clients may send a UUID `Idempotency-Key` with support case creation and replies. Retrying the same draft returns the original case or reply without creating another notification. A case key is scoped to the author, and a reply key is scoped to both the conversation and author.
 
 ### 📥 Tickets, Orders & Refunds
 

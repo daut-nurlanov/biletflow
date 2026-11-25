@@ -13,6 +13,7 @@ import { sharedStyles } from "../theme";
 import type { EventDetails, EventVisibility } from "../types/event";
 import { eventDisplayStatus } from "../utils/eventTiming";
 import { canEditSetup, changedSetupFields, EVENT_CATEGORIES, eventDraft, eventInput, type EventDraft } from "../utils/organizerSetup";
+import { useLocale } from "../i18n/LocaleContext";
 
 type NewProps = NativeStackScreenProps<OrganizerStackParamList, "NewEvent">;
 type EditProps = NativeStackScreenProps<OrganizerStackParamList, "EditEvent">;
@@ -27,12 +28,13 @@ export function NewOrganizerEventScreen({ navigation }: NewProps) {
 }
 
 export function EditOrganizerEventScreen({ route, navigation }: EditProps) {
+  const { t: localize } = useLocale();
   const resource = useManagedEvent(route.params.eventId);
   const event = resource.data;
-  if (!event && resource.loading) return <Screen><LoadingState message="Loading event details…" /></Screen>;
+  if (!event && resource.loading) return <Screen><LoadingState message={localize("Loading event details…")} /></Screen>;
   if (!event) return <Screen><ErrorState message={resource.error ?? "Event unavailable."} onRetry={resource.retry} /></Screen>;
   if (!canEditSetup(eventDisplayStatus(event))) {
-    return <Screen><ErrorState title="Event is read-only" message="A completed, cancelled or suspended event cannot be edited." onRetry={resource.retry} /></Screen>;
+    return <Screen><ErrorState title={localize("Event is read-only")} message={localize("A completed, cancelled or suspended event cannot be edited.")} onRetry={resource.retry} /></Screen>;
   }
   return <EventEditor key={event.id} event={event} onBack={navigation.goBack} onSaved={() => navigation.goBack()}
     loadError={resource.error} checking={resource.loading || resource.refreshing} onRetry={resource.retry} />;
@@ -42,6 +44,7 @@ function EventEditor({ event, checking, loadError, onRetry, onBack, onSaved }: {
   event?: EventDetails; checking?: boolean; loadError?: string | null; onRetry?: () => void;
   onBack: () => void; onSaved: (id: string) => void;
 }) {
+  const { t: localize } = useLocale();
   const [original] = useState(event);
   const [form, setForm] = useState(() => eventDraft(event));
   const [savedId, setSavedId] = useState<string | null>(null);
@@ -78,18 +81,18 @@ function EventEditor({ event, checking, loadError, onRetry, onBack, onSaved }: {
   }
 
   return (
-    <OrganizerForm error={error} submitTitle={event ? "Save event changes" : "Create draft event"}
+    <OrganizerForm error={error} submitTitle={event ? localize("Save event changes") : localize("Create draft event")}
       busy={busy} disabled={disabled} onSubmit={() => { void submit(); }} onBack={onBack}>
-      {loadError && onRetry ? <ErrorState title="Couldn't refresh the event" message={loadError} onRetry={onRetry} /> : null}
+      {loadError && onRetry ? <ErrorState title={localize("Couldn't refresh the event")} message={loadError} onRetry={onRetry} /> : null}
       <Text style={sharedStyles.muted}>{event
-        ? "Blank optional fields keep their saved values."
-        : "Save a draft, add ticket types, then publish from Event setup."}</Text>
+        ? localize("Blank optional fields keep their saved values.")
+        : localize("Save a draft, add ticket types, then publish from Event setup.")}</Text>
       <OrganizerField {...field("title")} label="Title" maxLength={200} />
       <OrganizerField {...field("venue_name")} label="Venue name" maxLength={200} />
       <OrganizerField {...field("venue_address")} label="Venue address (optional)" maxLength={300} />
       <OrganizerField {...field("capacity")} label="Event capacity" keyboardType="number-pad" maxLength={10} />
-      <Text accessibilityRole="header" style={sharedStyles.title}>Event schedule</Text>
-      <Text style={sharedStyles.muted}>Enter dates and times in Almaty time (UTC+5).</Text>
+      <Text accessibilityRole="header" style={sharedStyles.title}>{localize("Event schedule")}</Text>
+      <Text style={sharedStyles.muted}>{localize("Enter dates and times in Almaty time (UTC+5).")}</Text>
       <OrganizerTimeField {...field("start_time")} label="Starts" />
       <OrganizerTimeField {...field("end_time")} label="Ends (optional)" />
       <OrganizerTimeField {...field("registration_opens_at")} label="Registration opens (optional)" />
@@ -98,7 +101,7 @@ function EventEditor({ event, checking, loadError, onRetry, onBack, onSaved }: {
         choices={categories.map((value) => ({ value, label: value }))} onChange={field("category").onChangeText} />
       <OrganizerChoices label="Visibility" value={form.visibility} choices={visibilities} disabled={disabled}
         onChange={(visibility) => setForm((previous) => ({ ...previous, visibility }))} />
-      <Text style={sharedStyles.muted}>Public events appear in the catalogue once published. Unlisted events require a link. Private events cannot be purchased by the public.</Text>
+      <Text style={sharedStyles.muted}>{localize("Public events appear in the catalogue once published. Unlisted events require a link. Private events cannot be purchased by the public.")}</Text>
       <OrganizerField {...field("description")} label="Description (optional)" multiline maxLength={5000} />
       <OrganizerField {...field("refund_policy")} label="Refund policy (optional)" multiline maxLength={2000} />
       <OrganizerField {...field("image_url")} label="Image address (optional)" keyboardType="url" autoCapitalize="none" autoCorrect={false} maxLength={500} />

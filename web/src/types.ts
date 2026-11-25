@@ -49,6 +49,7 @@ export interface Quote {
   discount: string | number
   total: string | number
   processing_fee?: string | number
+  reservation?: { id: string; expires_at: string; remaining_seconds: number }
 }
 
 // exact shape of /api/tickets/my-tickets is checked in /docs, so most fields are optional

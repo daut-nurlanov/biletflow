@@ -5,15 +5,18 @@ import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { useSession, SessionProvider } from "./src/auth/SessionContext";
 import { AppButton } from "./src/components/AppButton";
 import { LoadingState } from "./src/components/LoadingState";
+import { LocaleProvider, useLocale } from "./src/i18n/LocaleContext";
+import { LanguagePicker } from "./src/components/LanguagePicker";
 import { RootNavigator } from "./src/navigation/RootNavigator";
 import { ScannerNavigator } from "./src/navigation/ScannerNavigator";
 import { theme } from "./src/theme";
 
 function AppRoutes() {
   const { state, signOut } = useSession();
+  const { t } = useLocale();
 
   if (state.status === "restoring") {
-    return <LoadingState message="Checking your sign-in…" />;
+    return <LoadingState message={t("Checking your sign-in…")} />;
   }
 
   // The existing scanner navigator already provides the shared LoginScreen.
@@ -25,9 +28,10 @@ function AppRoutes() {
     return (
       <SafeAreaView style={styles.adminScreen}>
         <View style={styles.adminContent}>
-          <Text style={styles.adminTitle}>BiletFlow administration</Text>
+          <LanguagePicker />
+          <Text style={styles.adminTitle}>{t("BiletFlow administration")}</Text>
           <Text style={styles.adminMessage}>
-            Platform administrators use the BiletFlow website, not the mobile app.
+            {t("Platform administrators use the BiletFlow website, not the mobile app.")}
           </Text>
           <AppButton title="Sign out" onPress={() => { void signOut(); }} />
         </View>
@@ -42,10 +46,12 @@ function AppRoutes() {
 export default function App() {
   return (
     <SafeAreaProvider>
-      <SessionProvider>
-        <StatusBar style="dark" />
-        <AppRoutes />
-      </SessionProvider>
+      <LocaleProvider>
+        <SessionProvider>
+          <StatusBar style="dark" />
+          <AppRoutes />
+        </SessionProvider>
+      </LocaleProvider>
     </SafeAreaProvider>
   );
 }

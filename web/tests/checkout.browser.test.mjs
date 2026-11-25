@@ -40,6 +40,8 @@ test('attendee checkout quote safety, retries, simulated purchase and QR visibil
       const user = { id: 'buyer-1', full_name: 'Test Attendee', email: 'buyer@example.com', role: 'attendee' }
       let quoteDelay = 0
       let quoteFailure = false
+      let reservationSeconds = 300
+      let checkoutFailure = false
       let purchases = []
       let ticketStatus = 'valid'
       let eventStatus = 'upcoming'
@@ -63,13 +65,14 @@ test('attendee checkout quote safety, retries, simulated purchase and QR visibil
             else {
               const subtotal = (input.ticket_type_id === 'paid' ? 1000 : 0) * input.quantity
               const discount = input.promo_code === 'SAVE20' ? subtotal * .2 : 0
-              body = { subtotal, discount, total: subtotal - discount }
+              body = { subtotal, discount, total: subtotal - discount,
+                reservation: input.reserve_inventory ? { id: 'held-cart', remaining_seconds: reservationSeconds } : undefined }
             }
           } else if (url.pathname === '/api/orders/checkout') {
             purchases.push(request)
             await pause(300)
-            status = 201
-            body = { order: { id: 'order-1' } }
+            status = checkoutFailure ? 500 : 201
+            body = checkoutFailure ? { detail: 'Checkout confirmation lost' } : { order: { id: 'order-1' } }
           } else if (url.pathname === '/api/tickets/my-tickets') body = [
             { id: 'ticket-1', attendee_name: user.full_name, event_title: event.title, status: ticketStatus, event_status: eventStatus, start_time: ticketStart },
           ]
@@ -141,9 +144,36 @@ test('attendee checkout quote safety, retries, simulated purchase and QR visibil
           await browser.wait('Purchase successful')
           assert.equal(purchases.length, before + 1)
           assert.equal(JSON.parse(purchases.at(-1).postData).ticket_type_id, type)
+          assert.equal(JSON.parse(purchases.at(-1).postData).reservation_id, 'held-cart')
           assert.equal(purchases.at(-1).headers.Authorization, 'Bearer test-token')
           assert.ok(purchases.at(-1).headers['Idempotency-Key'])
         }
+      })
+      await t.test('expiration disables checkout and a fresh reservation makes it available', async () => {
+        reservationSeconds = 1.5
+        await browser.navigate('/events/event-1')
+        await browser.wait('Standard')
+        await browser.evaluate(`document.querySelector('button.choice').click()`)
+        await browser.wait('Tickets reserved for')
+        await eventually(() => browser.evaluate(`${buyButton}?.disabled`), 'Checkout disabled on expiration')
+        reservationSeconds = 300
+        await browser.click('Refresh availability')
+        await browser.wait('Tickets reserved for')
+        assert.equal(await browser.evaluate(`${buyButton}.disabled`), false)
+      })
+      await t.test('reloading after a lost checkout confirmation retries the same key and body', async () => {
+        checkoutFailure = true
+        await browser.click('Buy')
+        await browser.wait('Checkout confirmation lost')
+        const first = purchases.at(-1)
+        await browser.navigate('/events/event-1')
+        await browser.wait('Retry saved purchase')
+        checkoutFailure = false
+        await browser.click('Retry saved purchase')
+        await browser.wait('Purchase successful')
+        const retry = purchases.at(-1)
+        assert.equal(retry.headers['Idempotency-Key'], first.headers['Idempotency-Key'])
+        assert.equal(retry.postData, first.postData)
       })
       await t.test('QR is displayed only for usable tickets and events', async () => {
         for (const status of ['valid', 'checked_in', 'cancelled', 'refunded']) {

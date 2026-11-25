@@ -16,6 +16,7 @@ import { sharedStyles, theme } from "../theme";
 import { formStyles } from "../theme/forms";
 import { formatDateTime } from "../utils/formatting";
 import { organizerMessage, seatLabel } from "../utils/organizerOrders";
+import { useLocale } from "../i18n/LocaleContext";
 
 type Props = NativeStackScreenProps<OrganizerStackParamList, "EventAttendees">;
 
@@ -31,6 +32,8 @@ const STATUS_OPTIONS = [
 const SEARCH_DELAY_MS = 400;
 
 export function EventAttendeesScreen({ route, navigation }: Props) {
+  const { t: localize } = useLocale();
+  const { lang } = useLocale();
   const { eventId, eventTitle } = route.params;
   const { authed } = useSession();
   const [text, setText] = useState("");
@@ -64,10 +67,10 @@ export function EventAttendeesScreen({ route, navigation }: Props) {
         ListHeaderComponent={
           <View style={styles.header}>
             <Text accessibilityRole="header" style={sharedStyles.title}>{eventTitle}</Text>
-            <Text style={sharedStyles.muted}>One row per ticket. The email belongs to the person who bought the order.</Text>
+            <Text style={sharedStyles.muted}>{localize("One row per ticket. The email belongs to the person who bought the order.")}</Text>
             <TextInput
-              accessibilityLabel="Search attendees by name or email"
-              placeholder="Search by name or email"
+              accessibilityLabel={localize("Search attendees by name or email")}
+              placeholder={localize("Search by name or email")}
               placeholderTextColor={theme.colors.muted}
               style={formStyles.input}
               value={text}
@@ -78,7 +81,7 @@ export function EventAttendeesScreen({ route, navigation }: Props) {
               maxLength={254}
               onSubmitEditing={() => setQuery(text.trim())}
             />
-            <FilterChips label="Ticket status" options={STATUS_OPTIONS} value={status} onChange={setStatus} />
+            <FilterChips label={localize("Ticket status")} options={STATUS_OPTIONS} value={status} onChange={setStatus} />
             {!resource.loading && !resource.error ? (
               <Text accessibilityLiveRegion="polite" style={sharedStyles.muted}>
                 {`${rows.length.toLocaleString()} ${rows.length === 1 ? "ticket" : "tickets"}${filtered ? " match" : ""}`}
@@ -87,11 +90,11 @@ export function EventAttendeesScreen({ route, navigation }: Props) {
           </View>
         }
         ListEmptyComponent={
-          resource.loading ? <LoadingState message="Loading attendees…" />
-            : resource.error ? <ErrorState title="Couldn't load attendees" message={resource.error} onRetry={resource.retry} />
+          resource.loading ? <LoadingState message={localize("Loading attendees…")} />
+            : resource.error ? <ErrorState title={localize("Couldn't load attendees")} message={resource.error} onRetry={resource.retry} />
               : filtered
-                ? <EmptyState title="No matches" message="No tickets match this search. Try another name, email or status." />
-                : <EmptyState title="No attendees yet" message="Tickets appear here as soon as someone buys or registers." />
+                ? <EmptyState title={localize("No matches")} message={localize("No tickets match this search. Try another name, email or status.")} />
+                : <EmptyState title={localize("No attendees yet")} message={localize("Tickets appear here as soon as someone buys or registers.")} />
         }
         renderItem={({ item }) => {
           const seat = seatLabel(item);
@@ -111,9 +114,9 @@ export function EventAttendeesScreen({ route, navigation }: Props) {
               </View>
               <Text style={sharedStyles.body}>{[item.ticket_type, seat && `Seat ${seat}`].filter(Boolean).join(" · ")}</Text>
               <Text style={sharedStyles.muted}>
-                {item.checked_in_at ? `Checked in ${formatDateTime(item.checked_in_at)}` : `Ordered ${formatDateTime(item.ordered_at)}`}
+                {item.checked_in_at ? `Checked in ${formatDateTime(item.checked_in_at, lang)}` : `Ordered ${formatDateTime(item.ordered_at, lang)}`}
               </Text>
-              <Text style={styles.link}>View order →</Text>
+              <Text style={styles.link}>{localize("View order →")}</Text>
             </Pressable>
           );
         }}

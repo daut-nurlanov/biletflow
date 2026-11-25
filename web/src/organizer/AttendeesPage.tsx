@@ -6,8 +6,10 @@ import { useManagedEvent } from './Layout'
 import { query, useResource } from './data'
 import type { Attendee } from './types'
 import { Notice, ResourceState, Status, Table } from './ui'
+import { useI18n } from "../i18n"
 
 export default function AttendeesPage() {
+  const { t: localize } = useI18n()
   const event = useManagedEvent()
   const [params, setParams] = useSearchParams()
   const q = params.get('q') ?? ''
@@ -37,14 +39,13 @@ export default function AttendeesPage() {
     <>
       <div className="org-heading">
         <div>
-          <h2>Attendees</h2>
+          <h2>{localize("Attendees")}</h2>
           <p className="muted">
-            Each row represents one ticket. The email belongs to the order
-            buyer.
+            {localize("Each row represents one ticket. The email belongs to the order buyer.")}
           </p>
         </div>
         <button className="btn secondary" onClick={resource.refresh}>
-          Refresh
+          {localize("Refresh")}
         </button>
       </div>
       <AttendeeFilters
@@ -58,9 +59,9 @@ export default function AttendeesPage() {
       />
       {types.error && (
         <Notice error>
-          <p>Could not load ticket types: {types.error}</p>
+          <p>{localize("Could not load ticket types:")} {types.error}</p>
           <button className="btn secondary" onClick={types.refresh}>
-            Retry
+            {localize("Retry")}
           </button>
         </Notice>
       )}
@@ -68,13 +69,13 @@ export default function AttendeesPage() {
       {resource.data && (
         <>
           <p className="muted" role="status">
-            Tickets found: {resource.data.length}
+            {localize("Tickets found:")} {resource.data.length}
           </p>
           {resource.data.length === 0 ? (
-            <Notice>No attendees found. Try changing the filters.</Notice>
+            <Notice>{localize("No attendees found. Try changing the filters.")}</Notice>
           ) : (
             <Table
-              caption="Event attendees"
+              caption={localize("Event attendees")}
               headings={[
                 'Attendee / buyer',
                 'Ticket',
@@ -109,7 +110,7 @@ export default function AttendeesPage() {
                     <Link
                       to={`/organizer/events/${event.id}/orders/${attendee.order_id}`}
                     >
-                      View order
+                      {localize("View order")}
                     </Link>
                   </td>
                 </tr>
@@ -137,42 +138,43 @@ function AttendeeFilters({
   onSubmit: (event: FormEvent<HTMLFormElement>) => void
   onReset: () => void
 }) {
+  const { t: localize } = useI18n()
   const [values, setValues] = useState({ q, status, ticketType })
   return (
     <form className="org-filters" onSubmit={onSubmit}>
       <label className="org-field">
-        Name or email
+        {localize("Name or email")}
         <input
           name="q"
           type="search"
           value={values.q}
           onChange={(e) => setValues({ ...values, q: e.target.value })}
           maxLength={254}
-          placeholder="For example, Dana"
+          placeholder={localize("For example, Dana")}
         />
       </label>
       <label className="org-field">
-        Ticket status
+        {localize("Ticket status")}
         <select
           name="status"
           value={values.status}
           onChange={(e) => setValues({ ...values, status: e.target.value })}
         >
-          <option value="">All statuses</option>
-          <option value="valid">Valid</option>
-          <option value="checked_in">Checked in</option>
-          <option value="refunded">Refunded</option>
-          <option value="cancelled">Cancelled</option>
+          <option value="">{localize("All statuses")}</option>
+          <option value="valid">{localize("Valid")}</option>
+          <option value="checked_in">{localize("Checked in")}</option>
+          <option value="refunded">{localize("Refunded")}</option>
+          <option value="cancelled">{localize("Cancelled")}</option>
         </select>
       </label>
       <label className="org-field">
-        Ticket type
+        {localize("Ticket type")}
         <select
           name="ticket_type_id"
           value={values.ticketType}
           onChange={(e) => setValues({ ...values, ticketType: e.target.value })}
         >
-          <option value="">All types</option>
+          <option value="">{localize("All types")}</option>
           {types?.map((type) => (
             <option value={type.id} key={type.id}>
               {type.name}
@@ -181,10 +183,10 @@ function AttendeeFilters({
         </select>
       </label>
       <button className="btn" type="submit">
-        Apply
+        {localize("Apply")}
       </button>
       <button className="btn secondary" type="button" onClick={onReset}>
-        Reset
+        {localize("Reset")}
       </button>
     </form>
   )

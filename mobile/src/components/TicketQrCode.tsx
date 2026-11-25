@@ -6,6 +6,7 @@ import { useSession } from "../auth/SessionContext";
 import { theme } from "../theme";
 import { ErrorState } from "./ErrorState";
 import { LoadingState } from "./LoadingState";
+import { useLocale } from "../i18n/LocaleContext";
 
 interface TicketQrCodeProps {
   ticketId: string;
@@ -30,6 +31,7 @@ function QrImageAttempt({
   accessibilityLabel,
   onRetry,
 }: TicketQrCodeProps & { onRetry: () => void }) {
+  const { t: localize } = useLocale();
   const { authed } = useSession();
   const [uri, setUri] = useState<string>();
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
@@ -67,8 +69,8 @@ function QrImageAttempt({
   if (state === "error") {
     return (
       <ErrorState
-        title="Couldn't load the admission QR"
-        message="Check your connection and try again. You can also ask door staff for help."
+        title={localize("Couldn't load the admission QR")}
+        message={localize("Check your connection and try again. You can also ask door staff for help.")}
         onRetry={onRetry}
       />
     );
@@ -88,7 +90,7 @@ function QrImageAttempt({
           onLoad={() => setState((current) => current === "loading" ? "ready" : current)}
           onError={() => setState((current) => current === "loading" ? "error" : current)}
         /> : null}
-        {state === "loading" ? <LoadingState message="Loading admission QR…" /> : null}
+        {state === "loading" ? <LoadingState message={localize("Loading admission QR…")} /> : null}
       </View>
     </View>
   );

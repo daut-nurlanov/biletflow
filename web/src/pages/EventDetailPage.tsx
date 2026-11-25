@@ -3,11 +3,26 @@ import { Icon } from '../components/Icon'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import CalendarButton from '../components/CalendarButton'
-import { api, getToken } from '../api'
+import { api, ApiError, getToken } from '../api'
 import { useAuth } from '../auth'
 import { formatDate, formatMoney, formatPrice } from '../format'
 import type { EventItem, Quote, TicketType } from '../types'
 import { useI18n } from '../i18n'
+
+interface PurchaseAttempt {
+  key: string
+  body: { event_id: string; ticket_type_id: string; attendee_name: string; quantity: number;
+    promo_code?: string; reservation_id?: string; expected_total?: string | number }
+}
+
+function readAttempt(key: string): PurchaseAttempt | null {
+  try {
+    const value = JSON.parse(localStorage.getItem(key) ?? 'null') as PurchaseAttempt | null
+    return value && typeof value.key === 'string' && value.body?.event_id ? value : null
+  } catch {
+    return null
+  }
+}
 
 export default function EventDetailPage() {
   const { t: tr } = useI18n()
@@ -16,7 +31,7 @@ export default function EventDetailPage() {
   const campaignToken = searchParams.get('c')
   const navigate = useNavigate()
   const location = useLocation()
-  const { user } = useAuth()
+  const { user, sessionToken } = useAuth()
 
   const [event, setEvent] = useState<EventItem | null>(null)
   const [availabilityTime, setAvailabilityTime] = useState(0)
@@ -29,7 +44,9 @@ export default function EventDetailPage() {
   const [promoInput, setPromoInput] = useState('')
   const [promo, setPromo] = useState('') // the promo code that is applied
   const [promoNote, setPromoNote] = useState('')
-  const [quoteResult, setQuoteResult] = useState<{ selection: string; value: Quote } | null>(null)
+  const [quoteResult, setQuoteResult] = useState<{ selection: string; value: Quote; receivedAt: number; requestedAt: number } | null>(null)
+  const [clock, setClock] = useState(0)
+  const [pending, setPending] = useState<{ storageKey: string; attempt: PurchaseAttempt | null }>()
   const [lastSelection, setLastSelection] = useState('')
   const [quoteError, setQuoteError] = useState('')
   const [quoteAttempt, setQuoteAttempt] = useState(0)
@@ -40,8 +57,6 @@ export default function EventDetailPage() {
   const [reporting, setReporting] = useState(false)
   const [reportError, setReportError] = useState('')
   const [reportSuccess, setReportSuccess] = useState('')
-  const keyRef = useRef(crypto.randomUUID())
-  const purchaseChoice = useRef('')
   const inFlight = useRef(false)
 
   // load the event and its ticket types
@@ -84,7 +99,14 @@ export default function EventDetailPage() {
   }, [campaignToken, id])
 
   const selected = tickets.find((t) => t.id === ticketId && t.event_id === id) ?? null
+  const storageKey = user && id ? `biletflow.purchase.${user.id}.${id}` : ''
+  if (pending?.storageKey !== storageKey) {
+    setPending({ storageKey, attempt: storageKey ? readAttempt(storageKey) : null })
+  }
+  const savedAttempt = pending?.storageKey === storageKey ? pending.attempt : null
+  const locked = buying || !!savedAttempt
   const name = attendeeName || user?.full_name || ''
+  const promoUnapplied = promoInput.trim() !== promo
   const selection = JSON.stringify([id, selected?.id, quantity, promo, user?.id])
   // Returning to an earlier selection still requires a new quote.
   if (selection !== lastSelection) {
@@ -92,26 +114,34 @@ export default function EventDetailPage() {
     setQuoteResult(null)
     setQuoteError('')
   }
-  const quote = quoteResult?.selection === selection ? quoteResult.value : null
+  const currentQuote = quoteResult?.selection === selection ? quoteResult : null
+  const quote = currentQuote?.value
+  const expiresAt = currentQuote && quote?.reservation
+    ? currentQuote.requestedAt + quote.reservation.remaining_seconds * 1000 : null
+  const reservationSeconds = expiresAt === null ? null
+    : Math.max(0, Math.ceil((expiresAt - Math.max(clock, currentQuote!.receivedAt)) / 1000))
   const promoRejected = !!promo && /promo code/i.test(quoteError)
 
-    // recalculate the price whenever the choice changes
   useEffect(() => {
-    if (purchaseChoice.current !== selection) {
-      purchaseChoice.current = selection
-      keyRef.current = crypto.randomUUID()
-    }
-    if (!selected || !id) return
+    if (expiresAt === null) return
+    const interval = window.setInterval(() => setClock(Date.now()), 1000)
+    return () => window.clearInterval(interval)
+  }, [expiresAt])
+
+  useEffect(() => {
+    if (!selected || !id || savedAttempt) return
     const controller = new AbortController()
+    const requestedAt = Date.now()
     let active = true // ignore answers that arrive after a newer request started
     api<Quote>('/api/orders/quote', {
       method: 'POST',
       signal: controller.signal,
-      body: { event_id: id, ticket_type_id: selected.id, quantity, promo_code: promo || undefined },
+      body: { event_id: id, ticket_type_id: selected.id, quantity, promo_code: promo || undefined,
+        reserve_inventory: !!user },
     })
       .then((q) => {
         if (!active) return
-        setQuoteResult({ selection, value: q })
+        setQuoteResult({ selection, value: q, receivedAt: Date.now(), requestedAt })
         setQuoteError('')
       })
       .catch((e) => {
@@ -123,31 +153,77 @@ export default function EventDetailPage() {
       active = false
       controller.abort()
     }
-  }, [id, selected, quantity, promo, selection, quoteAttempt])
+  }, [id, selected, quantity, promo, selection, quoteAttempt, savedAttempt, user])
 
   async function buy() {
-    if (inFlight.current || !quote || !name.trim()) return
-    if (!getToken()) {
+    if (inFlight.current) return
+    if (!user || !sessionToken || getToken() !== sessionToken) {
       navigate('/login', { state: { from: location.pathname + location.search } })
       return
     }
-    if (!selected || !event || event.id !== id) return
+    if (!savedAttempt && (!quote || !name.trim() || !selected || !event || event.id !== id || promoUnapplied)) return
+    if (!savedAttempt && expiresAt !== null && Date.now() >= expiresAt) {
+      setClock(Date.now())
+      return
+    }
     inFlight.current = true
     setBuying(true)
     setBuyError('')
+    async function sendPurchase() {
+      if (getToken() !== sessionToken) return
+      let attempt = readAttempt(storageKey)
+      if (attempt && savedAttempt?.key !== attempt.key) {
+        setPending({ storageKey, attempt })
+        return
+      }
+      if (!attempt && savedAttempt) {
+        // Another tab may have reconciled this attempt already.
+        setPending({ storageKey, attempt: null })
+        navigate('/my-orders')
+        return
+      }
+      try {
+        if (!attempt && selected && event && quote) {
+          const next: PurchaseAttempt = { key: crypto.randomUUID(), body: {
+            event_id: event.id, ticket_type_id: selected.id, attendee_name: name.trim(), quantity,
+            promo_code: promo || undefined,
+            ...(quote.reservation ? { reservation_id: quote.reservation.id, expected_total: quote.total } : {}),
+          } }
+          localStorage.setItem(storageKey, JSON.stringify(next))
+          attempt = next
+          setPending({ storageKey, attempt })
+        }
+        if (!attempt) return
+        const result = await api<{ order: { id: string; status?: string } }>('/api/orders/checkout', {
+          method: 'POST',
+          headers: { 'Idempotency-Key': attempt.key },
+          body: attempt.body,
+        })
+        if (!result.order?.id) throw new Error('The server did not confirm the order. Retry the saved purchase.')
+        localStorage.removeItem(storageKey)
+        setPending({ storageKey, attempt: null })
+        if (result.order.status && result.order.status !== 'paid') {
+          setBuyError('This order is no longer active. Check My orders.')
+          return
+        }
+        navigate('/my-tickets', { state: { justBought: true } })
+      } catch (e) {
+        if (attempt && e instanceof ApiError && e.status >= 400 && e.status < 500 &&
+            e.status !== 401 && !/busy|try again/i.test(e.message)) {
+          localStorage.removeItem(storageKey)
+          setPending({ storageKey, attempt: null })
+          setQuoteResult(null)
+          setQuoteAttempt((value) => value + 1)
+        }
+        setBuyError(e instanceof Error ? e.message : 'Could not complete the purchase')
+      }
+    }
     try {
-      await api('/api/orders/checkout', {
-        method: 'POST',
-        headers: { 'Idempotency-Key': keyRef.current },
-        body: {
-          event_id: event.id,
-          ticket_type_id: selected.id,
-          attendee_name: name,
-          quantity,
-          promo_code: promo || undefined,
-        },
+      if (!navigator.locks) await sendPurchase()
+      else await navigator.locks.request(storageKey, { ifAvailable: true }, async (lock) => {
+        if (lock) await sendPurchase()
+        else setBuyError('A purchase for this event is still processing. Check My Tickets and retry after it finishes.')
       })
-      navigate('/my-tickets', { state: { justBought: true } })
     } catch (e) {
       setBuyError(e instanceof Error ? e.message : 'Could not complete the purchase')
     } finally {
@@ -183,7 +259,15 @@ export default function EventDetailPage() {
     }
   }
 
-  if (error) return <p className="error">{error}</p>
+  const recovery = savedAttempt && (!buying || !selected || !!error) ? (
+    <div className="card buy">
+      <p role="status">{tr('An interrupted purchase is saved. Retry it safely or check My orders.')}</p>
+      {buyError && <p className="error" role="alert">{tr(buyError)}</p>}
+      <button className="btn" type="button" onClick={buy} disabled={buying}>{tr('Retry saved purchase')}</button>
+      <Link to="/my-orders">{tr('My orders')}</Link>
+    </div>
+  ) : null
+  if (error) return <>{recovery}<p className="error" role="alert">{tr(error)}</p></>
   if (!event || event.id !== id) return <p>{tr('Loading…')}</p>
 
   const paidBlocked = (t: TicketType) => Number(t.price) > 0 && (!event.is_paid_sales_active || event.paid_sales_suspended)
@@ -292,7 +376,7 @@ export default function EventDetailPage() {
       <div className="ticket-options">
         {tickets.map((t) => {
           const unavailable = typeUnavailable(t)
-          const disabled = buying || soldOut(t) || !!unavailable || !!eventUnavailable || event.has_assigned_seating
+          const disabled = locked || soldOut(t) || !!unavailable || !!eventUnavailable || event.has_assigned_seating
           return (
             <button
               key={t.id}
@@ -325,7 +409,8 @@ export default function EventDetailPage() {
         </p>
       )}
 
-      {selected && !eventUnavailable && !typeUnavailable(selected) && !event.has_assigned_seating && (
+      {recovery}
+      {(!savedAttempt || buying) && selected && !eventUnavailable && !typeUnavailable(selected) && !event.has_assigned_seating && (
         <div className="card buy">
           <h3>{tr('Checkout')}</h3>
           <div className="form">
@@ -391,9 +476,19 @@ export default function EventDetailPage() {
             </div>
           )}
 
-          {buyError && <p className="error" role="alert">{buyError}</p>}
+          {reservationSeconds !== null && reservationSeconds > 0 && (
+            <p>{tr('Tickets reserved for {time}', { time: `${Math.floor(reservationSeconds / 60)}:${String(reservationSeconds % 60).padStart(2, '0')}` })}</p>
+          )}
+          {reservationSeconds === 0 && <div>
+            <p role="alert">{tr('Reservation expired. After 30 seconds, refresh availability to reserve tickets again.')}</p>
+            <button type="button" className="btn secondary" onClick={() => {
+              setQuoteResult(null)
+              setQuoteAttempt((value) => value + 1)
+            }}>{tr('Refresh availability')}</button>
+          </div>}
+          {buyError && <p className="error" role="alert">{tr(buyError)}</p>}
           <p className="muted">{tr('Demo checkout: payment is simulated. No real money is charged. Processing fees are paid by the organizer.')}</p>
-          <button className="btn" onClick={buy} disabled={buying || !quote || !name.trim()}>
+          <button className="btn" onClick={buy} disabled={buying || !quote || reservationSeconds === 0 || promoUnapplied || (!!user && !name.trim())}>
             {buying ? tr('Processing…') : getToken() ? tr('Buy') : tr('Sign in to buy')}
           </button>
         </div>

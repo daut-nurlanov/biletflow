@@ -252,7 +252,14 @@ def analytics(event_id: str, date_from: str | None = None, date_to: str | None =
         #seat holds have no ticket_type_id, so their scope is always the whole event
         cur.execute("""SELECT count(*) AS n FROM seat_holds h JOIN seats s ON h.seat_id = s.id
                        WHERE s.event_id = %s AND h.status = 'active' AND h.expires_at > now()""", (event_id,))
-        reserved = cur.fetchone()["n"]
+        seats_reserved = cur.fetchone()["n"]
+        cur.execute("""SELECT COALESCE(sum(r.quantity), 0) AS n FROM ticket_reservations r
+                       JOIN ticket_types tt ON tt.id = r.ticket_type_id
+                       WHERE tt.event_id = %(e)s AND r.expires_at > now()
+                       AND (%(tt)s::uuid IS NULL OR tt.id = %(tt)s::uuid)""", p)
+        general_reserved = cur.fetchone()["n"]
+        reserved = seats_reserved + general_reserved
+        available = stock["remaining"] - general_reserved
 
         cur.execute(selected_orders + """
             SELECT COALESCE(sum(total_amount + discount_amount) FILTER (WHERE status IN ('paid','refunded')), 0) AS gross,
@@ -309,10 +316,11 @@ def analytics(event_id: str, date_from: str | None = None, date_to: str | None =
         "filters": {"date_from": date_from, "date_to": date_to, "ticket_type_id": ticket_type_id},
         "inventory": {"total": stock["capacity"], "sold": stock["sold"], "remaining": stock["remaining"],
                       "percent_sold": round(100 * stock["sold"] / stock["capacity"], 1) if stock["capacity"] else 0,
-                      "reserved": reserved, "reserved_scope": "event"},
+                      "reserved": reserved, "reserved_scope": "event",
+                      "general_admission_reserved": general_reserved},
         "capacity": {"total": stock["capacity"], "sold": tickets["sold"], "remaining": stock["remaining"],
                      "percent_sold": round(100 * tickets["sold"] / stock["capacity"], 1) if stock["capacity"] else 0},
-        "ticket_counts": {"available": stock["remaining"], "reserved": reserved, "sold": tickets["sold"],
+        "ticket_counts": {"available": available, "reserved": reserved, "sold": tickets["sold"],
                           "refunded": tickets["refunded"], "checked_in": tickets["checked_in"]},
         "money": {"gross_sales": money["gross"], "discounts": money["discounts"], "refunds": money["refunds"],
                   "net_revenue": net, "processing_fee_simulated": fee, "estimated_payout": net - fee,

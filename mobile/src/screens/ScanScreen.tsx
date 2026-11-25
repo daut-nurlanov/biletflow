@@ -16,6 +16,7 @@ import { Screen } from "../components/Screen";
 import type { ScannerStackParamList } from "../navigation/types";
 import { sharedStyles, theme } from "../theme";
 import { outcomeFromError, outcomeFromResponse, type ScanOutcome } from "../utils/scanOutcome";
+import { useLocale } from "../i18n/LocaleContext";
 
 type Props = NativeStackScreenProps<ScannerStackParamList, "Scan">;
 
@@ -34,6 +35,7 @@ const AUTO_DISMISS_MS = 2500;
 const SAME_CODE_COOLDOWN_MS = 3000;
 
 export function ScanScreen({ route, navigation }: Props) {
+  const { t: localize } = useLocale();
   const { eventId, eventTitle } = route.params;
   const { authed } = useSession();
   const isFocused = useIsFocused();
@@ -53,12 +55,12 @@ export function ScanScreen({ route, navigation }: Props) {
 
   useLayoutEffect(() => {
     navigation.setOptions({ headerRight: () => (
-      <Pressable accessibilityRole="button" accessibilityLabel="Attendees and attendance"
+      <Pressable accessibilityRole="button" accessibilityLabel={localize("Attendees and attendance")}
         onPress={() => navigation.navigate("StaffTools", route.params)} hitSlop={8}>
-        <Text style={{ color: theme.colors.primary, fontSize: theme.fontSize.body }}>Attendees</Text>
+        <Text style={{ color: theme.colors.primary, fontSize: theme.fontSize.body }}>{localize("Attendees")}</Text>
       </Pressable>
     ) });
-  }, [navigation, route.params]);
+  }, [navigation, route.params, localize]);
 
   useFocusEffect(useCallback(() => {
     busy.current = false;
@@ -128,7 +130,7 @@ export function ScanScreen({ route, navigation }: Props) {
   }, [appActive, isFocused, phase, scanNext]);
 
   if (!permission) {
-    return <Screen><LoadingState message="Checking camera access…" /></Screen>;
+    return <Screen><LoadingState message={localize("Checking camera access…")} /></Screen>;
   }
 
   if (!permission.granted) {
@@ -137,15 +139,15 @@ export function ScanScreen({ route, navigation }: Props) {
       <Screen>
         <View style={sharedStyles.state}>
           <Text accessibilityRole="header" style={[sharedStyles.title, sharedStyles.centeredText]}>
-            Camera access needed
+            {localize("Camera access needed")}
           </Text>
           <Text style={[sharedStyles.body, sharedStyles.centeredText]}>
             {canAsk
-              ? "BiletFlow uses the camera only to read ticket QR codes at the door."
-              : "Camera access is turned off for this app. Turn it on in Settings to scan tickets."}
+              ? localize("BiletFlow uses the camera only to read ticket QR codes at the door.")
+              : localize("Camera access is turned off for this app. Turn it on in Settings to scan tickets.")}
           </Text>
           <AppButton
-            title={canAsk ? "Allow camera" : "Open Settings"}
+            title={canAsk ? localize("Allow camera") : localize("Open Settings")}
             onPress={() => { void (canAsk ? requestPermission() : Linking.openSettings()); }}
           />
         </View>
@@ -171,7 +173,7 @@ export function ScanScreen({ route, navigation }: Props) {
         <Text style={[styles.hint, styles.eventName]} accessibilityRole="header">{eventTitle}</Text>
         <View style={styles.frame} />
         <Text style={styles.hint}>
-          {cameraError ? `Camera couldn't start: ${cameraError}` : "Point the camera at the ticket's QR code"}
+          {cameraError ? `Camera couldn't start: ${cameraError}` : localize("Point the camera at the ticket's QR code")}
         </Text>
       </View>
 
@@ -180,12 +182,12 @@ export function ScanScreen({ route, navigation }: Props) {
           <Pressable
             accessibilityRole="switch"
             accessibilityState={{ checked: torchOn }}
-            accessibilityLabel="Flashlight"
+            accessibilityLabel={localize("Flashlight")}
             onPress={() => setTorchOn((on) => !on)}
             style={({ pressed }) => [styles.torch, torchOn && styles.torchOn, pressed && styles.pressed]}
           >
             <Text style={[styles.torchLabel, torchOn && styles.torchLabelOn]}>
-              {torchOn ? "Light on" : "Light off"}
+              {torchOn ? localize("Light on") : localize("Light off")}
             </Text>
           </Pressable>
         </View>
@@ -194,7 +196,7 @@ export function ScanScreen({ route, navigation }: Props) {
       {phase.kind === "checking" && (
         <View style={styles.checking} accessibilityLiveRegion="polite">
           <ActivityIndicator size="large" color="#FFFFFF" />
-          <Text style={styles.checkingText}>Checking ticket…</Text>
+          <Text style={styles.checkingText}>{localize("Checking ticket…")}</Text>
         </View>
       )}
 

@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel
 
 from db import audit, notify, release_expired_holds, tx
+from reservations import clock, held_quantity
 from security import (assert_manager, can_manage, check_number, current_user, day_range, load_event, optional_user,
                       require_roles, resolve_actor)
 
@@ -258,6 +259,25 @@ def get_event_image(event_id: str):
                     headers={"Cache-Control": "public, max-age=300", "X-Content-Type-Options": "nosniff"})
 
 
+def visible_ticket_types(cur, event_id, user, manager):
+    cur.execute(
+        """SELECT tt.*, CASE WHEN %s THEN tt.quantity_available
+                             ELSE tt.quantity_available - held.quantity END AS quantity_available,
+                         held.quantity AS quantity_reserved
+           FROM ticket_types tt
+           CROSS JOIN LATERAL (
+               SELECT COALESCE(sum(r.quantity), 0) AS quantity
+               FROM ticket_reservations r
+               WHERE r.ticket_type_id = tt.id AND r.expires_at > statement_timestamp()
+                 AND (%s OR r.attendee_id IS DISTINCT FROM %s)
+           ) held
+           WHERE tt.event_id = %s AND (tt.is_hidden = false OR %s)
+           ORDER BY tt.price DESC, tt.name""",
+        (manager, manager, user["id"] if user else None, event_id, manager),
+    )
+    return cur.fetchall()
+
+
 @router.get("/api/events/{event_id}")
 def get_event(event_id: str, user=Depends(optional_user)):
     with tx() as cur:
@@ -265,11 +285,8 @@ def get_event(event_id: str, user=Depends(optional_user)):
         #people who run them (this is also how an organizer previews a draft)
         event = load_visible_event(cur, event_id, user)
         manager = can_manage(user, event)
-        cur.execute(
-            "SELECT * FROM ticket_types WHERE event_id = %s AND (is_hidden = false OR %s) ORDER BY price DESC, name",
-            (event_id, manager))
         event = dict(event)
-        event["ticket_types"] = cur.fetchall()
+        event["ticket_types"] = visible_ticket_types(cur, event_id, user, manager)
         return event
 
 
@@ -332,7 +349,8 @@ def update_event(event_id: str, payload: EventUpdate, user=Depends(require_roles
             lines = "; ".join(f"{f.replace('_', ' ')}: {updated[f]}" for f in changed)
             for buyer in buyers:
                 notify(cur, buyer, "event_updated", f"Update for {updated['title']}",
-                       f"The organizer changed details of this event. New values: {lines}.")
+                       f"The organizer changed details of this event. New values: {lines}.",
+                       target=("event", event_id))
         return updated
 
 
@@ -483,10 +501,7 @@ def list_ticket_types(event_id: str, user=Depends(optional_user)):
     with tx() as cur:
         event = load_visible_event(cur, event_id, user)
         manager = can_manage(user, event)
-        cur.execute(
-            "SELECT * FROM ticket_types WHERE event_id = %s AND (is_hidden = false OR %s) ORDER BY price DESC, name",
-            (event_id, manager))
-        return cur.fetchall()
+        return visible_ticket_types(cur, event_id, user, manager)
 
 
 @router.put("/api/ticket-types/{ticket_type_id}")
@@ -515,6 +530,9 @@ def update_ticket_type(ticket_type_id: str, payload: TicketTypeUpdate, user=Depe
             sold = old["total_quantity"] - old["quantity_available"]
             if changes["total_quantity"] < sold:
                 raise HTTPException(status_code=409, detail=f"{sold} tickets are already sold, so the total cannot go below {sold}")
+            held = held_quantity(cur, old["id"], clock(cur))
+            if changes["total_quantity"] < sold + held:
+                raise HTTPException(status_code=409, detail="Some tickets are reserved. Try again when the reservations expire.")
             changes["quantity_available"] = changes["total_quantity"] - sold
         set_clause = ", ".join(f"{col} = %s" for col in changes)
         cur.execute(f"UPDATE ticket_types SET {set_clause} WHERE id = %s RETURNING *", (*changes.values(), ticket_type_id))

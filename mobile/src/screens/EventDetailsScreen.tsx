@@ -19,10 +19,12 @@ import { sharedStyles, theme } from "../theme";
 import { formatDateTime, formatPrice } from "../utils/formatting";
 import { eventDisplayStatus } from "../utils/eventTiming";
 import { describeSalesWindow } from "../utils/ticketSales";
+import { useLocale } from "../i18n/LocaleContext";
 
 type Props = CompositeScreenProps<NativeStackScreenProps<EventsStackParamList, "EventDetails">, BottomTabScreenProps<RootTabParamList>>;
 
 export function EventDetailsScreen({ route, navigation }: Props) {
+  const { lang, t: localize } = useLocale();
   const { eventId } = route.params;
   const { authed } = useSession();
   const loadEvent = useCallback(
@@ -30,11 +32,11 @@ export function EventDetailsScreen({ route, navigation }: Props) {
   );
   const { data: event, loading, refreshing, error, retry, refresh } = useApiResource(loadEvent);
 
-  if (loading) return <Screen><LoadingState message="Loading event details…" /></Screen>;
+  if (loading) return <Screen><LoadingState message={localize("Loading event details…")} /></Screen>;
   if (error || !event) {
     return (
       <Screen>
-        <ErrorState title="Couldn't load event details" message={error ?? "Event not found."} onRetry={retry} />
+        <ErrorState title={localize("Couldn't load event details")} message={error ?? "Event not found."} onRetry={retry} />
       </Screen>
     );
   }
@@ -58,24 +60,24 @@ export function EventDetailsScreen({ route, navigation }: Props) {
             <StatusBadge status={status} />
             <Text style={sharedStyles.body}>{event.venue_name}</Text>
             {event.venue_address ? <Text style={sharedStyles.body}>{event.venue_address}</Text> : null}
-            <Text style={sharedStyles.body}>{formatDateTime(event.start_time)}</Text>
-            {event.end_time ? <Text style={sharedStyles.muted}>Ends: {formatDateTime(event.end_time)}</Text> : null}
+            <Text style={sharedStyles.body}>{formatDateTime(event.start_time, lang)}</Text>
+            {event.end_time ? <Text style={sharedStyles.muted}>{localize("Ends:")} {formatDateTime(event.end_time, lang)}</Text> : null}
             </View>
             {event.description ? <Text style={sharedStyles.body}>{event.description}</Text> : null}
-            {event.refund_policy ? <Text style={sharedStyles.body}>Refund policy: {event.refund_policy}</Text> : null}
-            {event.registration_opens_at ? <Text style={sharedStyles.muted}>Registration opens: {formatDateTime(event.registration_opens_at)}</Text> : null}
-            {event.registration_closes_at ? <Text style={sharedStyles.muted}>Registration closes: {formatDateTime(event.registration_closes_at)}</Text> : null}
-            <Text style={sharedStyles.muted}>Buy tickets here or on the website using the same account. Your tickets appear in My Tickets.</Text>
-            {event.has_assigned_seating ? <Text style={sharedStyles.body}>This mobile checkout supports general admission. Assigned-seat checkout is not available in this app.</Text> : null}
+            {event.refund_policy ? <Text style={sharedStyles.body}>{localize("Refund policy:")} {event.refund_policy}</Text> : null}
+            {event.registration_opens_at ? <Text style={sharedStyles.muted}>{localize("Registration opens:")} {formatDateTime(event.registration_opens_at, lang)}</Text> : null}
+            {event.registration_closes_at ? <Text style={sharedStyles.muted}>{localize("Registration closes:")} {formatDateTime(event.registration_closes_at, lang)}</Text> : null}
+            <Text style={sharedStyles.muted}>{localize("Buy tickets here or on the website using the same account. Your tickets appear in My Tickets.")}</Text>
+            {event.has_assigned_seating ? <Text style={sharedStyles.body}>{localize("This mobile checkout supports general admission. Assigned-seat checkout is not available in this app.")}</Text> : null}
             <ReportEvent eventId={eventId} />
-            <AppButton title="Get help with this event" variant="secondary"
+            <AppButton title={localize("Get help with this event")} variant="secondary"
               onPress={() => navigation.navigate("SupportTab", { screen: "SupportNew", params: { eventId } })} />
-            <Text style={sharedStyles.muted}>Capacity: {event.capacity.toLocaleString()} people</Text>
+            <Text style={sharedStyles.muted}>{localize("Capacity: {count} people", { count: event.capacity.toLocaleString() })}</Text>
             <Text style={sharedStyles.muted}>
-              {event.has_assigned_seating ? "Assigned seating" : "General admission seating"}
+              {event.has_assigned_seating ? localize("Assigned seating") : localize("General admission seating")}
             </Text>
             <Text accessibilityRole="header" style={[sharedStyles.title, styles.sectionTitle]}>
-              Ticket types
+              {localize("Ticket types")}
             </Text>
           </View>
         }
@@ -83,17 +85,17 @@ export function EventDetailsScreen({ route, navigation }: Props) {
           <View style={sharedStyles.card}>
             <Text style={sharedStyles.title}>{item.name}</Text>
             {item.description ? <Text style={sharedStyles.body}>{item.description}</Text> : null}
-            <Text style={styles.price}>{formatPrice(item.price)}</Text>
+            <Text style={styles.price}>{formatPrice(item.price, lang)}</Text>
             <Text style={sharedStyles.body}>
               {item.quantity_available <= 0
-                ? "Sold out"
+                ? localize("Sold out")
                 : `${item.quantity_available.toLocaleString()} of ${item.total_quantity.toLocaleString()} tickets remaining`}
             </Text>
             {Number(item.price) > 0 && (!event.is_paid_sales_active || event.paid_sales_suspended)
-              ? <Text style={sharedStyles.muted}>Paid sales unavailable.</Text> : null}
+              ? <Text style={sharedStyles.muted}>{localize("Paid sales unavailable.")}</Text> : null}
             {item.sales_start_time || item.sales_end_time
               ? <Text style={sharedStyles.muted}>{describeSalesWindow(item.sales_start_time, item.sales_end_time)}</Text> : null}
-            <AppButton title={item.quantity_available <= 0 ? "Sold out" : "Choose tickets"}
+            <AppButton title={item.quantity_available <= 0 ? localize("Sold out") : localize("Choose tickets")}
               accessibilityLabel={item.quantity_available <= 0 ? `${item.name}: Sold out` : `Choose ${item.name} tickets`}
               disabled={event.has_assigned_seating || item.quantity_available <= 0 ||
                 (status !== "upcoming" && status !== "active") ||
@@ -102,7 +104,7 @@ export function EventDetailsScreen({ route, navigation }: Props) {
           </View>
         )}
         ListEmptyComponent={
-          <EmptyState title="No ticket types yet" message="Ticket information hasn't been added to this event yet." />
+          <EmptyState title={localize("No ticket types yet")} message={localize("Ticket information hasn't been added to this event yet.")} />
         }
       />
     </Screen>
@@ -111,6 +113,7 @@ export function EventDetailsScreen({ route, navigation }: Props) {
 
 /** Lets a signed-in person tell the platform team that an event looks wrong. */
 function ReportEvent({ eventId }: { eventId: string }) {
+  const { t: localize } = useLocale();
   const { authed } = useSession();
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState("");
@@ -137,16 +140,16 @@ function ReportEvent({ eventId }: { eventId: string }) {
       {message ? <Text accessibilityRole="alert" style={sharedStyles.muted}>{message}</Text> : null}
       {open ? (
         <>
-          <TextInput value={reason} onChangeText={setReason} multiline placeholder="What is wrong with this event?"
-            placeholderTextColor={theme.colors.muted} accessibilityLabel="Reason for the report" editable={!busy}
+          <TextInput value={reason} onChangeText={setReason} multiline placeholder={localize("What is wrong with this event?")}
+            placeholderTextColor={theme.colors.muted} accessibilityLabel={localize("Reason for the report")} editable={!busy}
             style={{ minHeight: 90, borderWidth: 1, borderColor: theme.colors.border, borderRadius: theme.radius.sm,
               padding: theme.spacing.md, color: theme.colors.text, backgroundColor: theme.colors.surface, textAlignVertical: "top" }} />
           {error ? <Text accessibilityRole="alert" style={{ color: "#B42318" }}>{error}</Text> : null}
-          <AppButton title="Send report" onPress={send} loading={busy} />
-          <AppButton title="Cancel" onPress={() => { setOpen(false); setError(null); }} disabled={busy} />
+          <AppButton title={localize("Send report")} onPress={send} loading={busy} />
+          <AppButton title={localize("Cancel")} onPress={() => { setOpen(false); setError(null); }} disabled={busy} />
         </>
       ) : (
-        <AppButton title="Report this event" variant="secondary" onPress={() => { setOpen(true); setMessage(null); }} />
+        <AppButton title={localize("Report this event")} variant="secondary" onPress={() => { setOpen(true); setMessage(null); }} />
       )}
     </View>
   );

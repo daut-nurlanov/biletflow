@@ -1,3 +1,5 @@
+import { dateLocale } from '../i18n'
+
 export const phaseLabels: Record<string, string> = {
   draft: 'Drafts',
   upcoming: 'Upcoming',
@@ -22,13 +24,13 @@ export const statusLabels: Record<string, string> = {
   revoked: 'Access revoked',
 }
 export const money = (value: number | string) =>
-  new Intl.NumberFormat('en-GB', {
+  new Intl.NumberFormat(dateLocale(), {
     style: 'currency',
     currency: 'KZT',
     maximumFractionDigits: 2,
   }).format(Number(value))
 export const moment = (value: string) =>
-  new Intl.DateTimeFormat('en-GB', {
+  new Intl.DateTimeFormat(dateLocale(), {
     timeZone: 'Asia/Almaty',
     dateStyle: 'medium',
     timeStyle: 'short',

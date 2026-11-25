@@ -1,4 +1,5 @@
 import { StyleSheet, Text, View } from "react-native";
+import { useLocale } from "../i18n/LocaleContext";
 
 import { theme } from "../theme";
 import type { EventStatus } from "../types/event";
@@ -32,11 +33,12 @@ const tones = {
 };
 
 export function StatusBadge({ status }: { status: Status }) {
+  const { t } = useLocale();
   const { label, tone } = statuses[status] ?? { label: "Unknown status", tone: "neutral" };
   const colors = tones[tone];
   return (
     <View style={[styles.badge, { backgroundColor: colors.background }]}>
-      <Text style={[styles.label, { color: colors.text }]}>{label}</Text>
+      <Text style={[styles.label, { color: colors.text }]}>{t(label)}</Text>
     </View>
   );
 }

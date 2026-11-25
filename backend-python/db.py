@@ -111,11 +111,12 @@ def _send_email(to_address, subject, body, attachments=()):
         print(f"[email FAILED] {type(error).__name__}", flush=True)
 
 
-def notify(cur, user_id, kind, subject, body, attachments=()):
+def notify(cur, user_id, kind, subject, body, attachments=(), *, target=None):
     # An explicitly configured QA outbox takes precedence over SMTP.
     cur.execute(
-        "INSERT INTO notifications (user_id, kind, subject, body) VALUES (%s, %s, %s, %s)",
-        (user_id, kind, subject, body))
+        """INSERT INTO notifications (user_id, kind, subject, body, target_type, target_id)
+           VALUES (%s, %s, %s, %s, %s, %s)""",
+        (user_id, kind, subject, body, *(target or (None, None))))
     outbox = os.environ.get("BILETFLOW_EMAIL_OUTBOX", "").strip()
     if outbox or os.environ.get("SMTP_HOST", "").strip():
         cur.execute("SELECT email FROM users WHERE id = %s", (user_id,))

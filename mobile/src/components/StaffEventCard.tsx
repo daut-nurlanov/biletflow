@@ -5,6 +5,7 @@ import type { StaffEvent } from "../types/event";
 import { formatDateTime } from "../utils/formatting";
 import type { EventTiming } from "../utils/eventTiming";
 import { StatusBadge } from "./StatusBadge";
+import { useLocale } from "../i18n/LocaleContext";
 
 interface StaffEventCardProps {
   event: StaffEvent;
@@ -13,6 +14,7 @@ interface StaffEventCardProps {
 }
 
 export function StaffEventCard({ event, timing, onPress }: StaffEventCardProps) {
+  const { lang, t: localize } = useLocale();
   const closed = event.status === "cancelled" || event.status === "suspended";
   const dimmed = closed || timing === "past";
   // Demo and live records can retain an open status after their scheduled end.
@@ -22,8 +24,8 @@ export function StaffEventCard({ event, timing, onPress }: StaffEventCardProps) 
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`${event.title}, ${event.venue_name}, ${formatDateTime(event.start_time)}`}
-      accessibilityHint="Opens the ticket scanner for this event"
+      accessibilityLabel={`${event.title}, ${event.venue_name}, ${formatDateTime(event.start_time, lang)}`}
+      accessibilityHint={localize("Opens the ticket scanner for this event")}
       onPress={onPress}
       style={({ pressed }) => [
         sharedStyles.card,
@@ -34,19 +36,20 @@ export function StaffEventCard({ event, timing, onPress }: StaffEventCardProps) 
     >
       <View style={styles.badges}>
         {timing === "today" && !closed && (
-          <View style={styles.todayPill}><Text style={styles.todayText}>Today</Text></View>
+          <View style={styles.todayPill}><Text style={styles.todayText}>{localize("Today")}</Text></View>
         )}
         <StatusBadge status={displayStatus} />
       </View>
       <Text style={sharedStyles.title}>{event.title}</Text>
       <Text style={sharedStyles.body}>{event.venue_name}</Text>
-      <Text style={sharedStyles.muted}>{formatDateTime(event.start_time)}</Text>
+      <Text style={sharedStyles.muted}>{formatDateTime(event.start_time, lang)}</Text>
       {closed && (
         <Text style={styles.warning}>
-          This event is {event.status}. Its tickets will be refused at the door.
+          {localize(event.status === "cancelled" ? "The event was cancelled. Its tickets will be refused at the door."
+            : "The event was suspended. Its tickets will be refused at the door.")}
         </Text>
       )}
-      <Text style={styles.link}>Start scanning →</Text>
+      <Text style={styles.link}>{localize("Start scanning →")}</Text>
     </Pressable>
   );
 }

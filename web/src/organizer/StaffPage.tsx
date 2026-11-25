@@ -4,6 +4,7 @@ import { useManagedEvent } from './Layout'
 import { messageFor, useResource } from './data'
 import type { StaffMember } from './types'
 import { Notice, ResourceState, Status, Table } from './ui'
+import { useI18n } from "../i18n"
 
 function staffError(error: unknown) {
   if (
@@ -28,6 +29,7 @@ function StaffManager({
   eventId: string
   eventTitle: string
 }) {
+  const { t: localize } = useI18n()
   const resource = useResource<StaffMember[]>(`/api/events/${eventId}/staff`)
   const [mode, setMode] = useState<'assign' | 'create'>('assign')
   const [busy, setBusy] = useState(false)
@@ -132,14 +134,13 @@ function StaffManager({
     <>
       <div className="org-heading">
         <div>
-          <h2>Staff</h2>
+          <h2>{localize("Staff")}</h2>
           <p className="muted">
-            Assign door staff who can verify tickets for this event in the
-            mobile app.
+            {localize("Assign door staff who can verify tickets for this event in the mobile app.")}
           </p>
         </div>
         <button className="btn secondary" disabled={busy} onClick={refresh}>
-          Refresh staff
+          {localize("Refresh staff")}
         </button>
       </div>
       {success && <Notice>{success}</Notice>}
@@ -147,15 +148,14 @@ function StaffManager({
         <Notice error>
           <p>{error}</p>
           <p>
-            If the response was lost, refresh the staff list before trying
-            again.
+            {localize("If the response was lost, refresh the staff list before trying again.")}
           </p>
         </Notice>
       )}
       <section className="org-panel" aria-labelledby="assign-staff-title">
-        <h3 id="assign-staff-title">Assign staff</h3>
+        <h3 id="assign-staff-title">{localize("Assign staff")}</h3>
         <fieldset className="org-staff-modes" disabled={disabled}>
-          <legend>Account</legend>
+          <legend>{localize("Account")}</legend>
           <label>
             <input
               type="radio"
@@ -167,7 +167,7 @@ function StaffManager({
                 setError('')
               }}
             />{' '}
-            Assign existing staff
+            {localize("Assign existing staff")}
           </label>
           <label>
             <input
@@ -180,14 +180,14 @@ function StaffManager({
                 setError('')
               }}
             />{' '}
-            Create new staff account
+            {localize("Create new staff account")}
           </label>
         </fieldset>
         <form key={mode} className="org-staff-form" onSubmit={assign}>
           <fieldset disabled={disabled}>
-            <legend className="org-sr-only">Staff details</legend>
+            <legend className="org-sr-only">{localize("Staff details")}</legend>
             <label className="org-field">
-              Staff email
+              {localize("Staff email")}
               <input
                 name="email"
                 type="email"
@@ -199,11 +199,11 @@ function StaffManager({
             {mode === 'create' && (
               <>
                 <label className="org-field">
-                  Full name
+                  {localize("Full name")}
                   <input name="full_name" required autoComplete="off" />
                 </label>
                 <label className="org-field">
-                  Initial password
+                  {localize("Initial password")}
                   <input
                     name="password"
                     type="password"
@@ -214,7 +214,7 @@ function StaffManager({
                   />
                 </label>
                 <label className="org-field">
-                  Confirm initial password
+                  {localize("Confirm initial password")}
                   <input
                     name="confirm_password"
                     type="password"
@@ -225,21 +225,18 @@ function StaffManager({
                   />
                 </label>
                 <p className="muted">
-                  Use at least 8 characters (at most 72 UTF-8 bytes). Share the
-                  email and initial password directly with the staff member. No
-                  invitation email is sent.
+                  {localize("Use at least 8 characters (at most 72 UTF-8 bytes). Share the email and initial password directly with the staff member. No invitation email is sent.")}
                 </p>
               </>
             )}
             {mode === 'assign' && (
               <p className="muted">
-                Only existing door-staff accounts can be assigned. This does not
-                change their password or permissions at other events.
+                {localize("Only existing door-staff accounts can be assigned. This does not change their password or permissions at other events.")}
               </p>
             )}
             <button className="btn" type="submit">
               {busy
-                ? 'Saving…'
+                ? localize("Saving…")
                 : mode === 'create'
                   ? 'Create and assign'
                   : 'Assign staff'}
@@ -252,7 +249,7 @@ function StaffManager({
           className="org-panel org-confirm"
           aria-labelledby="revoke-staff-title"
         >
-          <h3 id="revoke-staff-title">Revoke event access?</h3>
+          <h3 id="revoke-staff-title">{localize("Revoke event access?")}</h3>
           <p>
             <strong>{confirming.full_name}</strong> ({confirming.email}) will
             lose access to <strong>{eventTitle}</strong>. Their account and
@@ -264,7 +261,7 @@ function StaffManager({
               disabled={busy}
               onClick={() => void changeAccess(confirming, true)}
             >
-              {busy ? 'Revoking…' : 'Confirm revoke'}
+              {busy ? localize("Revoking…") : localize("Confirm revoke")}
             </button>
             <button
               className="btn secondary"
@@ -272,7 +269,7 @@ function StaffManager({
               disabled={busy}
               onClick={() => setConfirming(null)}
             >
-              Cancel
+              {localize("Cancel")}
             </button>
           </div>
         </section>
@@ -280,7 +277,7 @@ function StaffManager({
       <ResourceState {...resource} retry={refresh} />
       {resource.data && (
         <>
-          <h3>Event staff</h3>
+          <h3>{localize("Event staff")}</h3>
           <p className="muted" role="status">
             {
               resource.data.filter(
@@ -291,12 +288,11 @@ function StaffManager({
           </p>
           {resource.data.length === 0 ? (
             <Notice>
-              No staff assigned yet. Assign an existing staff account or create
-              a new one above.
+              {localize("No staff assigned yet. Assign an existing staff account or create a new one above.")}
             </Notice>
           ) : (
             <Table
-              caption="Event staff"
+              caption={localize("Event staff")}
               headings={['Staff member', 'Event access', 'Account', 'Actions']}
             >
               {resource.data.map((staff) => (
@@ -310,8 +306,8 @@ function StaffManager({
                   </td>
                   <td>
                     {staff.is_suspended
-                      ? 'Suspended — cannot sign in'
-                      : 'Available'}
+                      ? localize("Suspended — cannot sign in")
+                      : localize("Available")}
                   </td>
                   <td>
                     {staff.status === 'active' ? (
@@ -324,7 +320,7 @@ function StaffManager({
                           setSuccess('')
                         }}
                       >
-                        Revoke access
+                        {localize("Revoke access")}
                       </button>
                     ) : (
                       <button
@@ -334,7 +330,7 @@ function StaffManager({
                         }
                         onClick={() => void changeAccess(staff, false)}
                       >
-                        Restore access
+                        {localize("Restore access")}
                       </button>
                     )}
                   </td>

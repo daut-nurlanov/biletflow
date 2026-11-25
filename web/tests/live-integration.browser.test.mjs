@@ -68,6 +68,21 @@ test('live: attendee purchase, protected ticket downloads, organizer support, st
       await browser.send('Page.enable')
       await browser.send('Runtime.enable')
       await browser.send('Browser.setDownloadBehavior', { behavior: 'allow', downloadPath: profile })
+      async function dropNextMutationResponse(path) {
+        let dropped = false
+        browser.events.set('Fetch.requestPaused', (event) => {
+          if (!dropped && event.request.method === 'POST' && event.responseStatusCode >= 200 && event.responseStatusCode < 300) {
+            dropped = true
+            void browser.send('Fetch.failRequest', { requestId: event.requestId, errorReason: 'ConnectionReset' })
+          } else void browser.send('Fetch.continueRequest', { requestId: event.requestId })
+        })
+        await browser.send('Fetch.enable', { patterns: [{ urlPattern: '*' + path, requestStage: 'Response' }] })
+        return async () => {
+          await browser.send('Fetch.disable')
+          browser.events.delete('Fetch.requestPaused')
+          assert.ok(dropped, 'The test intercepted a committed mutation response')
+        }
+      }
       await browser.navigate('/login')
       await browser.wait('Sign in')
       await browser.evaluate(`localStorage.setItem('biletflow_token', ${JSON.stringify(attendee.token)})`)
@@ -77,11 +92,22 @@ test('live: attendee purchase, protected ticket downloads, organizer support, st
         await browser.wait(name)
         await browser.evaluate(`([...document.querySelectorAll('button.choice')].find(b => b.textContent.includes(${JSON.stringify(name)}))).click()`)
         await browser.wait('Total')
+        await browser.wait('Tickets reserved for')
+        const reserved = await request(`/api/events/${event.id}/analytics`, { token: org })
+        assert.equal(reserved.inventory.general_admission_reserved, 1)
         if (name === 'Paid admission') {
           await browser.wait('Discount')
           await browser.wait('4,000')
+          const stopDropping = await dropNextMutationResponse('/api/orders/checkout')
+          await browser.click('Buy')
+          await browser.wait('Could not reach the server')
+          await stopDropping()
+          await browser.navigate(`/events/${event.id}`)
+          await browser.wait('Retry saved purchase')
+          await browser.click('Retry saved purchase')
+        } else {
+          await browser.click('Buy')
         }
-        await browser.click('Buy')
         await browser.wait('Purchase successful')
       }
       const tickets = await request('/api/tickets/my-tickets', { token: attendee.token })
@@ -142,6 +168,20 @@ test('live: attendee purchase, protected ticket downloads, organizer support, st
       await browser.wait('Organizer reply verified in live integration')
       const conversation = await request(`/api/support/cases/${support.id}`, { token: attendee.token })
       assert.ok(conversation.messages.some((message) => message.message === 'Organizer reply verified in live integration'))
+      const update = (await request('/api/notifications?unread_only=true', { token: attendee.token }))
+        .find((item) => item.target_type === 'support' && item.target_id === support.id)
+      assert.ok(update, 'Reply has a contextual unread notification')
+      await browser.evaluate(`localStorage.setItem('biletflow_token', ${JSON.stringify(attendee.token)})`)
+      await browser.navigate('/notifications?unread_only=true')
+      await browser.wait(update.subject)
+      await browser.evaluate(`[...document.querySelectorAll('article')].find(
+        article => article.querySelector('h2')?.textContent === ${JSON.stringify(update.subject)}
+      ).querySelector('button').click()`)
+      await eventually(() => browser.evaluate(`location.pathname === ${JSON.stringify(`/support/${support.id}`)}`), 'Notification opened the support case')
+      await browser.wait('Organizer reply verified in live integration')
+      assert.equal(await request('/api/notifications?unread_only=true', { token: attendee.token })
+        .then((items) => items.some((item) => item.id === update.id)), false)
+      await browser.evaluate(`localStorage.setItem('biletflow_token', ${JSON.stringify(org)})`)
       await browser.navigate(`/organizer/events/${event.id}/staff`)
       await browser.wait('Audit Staff')
       await browser.evaluate('document.querySelector("input[value=create]").click()')
@@ -246,7 +286,24 @@ test('live: attendee purchase, protected ticket downloads, organizer support, st
       assert.equal(updatedTickets.find((item) => item.id === freeTicket.id)?.status, 'cancelled')
       assert.equal((await request('/api/checkin/verify-qr', { token: staff.token,
         body: { event_id: event.id, qr_code_hash: freeTicket.qr_code_hash } })).result, 'cancelled')
+      const refundFixture = await request('/api/orders/checkout', { token: attendee.token, body: {
+        event_id: event.id, ticket_type_id: ticket.ticket_type_id, attendee_name: 'Refund recovery buyer',
+      } })
+      const refundOrder = refundFixture.order.id
       await browser.evaluate(`localStorage.setItem('biletflow_token', ${JSON.stringify(org)})`)
+      await browser.navigate(`/organizer/events/${event.id}/orders/${refundOrder}`)
+      await browser.wait('Refund payment…')
+      await browser.click('Refund payment…')
+      const stopRefundDrop = await dropNextMutationResponse(`/api/orders/${refundOrder}/refund`)
+      await browser.click('Confirm refund')
+      await browser.wait('The server may have completed the request.')
+      await stopRefundDrop()
+      assert.equal(await browser.has('Refund payment…'), false)
+      await browser.click('Refresh status')
+      await browser.wait('Refunded')
+      const refunded = await request(`/api/orders/${refundOrder}`, { token: org })
+      assert.equal(refunded.status, 'refunded')
+      assert.equal(refunded.refunds.length, 1)
       await request(`/api/events/${event.id}/cancel`, { token: org, method: 'POST' })
       await browser.navigate(`/organizer/events/${event.id}/history`)
       await browser.wait('Event cancelled')
@@ -267,6 +324,23 @@ test('live: attendee purchase, protected ticket downloads, organizer support, st
       const calendar = await browser.evaluate('window.calendarFile.text()')
       assert.ok(calendar.includes(`UID:${event.id}@biletflow`))
       assert.ok(calendar.includes('STATUS:CANCELLED'))
+      const outside = await request('/api/auth/register', { body: { full_name: 'Other QA organizer',
+        email: `audit-outside-${suffix}@test.invalid`, password: 'audit-pass-123', role: 'organizer' } })
+      await browser.evaluate(`localStorage.setItem('biletflow_token', ${JSON.stringify(outside.token)})`)
+      await browser.navigate(`/organizer/events/${event.id}/orders/${refundOrder}`)
+      await browser.wait('Event not found or unavailable to your account.')
+      assert.equal(await browser.has('Refund payment…'), false)
+      await browser.navigate(`/support/${support.id}`)
+      await browser.wait('Request not found.')
+      assert.equal(await browser.has('Send reply'), false)
+      await browser.navigate('/admin/events')
+      await browser.wait('The admin portal is only for platform administrators.')
+      assert.equal(await browser.has('Freeze paid sales'), false)
+      const foreignHeaders = { Authorization: `Bearer ${outside.token}` }
+      for (const extension of ['/qr.png', '/pdf']) {
+        const download = await fetch(`${apiBase}/api/tickets/${ticket.id}${extension}`, { headers: foreignHeaders })
+        assert.equal(download.status, 404)
+      }
       console.log('Live purchase, support, History, notifications and cancelled-event calendar verified on the isolated database.')
     } finally {
       browser.socket?.close()

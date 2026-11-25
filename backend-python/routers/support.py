@@ -1,7 +1,7 @@
 from typing import Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel
 
 from db import audit, notify, tx
@@ -90,11 +90,12 @@ def notify_other_side(cur, case, sender, subject, body):
             recipients.update(str(r["id"]) for r in cur.fetchall())
     recipients.discard(str(sender["id"]))
     for user_id in recipients:
-        notify(cur, user_id, "support", subject, body)
+        notify(cur, user_id, "support", subject, body, target=("support", case["id"]))
 
 
 @router.post("/api/support/cases", status_code=201)
-def open_case(payload: CaseCreate, user=Depends(require_roles("attendee", "organizer"))):
+def open_case(payload: CaseCreate, user=Depends(require_roles("attendee", "organizer")),
+              idempotency_key: UUID | None = Header(default=None)):
     if payload.category not in CATEGORIES:
         raise HTTPException(status_code=400, detail="category must be one of: " + ", ".join(CATEGORIES))
     if not payload.message.strip() or len(payload.message) > MAX_MESSAGE:
@@ -103,6 +104,14 @@ def open_case(payload: CaseCreate, user=Depends(require_roles("attendee", "organ
     event_id, order_id, ticket_id = payload.event_id, payload.order_id, payload.ticket_id
 
     with tx() as cur:
+        request_id = str(idempotency_key) if idempotency_key else None
+        if request_id:
+            cur.execute("SELECT pg_advisory_xact_lock(363, hashtext(%s))", (str(user["id"]),))
+            cur.execute("SELECT * FROM support_cases WHERE opened_by = %s AND request_id = %s",
+                        (user["id"], request_id))
+            previous = cur.fetchone()
+            if previous:
+                return previous
         #fill in the context automatically: a ticket knows its order and event,
         #an order knows its event
         if ticket_id:
@@ -135,9 +144,9 @@ def open_case(payload: CaseCreate, user=Depends(require_roles("attendee", "organ
                 raise HTTPException(status_code=403, detail="That is not your event")
 
         cur.execute(
-            """INSERT INTO support_cases (opened_by, event_id, order_id, ticket_id, category, kind)
-               VALUES (%s, %s, %s, %s, %s, %s) RETURNING *""",
-            (user["id"], event_id, order_id, ticket_id, payload.category, kind))
+            """INSERT INTO support_cases (opened_by, event_id, order_id, ticket_id, category, kind, request_id)
+               VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING *""",
+            (user["id"], event_id, order_id, ticket_id, payload.category, kind, request_id))
         case = cur.fetchone()
         cur.execute("INSERT INTO support_messages (case_id, sender_id, message) VALUES (%s, %s, %s)",
                     (case["id"], user["id"], payload.message.strip()))
@@ -179,13 +188,23 @@ def get_case(case_id: str, user=Depends(current_user)):
 
 
 @router.post("/api/support/cases/{case_id}/messages", status_code=201)
-def add_message(case_id: str, payload: MessageCreate, user=Depends(current_user)):
+def add_message(case_id: str, payload: MessageCreate, user=Depends(current_user),
+                idempotency_key: UUID | None = Header(default=None)):
     if not payload.message.strip() or len(payload.message) > MAX_MESSAGE:
         raise HTTPException(status_code=400, detail=f"Message cannot be empty or longer than {MAX_MESSAGE} characters")
     with tx() as cur:
         case, level = load_case(cur, case_id, user, lock=True)
-        cur.execute("INSERT INTO support_messages (case_id, sender_id, message) VALUES (%s, %s, %s) RETURNING *",
-                    (case_id, user["id"], payload.message.strip()))
+        request_id = str(idempotency_key) if idempotency_key else None
+        if request_id:
+            cur.execute("""SELECT * FROM support_messages
+                           WHERE case_id = %s AND sender_id = %s AND request_id = %s""",
+                        (case_id, user["id"], request_id))
+            previous = cur.fetchone()
+            if previous:
+                return previous
+        cur.execute("""INSERT INTO support_messages (case_id, sender_id, message, request_id)
+                       VALUES (%s, %s, %s, %s) RETURNING *""",
+                    (case_id, user["id"], payload.message.strip(), request_id))
         message = cur.fetchone()
         #a customer replying while we were waiting on them puts it back in progress
         #(and a customer writing on a resolved case reopens it)
@@ -225,9 +244,11 @@ def update_case(case_id: str, payload: CaseUpdate, user=Depends(current_user)):
         if payload.status and payload.status != case["status"]:
             audit(cur, user["id"], case["event_id"], "support_case_status_changed",
                   f"Support case {case['category']}: {case['status']} to {payload.status}", "support_case", case_id)
-            notify(cur, case["opened_by"], "support", "Your support case changed status", f"New status: {payload.status}")
+            notify(cur, case["opened_by"], "support", "Your support case changed status",
+                   f"New status: {payload.status}", target=("support", case_id))
         if payload.assigned_to and str(payload.assigned_to) != str(case["assigned_to"]):
-            notify(cur, payload.assigned_to, "support", "Support case assigned to you", f"Case {case_id} ({case['category']})")
+            notify(cur, payload.assigned_to, "support", "Support case assigned to you",
+                   f"Case {case_id} ({case['category']})", target=("support", case_id))
         return updated
 
 
@@ -245,5 +266,6 @@ def escalate_case(case_id: str, user=Depends(require_roles("organizer"))):
         audit(cur, user["id"], case["event_id"], "support_case_escalated", "Case escalated to platform admins", "support_case", case_id)
         cur.execute("SELECT id FROM users WHERE role = 'platform_admin' AND NOT is_suspended")
         for admin in cur.fetchall():
-            notify(cur, admin["id"], "support", "Escalated support case", f"Case {case_id} ({case['category']}) was escalated")
+            notify(cur, admin["id"], "support", "Escalated support case",
+                   f"Case {case_id} ({case['category']}) was escalated", target=("support", case_id))
         return updated

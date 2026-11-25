@@ -7,8 +7,10 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useSession } from "../auth/SessionContext";
 import { AppButton } from "../components/AppButton";
+import { LanguagePicker } from "../components/LanguagePicker";
 import type { ScannerStackParamList } from "../navigation/types";
 import { sharedStyles, theme } from "../theme";
+import { useLocale } from "../i18n/LocaleContext";
 
 // Seeded demo accounts are offered only in development builds.
 const DEMO_ACCOUNTS = [
@@ -20,6 +22,7 @@ const DEMO_ACCOUNTS = [
 type Props = NativeStackScreenProps<ScannerStackParamList, "Login">;
 
 export function LoginScreen({ navigation }: Props) {
+  const { t: localize } = useLocale();
   const { signIn } = useSession();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -51,15 +54,16 @@ export function LoginScreen({ navigation }: Props) {
       >
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           <View style={styles.header}>
+            <View style={{ alignSelf: "flex-end" }}><LanguagePicker /></View>
             <Text style={styles.brand}>BiletFlow</Text>
-            <Text accessibilityRole="header" style={styles.heading}>Sign in</Text>
+            <Text accessibilityRole="header" style={styles.heading}>{localize("Sign in")}</Text>
             <Text style={sharedStyles.muted}>
-              Attendees, organizers and event staff all use this app.
+              {localize("Attendees, organizers and event staff all use this app.")}
             </Text>
           </View>
 
           <View style={sharedStyles.card}>
-            <Text style={styles.label} nativeID="emailLabel">Email</Text>
+            <Text style={styles.label} nativeID="emailLabel">{localize("Email")}</Text>
             <TextInput
               accessibilityLabelledBy="emailLabel"
               style={styles.input}
@@ -78,7 +82,7 @@ export function LoginScreen({ navigation }: Props) {
               editable={!submitting}
             />
 
-            <Text style={styles.label} nativeID="passwordLabel">Password</Text>
+            <Text style={styles.label} nativeID="passwordLabel">{localize("Password")}</Text>
             <View style={styles.passwordRow}>
               <TextInput
                 ref={passwordInput}
@@ -86,7 +90,7 @@ export function LoginScreen({ navigation }: Props) {
                 style={[styles.input, styles.flex]}
                 value={password}
                 onChangeText={setPassword}
-                placeholder="Password"
+                placeholder={localize("Password")}
                 placeholderTextColor={theme.colors.muted}
                 secureTextEntry={!showPassword}
                 autoCapitalize="none"
@@ -99,23 +103,23 @@ export function LoginScreen({ navigation }: Props) {
               />
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={showPassword ? "Hide password" : "Show password"}
+                accessibilityLabel={showPassword ? localize("Hide password") : localize("Show password")}
                 onPress={() => setShowPassword((shown) => !shown)}
                 style={styles.toggle}
                 hitSlop={8}
               >
-                <Text style={styles.toggleText}>{showPassword ? "Hide" : "Show"}</Text>
+                <Text style={styles.toggleText}>{showPassword ? localize("Hide") : localize("Show")}</Text>
               </Pressable>
             </View>
 
             {error && (
               <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={styles.error}>
-                {error}
+                {localize(error)}
               </Text>
             )}
 
             <AppButton
-              title={submitting ? "Signing in…" : "Sign in"}
+              title={submitting ? localize("Signing in…") : localize("Sign in")}
               onPress={handleSubmit}
               disabled={!canSubmit}
               loading={submitting}
@@ -124,24 +128,24 @@ export function LoginScreen({ navigation }: Props) {
 
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Forgot your password"
+            accessibilityLabel={localize("Forgot your password")}
             accessibilityState={{ disabled: submitting }}
             onPress={() => navigation.navigate("ForgotPassword")}
             disabled={submitting}
             style={styles.registerLink}
           >
-            <Text style={styles.toggleText}>Forgot your password?</Text>
+            <Text style={styles.toggleText}>{localize("Forgot your password?")}</Text>
           </Pressable>
 
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Create an attendee account"
+            accessibilityLabel={localize("Create an attendee account")}
             accessibilityState={{ disabled: submitting }}
             onPress={() => navigation.navigate("Register")}
             disabled={submitting}
             style={styles.registerLink}
           >
-            <Text style={styles.toggleText}>New to BiletFlow? Create an attendee account</Text>
+            <Text style={styles.toggleText}>{localize("New to BiletFlow? Create an attendee account")}</Text>
           </Pressable>
 
           {__DEV__ && DEMO_ACCOUNTS.map((account) => (
@@ -155,7 +159,7 @@ export function LoginScreen({ navigation }: Props) {
               }}
               style={styles.demo}
             >
-              <Text style={styles.demoText}>Fill demo: {account.label}</Text>
+              <Text style={styles.demoText}>{localize("Fill demo:")} {localize(account.label)}</Text>
             </Pressable>
           ))}
         </ScrollView>

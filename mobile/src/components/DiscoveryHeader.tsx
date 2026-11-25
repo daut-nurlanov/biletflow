@@ -1,22 +1,24 @@
 import { Image, StyleSheet, Text, TextInput, View } from "react-native";
 import { sharedStyles, theme } from "../theme";
 import { BrandIcon } from "./BrandIcon";
+import { useLocale } from "../i18n/LocaleContext";
 
 const photo = require("../../assets/catalogue-cover.jpg");
 
 export function DiscoveryHeader({ query, onSearch }: { query: string; onSearch: (value: string) => void }) {
+  const { t: localize } = useLocale();
   return (
     <View style={styles.header}>
       <View style={styles.hero}>
         <Image source={photo} accessible={false} style={styles.photo} resizeMode="cover" />
         <View style={styles.heroCopy}>
           <View style={styles.mark}><BrandIcon name="ticket" color={theme.colors.surface} /></View>
-          <Text accessibilityRole="header" style={[sharedStyles.heading, styles.heroTitle]}>Find your next event</Text>
+          <Text accessibilityRole="header" style={[sharedStyles.heading, styles.heroTitle]}>{localize("Find your next event")}</Text>
         </View>
       </View>
       <View style={styles.search}>
         <BrandIcon name="search" size={20} />
-        <TextInput accessibilityLabel="Search events" placeholder="Event, venue, or category"
+        <TextInput accessibilityLabel={localize("Search events")} placeholder={localize("Event, venue, or category")}
           placeholderTextColor={theme.colors.muted} value={query} onChangeText={onSearch}
           autoCorrect={false} returnKeyType="search" style={styles.input} />
       </View>

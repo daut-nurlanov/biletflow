@@ -4,8 +4,10 @@ import { useResource } from './data'
 import type { ManagedEvent } from './types'
 import { Notice, ResourceState, Stat, Status } from './ui'
 import { useManagedEvent } from './Layout'
+import { useI18n } from "../i18n"
 
 export function OrganizerEventsPage() {
+  const { t: localize } = useI18n()
   const resource = useResource<ManagedEvent[]>('/api/organizer/events')
   const [params, setParams] = useSearchParams()
   const phase = params.get('phase') ?? ''
@@ -16,31 +18,31 @@ export function OrganizerEventsPage() {
     <>
       <div className="org-heading">
         <div>
-          <p className="org-eyebrow">Organizer dashboard</p>
-          <h1>My events</h1>
-          <p className="muted">Sales, attendees and orders for your events.</p>
+          <p className="org-eyebrow">{localize("Organizer dashboard")}</p>
+          <h1>{localize("My events")}</h1>
+          <p className="muted">{localize("Sales, attendees and orders for your events.")}</p>
         </div>
         <div className="org-actions">
           <Link className="btn" to="/organizer/new">
-            New event
+            {localize("New event")}
           </Link>
           <Link className="btn secondary" to="/organizer/profile">
-            Profile
+            {localize("Profile")}
           </Link>
           <button className="btn secondary" onClick={resource.refresh}>
-            Refresh
+            {localize("Refresh")}
           </button>
         </div>
       </div>
       <label className="org-field org-filter">
-        Event phase
+        {localize("Event phase")}
         <select
           value={phase}
           onChange={(e) =>
             setParams(e.target.value ? { phase: e.target.value } : {})
           }
         >
-          <option value="">All events</option>
+          <option value="">{localize("All events")}</option>
           {Object.entries(phaseLabels).map(([value, label]) => (
             <option key={value} value={value}>
               {label}
@@ -50,7 +52,7 @@ export function OrganizerEventsPage() {
       </label>
       <ResourceState {...resource} retry={resource.refresh} />
       {events?.length === 0 && (
-        <Notice>No events to show. Try selecting a different phase.</Notice>
+        <Notice>{localize("No events to show. Try selecting a different phase.")}</Notice>
       )}
       <div className="org-event-grid">
         {events?.map((event) => (
@@ -63,22 +65,22 @@ export function OrganizerEventsPage() {
             <p className="muted">{event.venue_name}</p>
             <dl className="org-facts">
               <div>
-                <dt>Tickets sold</dt>
+                <dt>{localize("Tickets sold")}</dt>
                 <dd>
                   {event.tickets_sold} / {event.tickets_total}
                 </dd>
               </div>
               <div>
-                <dt>Checked in</dt>
+                <dt>{localize("Checked in")}</dt>
                 <dd>{event.tickets_checked_in}</dd>
               </div>
               <div>
-                <dt>Revenue after discounts and refunds</dt>
+                <dt>{localize("Revenue after discounts and refunds")}</dt>
                 <dd>{money(event.net_revenue)}</dd>
               </div>
             </dl>
             <Link className="btn" to={`/organizer/events/${event.id}`}>
-              Manage
+              {localize("Manage")}
             </Link>
           </article>
         ))}
@@ -87,54 +89,54 @@ export function OrganizerEventsPage() {
   )
 }
 export function EventOverviewPage() {
+  const { t: localize } = useI18n()
   const event = useManagedEvent()
   const base = `/organizer/events/${event.id}`
   return (
     <>
       <div className="org-stats">
-        <Stat title="Total ticket inventory" value={event.tickets_total} />
-        <Stat title="Valid and checked-in tickets" value={event.tickets_sold} />
-        <Stat title="Checked in" value={event.tickets_checked_in} />
+        <Stat title={localize("Total ticket inventory")} value={event.tickets_total} />
+        <Stat title={localize("Valid and checked-in tickets")} value={event.tickets_sold} />
+        <Stat title={localize("Checked in")} value={event.tickets_checked_in} />
         <Stat
-          title="Revenue after discounts and refunds"
+          title={localize("Revenue after discounts and refunds")}
           value={money(event.net_revenue)}
         />
       </div>
       <p className="muted">
-        Demo payments. Revenue is shown before processing fees. Refresh the page
-        to see the latest figures.
+        {localize("Demo payments. Revenue is shown before processing fees. Refresh the page to see the latest figures.")}
       </p>
       <div className="org-event-grid">
         <article className="org-panel">
-          <h2>Attendees</h2>
-          <p>Find a ticket by name or email and check its admission status.</p>
+          <h2>{localize("Attendees")}</h2>
+          <p>{localize("Find a ticket by name or email and check its admission status.")}</p>
           <Link className="btn" to={`${base}/attendees`}>
-            View attendees
+            {localize("View attendees")}
           </Link>
         </article>
         <article className="org-panel">
-          <h2>Orders</h2>
+          <h2>{localize("Orders")}</h2>
           <p>
-            Review order tickets, issue a refund or cancel a free registration.
+            {localize("Review order tickets, issue a refund or cancel a free registration.")}
           </p>
           <Link className="btn" to={`${base}/orders`}>
-            View orders
+            {localize("View orders")}
           </Link>
         </article>
       </div>
       <section className="org-panel">
-        <h2>Event information</h2>
+        <h2>{localize("Event information")}</h2>
         <p>
-          Venue: {event.venue_name}
+          {localize("Venue:")} {event.venue_name}
           {event.venue_address ? `, ${event.venue_address}` : ''}
         </p>
-        <p>Venue capacity: {event.capacity}</p>
+        <p>{localize("Venue capacity:")} {event.capacity}</p>
         <p>
-          Paid sales:{' '}
-          {event.is_paid_sales_active ? 'activated' : 'not activated'}
+          {localize("Paid sales:")}{' '}
+          {event.is_paid_sales_active ? localize("activated") : localize("not activated")}
         </p>
-        <p>Refund policy: {event.refund_policy || 'not specified'}</p>
-        <Link to={`/events/${event.id}`}>View event page →</Link>
+        <p>{localize("Refund policy:")} {event.refund_policy || 'not specified'}</p>
+        <Link to={`/events/${event.id}`}>{localize("View event page →")}</Link>
       </section>
     </>
   )

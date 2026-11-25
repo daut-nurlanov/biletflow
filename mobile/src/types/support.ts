@@ -13,6 +13,8 @@ export interface SupportCase {
   ticket_id: string | null;
   event_title?: string | null;
   opened_by_name?: string;
+  assigned_to?: string | null;
+  assigned_to_name?: string | null;
   escalated: boolean;
   created_at: string;
   updated_at: string;

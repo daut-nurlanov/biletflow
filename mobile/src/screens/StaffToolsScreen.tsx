@@ -16,10 +16,12 @@ import type { ScannerStackParamList } from "../navigation/types";
 import { sharedStyles, theme } from "../theme";
 import type { SearchTicket } from "../types/checkin";
 import { outcomeFromResponse } from "../utils/scanOutcome";
+import { useLocale } from "../i18n/LocaleContext";
 
 type Props = NativeStackScreenProps<ScannerStackParamList, "StaffTools">;
 
 export function StaffToolsScreen({ route }: Props) {
+  const { t: localize } = useLocale();
   const { eventId, eventTitle } = route.params;
   const { authed } = useSession();
   const [query, setQuery] = useState("");
@@ -83,9 +85,9 @@ export function StaffToolsScreen({ route }: Props) {
   }
 
   function confirmUndo(ticket: SearchTicket) {
-    Alert.alert("Undo check-in?", `Reverse check-in for ${ticket.attendee_name}'s ticket ending ${ticket.id.slice(-8)}? It can be used to enter again.`, [
-      { text: "Cancel", style: "cancel" },
-      { text: "Undo check-in", style: "destructive", onPress: () => { void act(ticket, true); } },
+    Alert.alert(localize("Undo check-in?"), `Reverse check-in for ${ticket.attendee_name}'s ticket ending ${ticket.id.slice(-8)}? It can be used to enter again.`, [
+      { text: localize("Cancel"), style: "cancel" },
+      { text: localize("Undo check-in"), style: "destructive", onPress: () => { void act(ticket, true); } },
     ]);
   }
 
@@ -103,21 +105,21 @@ export function StaffToolsScreen({ route }: Props) {
           <View style={styles.header}>
             <Text accessibilityRole="header" style={sharedStyles.title}>{eventTitle}</Text>
             <AttendanceSummary key={revision} eventId={eventId} />
-            <Text style={sharedStyles.body}>Find a ticket by name, email, ticket ID, or its last 8 characters.</Text>
-            <TextInput accessibilityLabel="Name, email or ticket ID" style={styles.input}
+            <Text style={sharedStyles.body}>{localize("Find a ticket by name, email, ticket ID, or its last 8 characters.")}</Text>
+            <TextInput accessibilityLabel={localize("Name, email or ticket ID")} style={styles.input}
               value={query} onChangeText={setQuery} autoCapitalize="none" autoCorrect={false}
-              placeholder="Name, email or ticket ID" placeholderTextColor={theme.colors.muted}
+              placeholder={localize("Name, email or ticket ID")} placeholderTextColor={theme.colors.muted}
               returnKeyType="search" onSubmitEditing={search} editable={!busyId} />
-            <AppButton title="Search tickets" onPress={search} disabled={!!busyId} />
+            <AppButton title={localize("Search tickets")} onPress={search} disabled={!!busyId} />
             {validation ? <Text accessibilityRole="alert" style={sharedStyles.body}>{validation}</Text> : null}
             {actionError ? <Text accessibilityRole="alert" style={sharedStyles.body}>{actionError}</Text> : null}
             {message ? <Text accessibilityRole="alert" style={sharedStyles.body}>{message}</Text> : null}
-            {term && results.loading ? <LoadingState message="Searching tickets…" /> : null}
+            {term && results.loading ? <LoadingState message={localize("Searching tickets…")} /> : null}
             {results.error ? <ErrorState message={results.error} onRetry={results.retry} /> : null}
           </View>
         }
         ListEmptyComponent={term && !results.loading && !results.error
-          ? <Text style={sharedStyles.muted}>No matching tickets. Try another name or email.</Text> : undefined}
+          ? <Text style={sharedStyles.muted}>{localize("No matching tickets. Try another name or email.")}</Text> : undefined}
         renderItem={({ item }) => {
           const reference = item.id.slice(-8);
           const ticketLabel = `${item.attendee_name}, ${item.ticket_type_name}, ticket ending ${reference}`;
@@ -125,12 +127,14 @@ export function StaffToolsScreen({ route }: Props) {
             <View style={sharedStyles.card}>
               <Text style={sharedStyles.title}>{item.attendee_name}</Text>
               <Text style={sharedStyles.body}>{item.ticket_type_name}</Text>
-              <Text style={sharedStyles.muted}>Ticket ending {reference}</Text>
-              {item.section ? <Text style={sharedStyles.body}>Section {item.section}, row {item.row_label}, seat {item.seat_number}</Text> : null}
+              <Text style={sharedStyles.muted}>{localize("Ticket ending {suffix}", { suffix: reference })}</Text>
+              {item.section ? <Text style={sharedStyles.body}>{localize("Section {s}, row {r}, seat {n}", {
+                s: item.section, r: item.row_label ?? "", n: item.seat_number ?? "",
+              })}</Text> : null}
               <StatusBadge status={item.status} />
-              {item.status === "valid" ? <AppButton title="Check in" accessibilityLabel={`Check in ${ticketLabel}`}
+              {item.status === "valid" ? <AppButton title={localize("Check in")} accessibilityLabel={`Check in ${ticketLabel}`}
                 onPress={() => { void act(item, false); }} disabled={!!busyId} loading={busyId === item.id} /> : null}
-              {item.status === "checked_in" ? <AppButton title="Undo check-in" variant="secondary" accessibilityLabel={`Undo check-in for ${ticketLabel}`}
+              {item.status === "checked_in" ? <AppButton title={localize("Undo check-in")} variant="secondary" accessibilityLabel={`Undo check-in for ${ticketLabel}`}
                 onPress={() => confirmUndo(item)} disabled={!!busyId} loading={busyId === item.id} /> : null}
             </View>
           );

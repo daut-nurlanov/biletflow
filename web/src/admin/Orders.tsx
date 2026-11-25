@@ -4,6 +4,7 @@ import { money, moment } from '../organizer/format'
 import { Notice, ResourceState, Status, Table } from '../organizer/ui'
 import { qs, useAction } from './actions'
 import { Banner, Search } from './helpers'
+import { useI18n } from "../i18n"
 
 interface OrderRow {
   id: string
@@ -16,6 +17,7 @@ interface OrderRow {
 }
 
 export default function Orders() {
+  const { t: localize } = useI18n()
   const [q, setQ] = useState('')
   const [status, setStatus] = useState('')
   const [confirm, setConfirm] = useState('')
@@ -23,23 +25,23 @@ export default function Orders() {
   const { run, busy, banner } = useAction(list.refresh)
   return (
     <>
-      <Search q={q} setQ={setQ} label="Search email, event, order or payment reference">
+      <Search q={q} setQ={setQ} label={localize("Search email, event, order or payment reference")}>
         <label className="org-field">
-          Status
+          {localize("Status")}
           <select value={status} onChange={(e) => setStatus(e.target.value)}>
-            <option value="">All</option>
-            <option value="paid">Paid</option>
-            <option value="refunded">Refunded</option>
-            <option value="failed">Failed payments</option>
-            <option value="cancelled">Cancelled</option>
+            <option value="">{localize("All")}</option>
+            <option value="paid">{localize("Paid")}</option>
+            <option value="refunded">{localize("Refunded")}</option>
+            <option value="failed">{localize("Failed payments")}</option>
+            <option value="cancelled">{localize("Cancelled")}</option>
           </select>
         </label>
       </Search>
       <Banner message={banner} />
       <ResourceState {...list} retry={list.refresh} />
-      {list.data?.length === 0 && <Notice>No orders match.</Notice>}
+      {list.data?.length === 0 && <Notice>{localize("No orders match.")}</Notice>}
       {list.data && list.data.length > 0 && (
-        <Table caption="Orders" headings={['Placed', 'Buyer', 'Event', 'Total', 'Status', 'Payment ref', '']}>
+        <Table caption={localize("Orders")} headings={['Placed', 'Buyer', 'Event', 'Total', 'Status', 'Payment ref', '']}>
           {list.data.map((o) => (
             <tr key={o.id}>
               <td>{moment(o.created_at)}</td>
@@ -62,15 +64,15 @@ export default function Orders() {
                           setConfirm('')
                         }}
                       >
-                        Confirm refund
+                        {localize("Confirm refund")}
                       </button>{' '}
                       <button className="btn secondary" onClick={() => setConfirm('')}>
-                        Keep
+                        {localize("Keep")}
                       </button>
                     </>
                   ) : (
                     <button className="btn secondary" onClick={() => setConfirm(o.id)}>
-                      Refund
+                      {localize("Refund")}
                     </button>
                   ))}
               </td>

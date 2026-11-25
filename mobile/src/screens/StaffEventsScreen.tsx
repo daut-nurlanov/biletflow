@@ -1,11 +1,12 @@
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useCallback, useLayoutEffect, useMemo } from "react";
-import { Alert, Platform, Pressable, SectionList, StyleSheet, Text } from "react-native";
+import { Alert, Platform, Pressable, SectionList, StyleSheet, Text, View } from "react-native";
 
 import { getStaffEvents } from "../api/staff";
 import { useSession } from "../auth/SessionContext";
 import { EmptyState } from "../components/EmptyState";
 import { ErrorState } from "../components/ErrorState";
+import { LanguagePicker } from "../components/LanguagePicker";
 import { LoadingState } from "../components/LoadingState";
 import { Screen } from "../components/Screen";
 import { StaffEventCard } from "../components/StaffEventCard";
@@ -14,6 +15,7 @@ import type { ScannerStackParamList } from "../navigation/types";
 import { sharedStyles, theme } from "../theme";
 import type { StaffEvent } from "../types/event";
 import { getEventTiming, type EventTiming } from "../utils/eventTiming";
+import { useLocale } from "../i18n/LocaleContext";
 
 type Props = NativeStackScreenProps<ScannerStackParamList, "StaffEvents">;
 
@@ -41,6 +43,7 @@ function groupEvents(events: StaffEvent[]): Section[] {
 }
 
 export function StaffEventsScreen({ navigation }: Props) {
+  const { t: localize } = useLocale();
   const { state, signOut, authed } = useSession();
 
   const load = useCallback(
@@ -56,28 +59,31 @@ export function StaffEventsScreen({ navigation }: Props) {
       void signOut();
       return;
     }
-    Alert.alert("Sign out?", "You'll need your password to scan tickets again.", [
-      { text: "Cancel", style: "cancel" },
-      { text: "Sign out", style: "destructive", onPress: () => { void signOut(); } },
+    Alert.alert(localize("Sign out?"), localize("You'll need your password to scan tickets again."), [
+      { text: localize("Cancel"), style: "cancel" },
+      { text: localize("Sign out"), style: "destructive", onPress: () => { void signOut(); } },
     ]);
-  }, [signOut]);
+  }, [localize, signOut]);
 
   useLayoutEffect(() => {
     navigation.setOptions({
       headerRight: () => (
-        <Pressable accessibilityRole="button" onPress={confirmSignOut} hitSlop={12}>
-          <Text style={styles.headerButton}>Sign out</Text>
-        </Pressable>
+        <View style={{ flexDirection: "row", alignItems: "center" }}>
+          <LanguagePicker />
+          <Pressable accessibilityRole="button" onPress={confirmSignOut} hitSlop={12}>
+            <Text style={styles.headerButton}>{localize("Sign out")}</Text>
+          </Pressable>
+        </View>
       ),
     });
-  }, [navigation, confirmSignOut]);
+  }, [navigation, confirmSignOut, localize]);
 
   const userName = state.status === "signedIn" ? state.user.full_name || state.user.email : "";
 
   return (
     <Screen>
-      {loading ? <LoadingState message="Loading your events…" /> : error ? (
-        <ErrorState title="Couldn't load your events" message={error} onRetry={retry} />
+      {loading ? <LoadingState message={localize("Loading your events…")} /> : error ? (
+        <ErrorState title={localize("Couldn't load your events")} message={error} onRetry={retry} />
       ) : (
         <SectionList
           sections={sections}
@@ -88,11 +94,11 @@ export function StaffEventsScreen({ navigation }: Props) {
           onRefresh={refresh}
           ListHeaderComponent={
             <Text style={sharedStyles.muted}>
-              Signed in as {userName}. Choose the event you are working at.
+              {localize("Signed in as {name}. Choose the event you are working at.", { name: userName })}
             </Text>
           }
           renderSectionHeader={({ section }) => (
-            <Text accessibilityRole="header" style={styles.sectionTitle}>{section.title}</Text>
+            <Text accessibilityRole="header" style={styles.sectionTitle}>{localize(section.title)}</Text>
           )}
           renderItem={({ item, section }) => (
             <StaffEventCard
@@ -103,8 +109,8 @@ export function StaffEventsScreen({ navigation }: Props) {
           )}
           ListEmptyComponent={
             <EmptyState
-              title="No events assigned"
-              message="Ask the event organizer to add you as door staff, then pull down to refresh."
+              title={localize("No events assigned")}
+              message={localize("Ask the event organizer to add you as door staff, then pull down to refresh.")}
             />
           }
         />

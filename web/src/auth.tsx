@@ -10,6 +10,7 @@ import type { User } from './types'
 
 interface AuthValue {
   user: User | null
+  sessionToken: string | null
   loading: boolean
   error: string
   login: (email: string, password: string) => Promise<User>
@@ -24,38 +25,50 @@ const AuthContext = createContext<AuthValue | null>(null)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
+  const [sessionToken, setSessionToken] = useState<string | null>(null)
   const [loading, setLoading] = useState(() => Boolean(getToken()))
   const [error, setError] = useState('')
 
   // on page load: if a token is saved, find out who it belongs to
   useEffect(() => {
     let active = true
-    const token = getToken()
-    if (token) {
-      api<User>('/api/auth/me')
-        .then((data) => {
-          if (active && getToken() === token) setUser(data)
-        })
-        .catch((err: unknown) => {
-          if (active && getToken() === token) {
-            setError(
-              err instanceof Error ? err.message : 'Could not verify your sign-in',
-            )
-          }
-        })
-        .finally(() => {
-          if (active) setLoading(false)
-        })
-    }
     const onLogout = () => {
       setUser(null)
+      setSessionToken(null)
       setError('')
       setLoading(false)
     }
+    const restore = () => {
+      const token = getToken()
+      onLogout()
+      if (!token) return
+      setLoading(true)
+      api<User>('/api/auth/me')
+        .then((data) => {
+          if (active && getToken() === token) {
+            setUser(data)
+            setSessionToken(token)
+          }
+        })
+        .catch((err: unknown) => {
+          if (active && getToken() === token) {
+            setError(err instanceof Error ? err.message : 'Could not verify your sign-in')
+          }
+        })
+        .finally(() => {
+          if (active && getToken() === token) setLoading(false)
+        })
+    }
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === 'biletflow_token' || event.key === null) restore()
+    }
+    restore()
     window.addEventListener('biletflow:logout', onLogout)
+    window.addEventListener('storage', onStorage)
     return () => {
       active = false
       window.removeEventListener('biletflow:logout', onLogout)
+      window.removeEventListener('storage', onStorage)
     }
   }, [])
 
@@ -63,6 +76,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setToken(data.token)
     const signedInUser = (data.user ?? data) as User
     setUser(signedInUser)
+    setSessionToken(data.token)
     setError('')
     setLoading(false)
     return signedInUser
@@ -89,6 +103,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   function logout() {
     setToken(null)
     setUser(null)
+    setSessionToken(null)
     setError('')
     setLoading(false)
   }
@@ -100,7 +115,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, loading, error, login, register, logout, refreshUser }}
+      value={{ user, sessionToken, loading, error, login, register, logout, refreshUser }}
     >
       {children}
     </AuthContext.Provider>

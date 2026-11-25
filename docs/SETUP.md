@@ -57,6 +57,7 @@ For a locally run Python API, set the same `DB_*` variables for both commands,
 then run `python migrate.py` before `python -m uvicorn main:app ...` from
 `backend-python`. Compose exposes its database on `127.0.0.1:5433`, so local Python
 needs `DB_PORT=5433`. A new empty database still needs `docs/schema.sql` first.
+The migrations create temporary general-admission reservations, optional notification targets, and support request retry keys. Apply them before starting the updated API so checkout, notifications and support can access the new fields.
 The upgrade supports the existing base schema; installations older than the base
 tables need a reviewed schema comparison, not a destructive reset.
 

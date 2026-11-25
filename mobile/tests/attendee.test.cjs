@@ -14,7 +14,13 @@ function load(file, mocks) {
   }).outputText;
   const module = { exports: {} };
   vm.runInNewContext(code, { module, exports: module.exports,
-    require: (name) => Object.hasOwn(mocks, name) ? mocks[name] : require(name) });
+    require: (name) => {
+      if (Object.hasOwn(mocks, name)) return mocks[name];
+      if (name === '../i18n/LocaleContext') return require('./runtime.cjs').localeMock;
+      if (name === '../i18n/messages') return require('./runtime.cjs').messages;
+      if (name === '../components/LanguagePicker') return { LanguagePicker: 'LanguagePicker' };
+      return require(name);
+    } });
   return module.exports;
 }
 

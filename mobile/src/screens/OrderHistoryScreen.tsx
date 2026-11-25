@@ -16,10 +16,12 @@ import { useApiResource } from "../hooks/useApiResource";
 import type { RootTabParamList, TicketsStackParamList } from "../navigation/types";
 import { sharedStyles, theme } from "../theme";
 import { formatDateTime, formatMoney } from "../utils/formatting";
+import { useLocale } from "../i18n/LocaleContext";
 
 type Props = CompositeScreenProps<NativeStackScreenProps<TicketsStackParamList, "OrderHistory">, BottomTabScreenProps<RootTabParamList, "MyTickets">>;
 
 export function OrderHistoryScreen({ navigation }: Props) {
+  const { lang, t: localize } = useLocale();
   const { authed } = useSession();
   const load = useCallback((signal: AbortSignal) => authed((token) => getMyOrders(token, signal)), [authed]);
   const resource = useApiResource(load);
@@ -27,9 +29,9 @@ export function OrderHistoryScreen({ navigation }: Props) {
   const [message, setMessage] = useState<string | null>(null);
 
   function askCancel(orderId: string, title: string) {
-    Alert.alert("Cancel registration?", `Your tickets for ${title} will stop working.`, [
-      { text: "Keep it", style: "cancel" },
-      { text: "Cancel registration", style: "destructive", onPress: () => void doCancel(orderId, title) },
+    Alert.alert(localize("Cancel registration?"), `Your tickets for ${title} will stop working.`, [
+      { text: localize("Keep it"), style: "cancel" },
+      { text: localize("Cancel registration"), style: "destructive", onPress: () => void doCancel(orderId, title) },
     ]);
   }
 
@@ -47,8 +49,8 @@ export function OrderHistoryScreen({ navigation }: Props) {
 
   return (
     <Screen>
-      {resource.loading ? <LoadingState message="Loading purchases…" /> : resource.error ? (
-        <ErrorState title="Couldn't load purchases" message={resource.error} onRetry={resource.retry} />
+      {resource.loading ? <LoadingState message={localize("Loading purchases…")} /> : resource.error ? (
+        <ErrorState title={localize("Couldn't load purchases")} message={resource.error} onRetry={resource.retry} />
       ) : (
         <FlatList
           data={resource.data ?? []}
@@ -57,24 +59,24 @@ export function OrderHistoryScreen({ navigation }: Props) {
           refreshing={resource.refreshing}
           onRefresh={resource.refresh}
           ListHeaderComponent={message ? <Text accessibilityRole="alert" style={sharedStyles.body}>{message}</Text> : undefined}
-          ListEmptyComponent={<EmptyState title="No orders yet" message="Orders from this app and the website will appear here." />}
+          ListEmptyComponent={<EmptyState title={localize("No orders yet")} message={localize("Orders from this app and the website will appear here.")} />}
           renderItem={({ item }) => (
             <View style={sharedStyles.card}>
               <Text style={sharedStyles.title}>{item.event_title}</Text>
               <StatusBadge status={item.status} />
               <View style={[sharedStyles.card, sharedStyles.accentCard]}>
-                <Text style={sharedStyles.title}>{formatMoney(item.total_amount)}</Text>
-                <Text style={sharedStyles.muted}>{item.ticket_count} {item.ticket_count === 1 ? "ticket" : "tickets"}</Text>
+                <Text style={sharedStyles.title}>{formatMoney(item.total_amount, lang)}</Text>
+                <Text style={sharedStyles.muted}>{localize("{count} ticket(s)", { count: item.ticket_count })}</Text>
               </View>
-              {item.promo_code_applied ? <Text style={sharedStyles.body}>Promotion: {item.promo_code_applied}</Text> : null}
-              <Text style={sharedStyles.muted}>Ordered {formatDateTime(item.created_at)}</Text>
-              <Text selectable style={sharedStyles.muted}>Order reference: {item.id}</Text>
+              {item.promo_code_applied ? <Text style={sharedStyles.body}>{localize("Promotion:")} {item.promo_code_applied}</Text> : null}
+              <Text style={sharedStyles.muted}>{localize("Ordered")} {formatDateTime(item.created_at, lang)}</Text>
+              <Text selectable style={sharedStyles.muted}>{localize("Order reference:")} {item.id}</Text>
               {item.status === "paid" && Number(item.total_amount) === 0
-                ? <AppButton title={cancelling === item.id ? "Cancelling…" : "Cancel registration"} variant="danger" loading={cancelling === item.id}
+                ? <AppButton title={cancelling === item.id ? localize("Cancelling…") : localize("Cancel registration")} variant="danger" loading={cancelling === item.id}
                     onPress={() => askCancel(item.id, item.event_title)} />
-                : item.status === "paid" ? <Text style={sharedStyles.muted}>Paid orders are refunded by the organizer. Ask through support.</Text> : null}
+                : item.status === "paid" ? <Text style={sharedStyles.muted}>{localize("Paid orders are refunded by the organizer. Ask through support.")}</Text> : null}
               <View style={{ marginTop: theme.spacing.xs }}>
-                <AppButton title="Get help with this order" variant="secondary" onPress={() => navigation.navigate("SupportTab", { screen: "SupportNew", params: { orderId: item.id } })} />
+                <AppButton title={localize("Get help with this order")} variant="secondary" onPress={() => navigation.navigate("SupportTab", { screen: "SupportNew", params: { orderId: item.id } })} />
               </View>
             </View>
           )}

@@ -15,10 +15,12 @@ import { Screen } from "../components/Screen";
 import { useApiResource } from "../hooks/useApiResource";
 import type { EventsStackParamList } from "../navigation/types";
 import { sharedStyles, theme } from "../theme";
+import { useLocale } from "../i18n/LocaleContext";
 
 type Props = NativeStackScreenProps<EventsStackParamList, "Events">;
 
 export function EventsScreen({ navigation }: Props) {
+  const { t: localize } = useLocale();
   const { authed } = useSession();
   const [query, setQuery] = useState("");
   const [campaignOpen, setCampaignOpen] = useState(false);
@@ -34,8 +36,8 @@ export function EventsScreen({ navigation }: Props) {
 
   return (
     <Screen>
-      {loading ? <LoadingState message="Loading events…" /> : error ? (
-        <ErrorState title="Couldn't load events" message={error} onRetry={retry} />
+      {loading ? <LoadingState message={localize("Loading events…")} /> : error ? (
+        <ErrorState title={localize("Couldn't load events")} message={error} onRetry={retry} />
       ) : (
         <FlatList
           data={results ?? []}
@@ -49,9 +51,9 @@ export function EventsScreen({ navigation }: Props) {
             <DiscoveryHeader query={query} onSearch={setQuery} />
             {campaignOpen ? <View style={{ gap: theme.spacing.sm }}>
               <CampaignEntry onOpen={(eventId, campaignToken) => navigation.navigate("Checkout", { eventId, campaignToken })} />
-              <AppButton title="Hide campaign link form" variant="secondary" onPress={() => setCampaignOpen(false)} />
-            </View> : <AppButton title="Have a campaign link?" variant="secondary" onPress={() => setCampaignOpen(true)} />}
-            <Text accessibilityRole="header" style={sharedStyles.title}>Events</Text>
+              <AppButton title={localize("Hide campaign link form")} variant="secondary" onPress={() => setCampaignOpen(false)} />
+            </View> : <AppButton title={localize("Have a campaign link?")} variant="secondary" onPress={() => setCampaignOpen(true)} />}
+            <Text accessibilityRole="header" style={sharedStyles.title}>{localize("Events")}</Text>
           </View>}
           renderItem={({ item }) => (
             <EventCard
@@ -61,8 +63,8 @@ export function EventsScreen({ navigation }: Props) {
             />
           )}
           ListEmptyComponent={
-            <EmptyState title={term ? "No matching events" : "No events yet"}
-              message={term ? "Try another event, venue, or category." : "Check back soon, or pull down to refresh."} />
+            <EmptyState title={term ? localize("No matching events") : localize("No events yet")}
+              message={term ? localize("Try another event, venue, or category.") : localize("Check back soon, or pull down to refresh.")} />
           }
         />
       )}

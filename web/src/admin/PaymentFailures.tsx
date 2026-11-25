@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useResource } from '../organizer/data'
 import { money, moment } from '../organizer/format'
 import { Notice, ResourceState, Table } from '../organizer/ui'
+import { useI18n } from "../i18n"
 
 interface FailedPayment {
   id: string
@@ -14,6 +15,7 @@ interface FailedPayment {
 }
 
 export default function PaymentFailures() {
+  const { t: localize } = useI18n()
   const resource = useResource<FailedPayment[]>('/api/admin/payment-failures')
   const [search, setSearch] = useState('')
   const term = search.trim().toLowerCase()
@@ -29,42 +31,39 @@ export default function PaymentFailures() {
     <>
       <div className="org-heading">
         <div>
-          <h2>Payment failures</h2>
+          <h2>{localize("Payment failures")}</h2>
           <p className="muted">
-            Latest 200 failed simulated payments, newest first. Times use Almaty
-            time.
+            {localize("Latest 200 failed simulated payments, newest first. Times use Almaty time.")}
           </p>
         </div>
         <button className="btn secondary" onClick={resource.refresh}>
-          Refresh payment failures
+          {localize("Refresh payment failures")}
         </button>
       </div>
       <Notice>
-        Read-only payment attempts. Failed attempts do not issue valid tickets.
-        This API does not provide a detailed failure reason or a retry/refund
-        action.
+        {localize("Read-only payment attempts. Failed attempts do not issue valid tickets. This API does not provide a detailed failure reason or a retry/refund action.")}
       </Notice>
       <label className="org-field org-filter">
-        Search loaded failures
+        {localize("Search loaded failures")}
         <input
           type="search"
           value={search}
           onChange={(event) => setSearch(event.target.value)}
-          placeholder="Email, event, order or payment reference"
+          placeholder={localize("Email, event, order or payment reference")}
         />
       </label>
       <ResourceState {...resource} retry={resource.refresh} />
-      {resource.data?.length === 0 && <Notice>No failed payments.</Notice>}
+      {resource.data?.length === 0 && <Notice>{localize("No failed payments.")}</Notice>}
       {resource.data && resource.data.length > 0 && rows?.length === 0 && (
-        <Notice>No loaded failures match your search.</Notice>
+        <Notice>{localize("No loaded failures match your search.")}</Notice>
       )}
       {rows && rows.length > 0 && (
         <>
           <p className="muted">
-            {rows.length} of {resource.data?.length} loaded failures shown.
+            {localize('{shown} of {total} loaded failures shown.', { shown: rows.length, total: resource.data?.length ?? 0 })}
           </p>
           <Table
-            caption="Failed simulated payments"
+            caption={localize("Failed simulated payments")}
             headings={[
               'Attempted',
               'Buyer',

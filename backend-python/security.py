@@ -45,7 +45,7 @@ def check_email(email: str) -> str:
 ALMATY = ZoneInfo("Asia/Almaty")
 
 
-def _parse_moment(text, name, end_of_range):
+def parse_almaty_moment(text, name, end_of_range=False):
     text = text.strip()
     try:
         if len(text) == 10:
@@ -62,8 +62,8 @@ def _parse_moment(text, name, end_of_range):
 def day_range(date_from, date_to):
     """Turns the ?date_from / ?date_to filters into exact moments. Both ends are INCLUDED:
     date_to=2026-11-30 covers all of the 30th (Almaty time)."""
-    start = _parse_moment(date_from, "date_from", False) if date_from else None
-    end = _parse_moment(date_to, "date_to", True) if date_to else None
+    start = parse_almaty_moment(date_from, "date_from") if date_from else None
+    end = parse_almaty_moment(date_to, "date_to", True) if date_to else None
     return start, end
 
 

@@ -8,11 +8,14 @@ import { Screen } from "../components/Screen";
 import type { ScannerStackParamList } from "../navigation/types";
 import { sharedStyles, theme } from "../theme";
 import { formStyles as styles } from "../theme/forms";
+import { useLocale } from "../i18n/LocaleContext";
+import { passwordValidation } from "../utils/registration";
 
 type Props = NativeStackScreenProps<ScannerStackParamList, "ForgotPassword">;
 
 /** Two steps on one screen: ask for a code, then use the code to choose a new password. */
 export function ForgotPasswordScreen({ navigation }: Props) {
+  const { t: localize } = useLocale();
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
   const [password, setPassword] = useState("");
@@ -26,15 +29,23 @@ export function ForgotPasswordScreen({ navigation }: Props) {
   async function sendCode() {
     if (locked.current || !email.trim()) return;
     locked.current = true; setBusy(true); setError(null);
-    try { await forgotPassword(email); } catch { /* same neutral answer either way */ }
-    setSent(true); locked.current = false; setBusy(false);
+    try {
+      // The server always returns the same response for a known or unknown email.
+      await forgotPassword(email);
+      setSent(true);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not request a reset code.");
+    } finally {
+      locked.current = false;
+      setBusy(false);
+    }
   }
 
   async function submit() {
     if (locked.current) return;
     if (!code.trim()) { setError("Enter the reset code."); return; }
-    if (Array.from(password).length < 8) { setError("Password must be at least 8 characters."); return; }
-    if (password.length > 72) { setError("Password is too long; use at most 72 characters."); return; }
+    const invalidPassword = passwordValidation(password);
+    if (invalidPassword) { setError(invalidPassword); return; }
     if (password !== confirm) { setError("Passwords do not match."); return; }
     locked.current = true; setBusy(true); setError(null);
     try {
@@ -51,40 +62,39 @@ export function ForgotPasswordScreen({ navigation }: Props) {
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           {done ? (
             <>
-              <Text accessibilityRole="alert" style={sharedStyles.body}>Password changed. You can sign in now.</Text>
-              <AppButton title="Back to sign in" onPress={() => navigation.popToTop()} />
+              <Text accessibilityRole="alert" style={sharedStyles.body}>{localize("Password changed. You can sign in now.")}</Text>
+              <AppButton title={localize("Back to sign in")} onPress={() => navigation.popToTop()} />
             </>
           ) : (
             <>
               <Text style={sharedStyles.body}>
-                Enter your email and we send a reset code. In this demo the code appears in the app&apos;s Notifications
-                or the server log instead of an inbox.
+                {localize("Enter your email to request a reset code.")}
               </Text>
               <TextInput style={styles.input} value={email} onChangeText={setEmail} placeholder="you@example.com"
                 placeholderTextColor={theme.colors.muted} autoCapitalize="none" autoCorrect={false}
-                keyboardType="email-address" accessibilityLabel="Email" editable={!busy && !sent} />
+                keyboardType="email-address" accessibilityLabel={localize("Email")} editable={!busy && !sent} />
               {sent ? (
                 <Text accessibilityRole="alert" style={sharedStyles.muted}>
-                  If that email has an account, a reset code was sent.
+                  {localize("If that email has an account, a reset code was sent.")}
                 </Text>
               ) : (
-                <AppButton title={busy ? "Sending…" : "Send reset code"} onPress={sendCode} disabled={!email.trim()} loading={busy} />
+                <AppButton title={busy ? localize("Sending…") : localize("Send reset code")} onPress={sendCode} disabled={!email.trim()} loading={busy} />
               )}
               {sent && (
                 <>
-                  <TextInput style={styles.input} value={code} onChangeText={setCode} placeholder="Reset code"
+                  <TextInput style={styles.input} value={code} onChangeText={setCode} placeholder={localize("Reset code")}
                     placeholderTextColor={theme.colors.muted} autoCapitalize="none" autoCorrect={false}
-                    accessibilityLabel="Reset code" editable={!busy} />
-                  <TextInput style={styles.input} value={password} onChangeText={setPassword} placeholder="New password"
+                    accessibilityLabel={localize("Reset code")} editable={!busy} />
+                  <TextInput style={styles.input} value={password} onChangeText={setPassword} placeholder={localize("New password")}
                     placeholderTextColor={theme.colors.muted} secureTextEntry autoCapitalize="none"
-                    accessibilityLabel="New password" editable={!busy} />
-                  <TextInput style={styles.input} value={confirm} onChangeText={setConfirm} placeholder="Repeat new password"
+                    accessibilityLabel={localize("New password")} editable={!busy} />
+                  <TextInput style={styles.input} value={confirm} onChangeText={setConfirm} placeholder={localize("Repeat new password")}
                     placeholderTextColor={theme.colors.muted} secureTextEntry autoCapitalize="none"
-                    accessibilityLabel="Repeat new password" editable={!busy} />
-                  {error && <Text accessibilityRole="alert" style={styles.error}>{error}</Text>}
-                  <AppButton title={busy ? "Saving…" : "Change password"} onPress={submit} loading={busy} />
+                    accessibilityLabel={localize("Repeat new password")} editable={!busy} />
+                  <AppButton title={busy ? localize("Saving…") : localize("Change password")} onPress={submit} loading={busy} />
                 </>
               )}
+              {error && <Text accessibilityRole="alert" style={styles.error}>{localize(error)}</Text>}
             </>
           )}
         </ScrollView>
