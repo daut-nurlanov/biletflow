@@ -1,118 +1,92 @@
-
 # BiletFlow
 
-Self-service event ticketing platform for Kazakhstan. CSCI 361 Software Engineering course project.
+Self-service event ticketing platform for Kazakhstan. CSCI 361 Software Engineering course project (Team 12).
 
-BiletFlow integrates event management, ticket reservations, simulated payments, QR ticket issuance, admission verification, refunds, promotional campaigns, analytics and customer support across web and mobile applications.
+BiletFlow covers event management, ticket reservations, simulated payments, QR ticket issuance, admission verification, refunds, promotional campaigns, analytics and customer support, on the web and on mobile.
 
-## What is in this repo
+## Repository layout
 
 | Folder | What it is |
 |---|---|
-| `backend-python/` | FastAPI + PostgreSQL backend. 92 API operations across 81 paths, 23 database tables and 273 automated backend tests. |
-| `web/` | React + TypeScript + Vite website for attendees, organizers and platform administrators (`/admin`). |
-| `mobile/` | React Native + Expo mobile application. Attendees, organizers and door staff use the same app with role-specific interfaces. |
-| `docs/` | Setup guides, API reference, database schema, requirements, traceability matrix, acceptance reports and demonstration instructions. |
+| `backend-python/` | FastAPI + PostgreSQL backend. 92 API operations across 81 paths, 23 database tables, 273 automated backend tests. |
+| `web/` | React + TypeScript + Vite website for attendees, organizers and administrators (`/admin`). |
+| `mobile/` | React Native + Expo app. Attendees, organizers and door staff use the same app with role-specific screens. |
+| `docs/` | Setup guide, API reference, database schema, requirements, traceability matrix, acceptance reports. |
 
-## Run the project
+## Quick start (about 5 minutes)
 
-### 1. Backend and database
+Requirements: Docker Desktop (running), Node.js 20 or newer, Git.
 
-After cloning the repository, start Docker Desktop, then run from the repository root:
+### 1. Start the backend and database
+
+From the repository root:
 
 ```bash
 docker compose up -d --build
 docker compose ps
 ```
 
-The backend automatically applies versioned database migrations before starting.
-
-The local database is initialized with demonstration data on first setup.
-
-Available services:
+On first start the backend applies the database migrations and loads demonstration data. If `docker compose ps` shows the backend as stopped (it can start before the database is ready), run `docker compose up -d` once more.
 
 | Service | Address |
 |---|---|
 | Backend API | http://localhost:8000 |
 | Swagger API documentation | http://localhost:8000/docs |
-| OpenAPI specification | http://localhost:8000/openapi.json |
 | PostgreSQL | localhost:5433 |
 
-
-### 2. Install frontend dependencies
-
-From the repository root:
-
-```bash
-cd mobile
-npm ci
-
-cd ../web
-npm ci
-
-cd ..
-```
-
-**Important:** Install dependencies in both directories, even when running only the website. The current web and mobile implementations share a translation catalogue located in `mobile/src/i18n/messages.ts`.
-
-
-### 3. Run the website
-
-Open a separate terminal:
+### 2. Run the website
 
 ```bash
 cd web
-```
-
-Windows PowerShell:
-
-```powershell
-$env:VITE_API_URL = "http://127.0.0.1:8000"
+npm ci
 npm run dev -- --host 0.0.0.0 --port 3000 --strictPort
 ```
 
-Linux/macOS:
+Open http://localhost:3000. The website talks to `http://localhost:8000` by default. To use another backend address, set `VITE_API_URL` first:
 
-```bash
-export VITE_API_URL=http://127.0.0.1:8000
-npm run dev -- --host 0.0.0.0 --port 3000 --strictPort
-```
+| Shell | Command |
+|---|---|
+| Windows CMD | `set VITE_API_URL=http://127.0.0.1:8000` |
+| Windows PowerShell | `$env:VITE_API_URL = "http://127.0.0.1:8000"` |
+| Linux / macOS | `export VITE_API_URL=http://127.0.0.1:8000` |
 
-Open http://localhost:3000.
+The website shares a translation file with the mobile app (`mobile/src/i18n/messages.ts`). It builds and runs without installing the mobile dependencies.
 
-### 4. Run the mobile application
-
-Open another terminal:
+### 3. Run the mobile app (optional)
 
 ```bash
 cd mobile
+npm ci
 ```
 
-Connect your phone and computer to the same local network.
+Connect the phone and the computer to the same network and find the computer's IPv4 address (`ipconfig` on Windows). Set the API address, then start Expo:
 
-Find your computer's local IPv4 address using `ipconfig` on Windows.
-
-Windows PowerShell:
-
-```powershell
-$env:EXPO_PUBLIC_API_URL = "http://YOUR_LOCAL_IP:8000"
-npx expo start --go --lan
-```
-
-Linux/macOS:
+| Shell | Command |
+|---|---|
+| Windows CMD | `set EXPO_PUBLIC_API_URL=http://YOUR_LOCAL_IP:8000` |
+| Windows PowerShell | `$env:EXPO_PUBLIC_API_URL = "http://YOUR_LOCAL_IP:8000"` |
+| Linux / macOS | `export EXPO_PUBLIC_API_URL=http://YOUR_LOCAL_IP:8000` |
 
 ```bash
-export EXPO_PUBLIC_API_URL=http://YOUR_LOCAL_IP:8000
 npx expo start --go --lan
 ```
 
-Replace `YOUR_LOCAL_IP` with your computer's actual local IPv4 address.
+Scan the QR code with Expo Go. If Expo Go cannot run the project's native dependencies, use a development build (see `mobile/README.md`). For an Android emulator use `http://10.0.2.2:8000` as the API address.
 
-Scan the Expo QR code using a compatible Expo Go installation. If Expo Go is incompatible with the project's native dependencies, use a development build as described in `mobile/README.md`.
+Keep the backend, website and Expo server running in separate terminals.
 
-For an Android emulator, use `http://10.0.2.2:8000` as the API URL.
+## Demo accounts
 
-The backend, website and mobile development server should remain running in separate terminals.
+The password for every account is `demo1234`.
+
+| Email | Role |
+|---|---|
+| `dana@example.com` | Attendee |
+| `aigerim@example.com` | Organizer |
+| `nurlan@example.com` | Door staff |
+| `admin@example.com` | Administrator |
+
+Suggested first check: sign in as Dana, open the "Tech Meetup" event and buy a ticket (promo code `MEETUP10` gives 10% off). Then sign in as Aigerim to see the sale on the organizer dashboard. Events with assigned seating (for example "Jazz Night") cannot be bought on the website; the seat picker is not built yet.
 
 ## Updating an existing installation
 
@@ -121,17 +95,11 @@ git pull origin main
 docker compose up -d --build
 ```
 
-If package dependencies have changed, reinstall them using `npm ci` in the relevant directories.
+Run `npm ci` again in `web` or `mobile` if their dependencies changed. The backend applies new migrations on start and keeps existing data. Do not delete database volumes to fix migration problems. For a clean demo reset only, `docker compose down -v` removes all data and reloads the demonstration data on the next start.
 
-The backend applies versioned schema upgrades while preserving existing database records.
-
-**Do not delete database volumes to resolve missing columns or migration issues.**
-
-See `docs/SETUP.md` and `docs/FINAL_SYSTEM_ACCEPTANCE_REPORT.md` for additional setup and troubleshooting information.
+More setup and troubleshooting help: `docs/SETUP.md` and `docs/FINAL_SYSTEM_ACCEPTANCE_REPORT.md`.
 
 ## Testing and verification
-
-The comprehensive regression baseline is commit `c5557cf`, merged into `c90dd3c` with identical tracked contents.
 
 | Test suite | Passed |
 |---|---:|
@@ -141,22 +109,13 @@ The comprehensive regression baseline is commit `c5557cf`, merged into `c90dd3c`
 | Live Chrome integration test | 1 |
 | **Total** | **421** |
 
-The final successful runs reported zero failures.
+The comprehensive baseline is commit `c5557cf` (merged into `c90dd3c` with identical contents). Later commits changed only mobile styling (`849587d`), the README, and one website build-config file; after `849587d`, TypeScript, Expo lint and 68 mobile tests passed again (the two live integration tests need an isolated backend and were skipped).
 
-Commit `849587d` adds a mobile discovery header change. TypeScript, Expo lint and 68 mobile regression tests passed again on this version. The two live integration tests were skipped during this rerun because they require an isolated live backend.
-
-Additional verification includes:
-
-- PostgreSQL transaction and reservation concurrency tests.
-- Server-side price and promotional discount validation.
-- Idempotent checkout and support request retries.
-- Protected QR and PDF downloads.
-- Cross-account authorization tests.
-- Duplicate admission prevention.
-- Web production build and frontend lint checks.
-- Expo Doctor: 20/20 checks passed on the comprehensive baseline.
+Also covered: reservation and checkout concurrency on PostgreSQL, server-side price and discount validation, idempotent checkout and support requests, protected QR and PDF downloads, cross-account authorization, duplicate admission prevention.
 
 ### Backend tests
+
+The backend tests run against a real PostgreSQL database, so use a separate test database, never one with data you care about.
 
 ```bash
 cd backend-python
@@ -164,9 +123,7 @@ pip install -r requirements-dev.txt
 python -m pytest
 ```
 
-Configure an isolated PostgreSQL test database before running the backend suite, following the project setup documentation.
-
-Do not execute integration tests against a database containing important demonstration or user records.
+See `docs/SETUP.md` for creating the test database (schema from `docs/schema.sql`, then `python migrate.py`).
 
 ### Mobile tests
 
@@ -177,7 +134,7 @@ npx expo lint
 node --test tests/*.test.cjs
 ```
 
-Live mobile integration tests require a separately configured test backend.
+Live mobile integration tests need a separately configured test backend.
 
 ### Website checks
 
@@ -187,3 +144,8 @@ npm run build
 npm run lint
 ```
 
+## Known limitations
+
+- Assigned-seating events cannot be bought on the website (seat picker not built).
+- Payments are simulated; there is no real payment provider.
+- Requirements status is tracked in `docs/REQUIREMENTS_TRACEABILITY.csv`; some items are still marked partial or out of scope there.
